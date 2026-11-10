@@ -9,6 +9,19 @@ async function addExpense(page: import('@playwright/test').Page, amount: string,
   await page.getByTestId('save').click()
 }
 
+test('typing the next entry right after Save is never wiped by the previous save', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories')).toBeVisible()
+  await page.getByTestId('amount').fill('5')
+  await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
+  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
+  await page.getByTestId('save').click()
+  await page.getByTestId('amount').fill('6') // typed immediately, while the first save is still in flight
+  await expect(page.getByTestId('amount')).toHaveValue('6')
+  await page.waitForTimeout(300)
+  await expect(page.getByTestId('amount')).toHaveValue('6')
+})
+
 test('entries added offline are replayed once when the connection returns', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories')).toBeVisible()
@@ -17,12 +30,12 @@ test('entries added offline are replayed once when the connection returns', asyn
 
   await addExpense(page, '5', 'Offline one')
   await addExpense(page, '6', 'Offline two')
-  await expect(page.getByTestId('year-pill')).toContainText('waiting to sync')
+  await expect(page.getByTestId('year-pill')).toContainText('2 waiting to sync')
   expect(await cell(page, 'Expenses!A13')).toBeNull()
 
   await context.setOffline(false)
   await expect.poll(() => cell(page, 'Expenses!E13')).toBe('Offline one')
-  expect(await cell(page, 'Expenses!E14')).toBe('Offline two')
+  await expect.poll(() => cell(page, 'Expenses!E14')).toBe('Offline two')
   expect(await cell(page, 'Expenses!A15')).toBeNull() // exactly once each
   await expect(page.getByTestId('year-pill')).not.toContainText('waiting')
 })

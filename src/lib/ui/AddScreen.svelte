@@ -9,7 +9,7 @@
 
   // svelte-ignore state_referenced_locally
   let form = $state<FormState>(initialForm(app.device, app.lists))
-  let toast = $state(false)
+  let toast = $state('')
   // Lists arrive after the first sync; fill remembered defaults once they are known.
   // svelte-ignore state_referenced_locally
   let seeded = $state(app.lists.accounts.length > 0)
@@ -23,16 +23,22 @@
   async function onsubmit(f: FormState, coords: LatLng | null) {
     if (!app.canWrite) return
     const entry = toEntry(f, crypto.randomUUID())
-    if (coords && entry.place) {
-      const rest = app.device.places.filter((p) => p.name !== entry.place)
-      app.setDevice({ places: [...rest, { name: entry.place, ...coords }] })
-    }
-    await app.save(entry, rememberChoices(app.device, f))
+    // Clear straight away so the next entry can be typed while this one is being stored.
     form = resetAfterSave(f)
-    toast = true
-    setTimeout(() => (toast = false), 1800)
+    try {
+      if (coords && entry.place) {
+        const rest = app.device.places.filter((p) => p.name !== entry.place)
+        app.setDevice({ places: [...rest, { name: entry.place, ...coords }] })
+      }
+      await app.save(entry, rememberChoices(app.device, f))
+      toast = messages.addSaved
+    } catch {
+      form = f
+      toast = messages.saveFailed
+    }
+    setTimeout(() => (toast = ''), 1800)
   }
 </script>
 
 <EntryForm bind:form lists={app.lists} history={app.displayed} device={app.device} submitLabel={messages.addSave} {onsubmit} />
-{#if toast}<div class="toast" role="status">{messages.addSaved}</div>{/if}
+{#if toast}<div class="toast" role="status">{toast}</div>{/if}

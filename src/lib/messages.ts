@@ -14,6 +14,7 @@ export const messages = {
 
   addSave: 'Save',
   addSaved: 'Saved',
+  saveFailed: 'Could not save; your entry is still in the form',
   amount: 'Amount',
   currency: 'Currency',
   date: 'Date',
