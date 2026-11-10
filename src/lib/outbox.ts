@@ -13,6 +13,7 @@ export type Op = {
   previous?: Entry // before sending: what the user saw; after sending: what the sheet held
   status: 'pending' | 'done' | 'flagged'
   reason?: OpReason
+  undone?: boolean // set once an Undo op has been queued for it
   at: number
 }
 

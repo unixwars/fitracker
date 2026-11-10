@@ -80,3 +80,17 @@ export function rememberChoices(device: DeviceSettings, form: FormState): Partia
   if (form.account) lastCategory[`${form.kind}:account`] = form.account
   return { kind: form.kind, currency: form.currency, lastCategory }
 }
+
+export function entryToForm(e: Entry): FormState {
+  return {
+    kind: e.kind,
+    amount: (e.money.minor / 100).toFixed(2),
+    currency: e.money.currency,
+    date: e.date,
+    place: e.place ?? '',
+    description: e.description,
+    category: e.category ?? '',
+    account: e.account ?? '',
+    toAccount: e.toAccount ?? '',
+  }
+}

@@ -77,3 +77,14 @@ describe('resetAfterSave and rememberChoices', () => {
     expect(patch.lastCategory).toMatchObject({ 'expense:category': 'Groceries', 'expense:account': 'Joint' })
   })
 })
+
+describe('entryToForm', () => {
+  it('turns an entry back into editable form state', async () => {
+    const { entryToForm } = await import('./addForm')
+    const f = entryToForm({
+      id: 'a', kind: 'expense', date: '2024-01-05', money: { minor: 1250, currency: 'GBP' },
+      description: 'Coffee', place: 'Cafe', category: 'Bills', account: 'Joint',
+    })
+    expect(f).toEqual({ kind: 'expense', amount: '12.50', currency: 'GBP', date: '2024-01-05', place: 'Cafe', description: 'Coffee', category: 'Bills', account: 'Joint', toAccount: '' })
+  })
+})
