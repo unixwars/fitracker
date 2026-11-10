@@ -17,6 +17,12 @@ for data. Do not add one.
 - **One column mapping, one source.** The sheet layout is fixed across years. Define
   it once in `src/lib/schema.ts`; nothing else hardcodes a column or tab name.
 - **Rows are found by the hidden id column, never by row number.** Row numbers shift.
+- **One data seam.** Screens, the outbox and prediction use the `EntryStore` interface; only the
+  Sheets adapter knows about Sheets.
+- **Schema is versioned.** Layout changes are ordered migrations in `src/lib/migrations/`, each
+  atomic and preceded by backup tabs; a sheet newer than the app is read-only.
+- **The app never writes column C or Setup.** It writes only the id, date, amount, currency and
+  text/category/account fields; column C is a sheet formula.
 - **Offline-first.** Writes (append, edit, delete) go to an IndexedDB outbox and are
   replayed in order. A replay on a missing row is dropped and flagged, not retried.
   Last write wins per row; keep the overwritten values so the user can undo.
@@ -78,4 +84,4 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 - Minimize kv cache misses. Every tool call must have a timeout, every response to the user must be possible to react to and respond to within a minute.
 
-- No walls of text, at most a few paragraphs, ideally one. User Bottom Line Up Front communication style with the user.
+- No walls of text, at most a few paragraphs, ideally one. Use Bottom Line Up Front communication style with the user.
