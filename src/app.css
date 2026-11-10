@@ -9,10 +9,9 @@
   --danger: #c03030;
   --ok: #1f8a4c;
   --radius: 14px;
-  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --accent: #00e0e0;
     --accent-ink: #00201f;
     --bg: #0e1418;
@@ -22,8 +21,22 @@
     --line: #26343d;
     --danger: #ff7a7a;
     --ok: #5fd68d;
+    color-scheme: dark;
   }
 }
+:root[data-theme='dark'] {
+  --accent: #00e0e0;
+  --accent-ink: #00201f;
+  --bg: #0e1418;
+  --surface: #172026;
+  --ink: #e8eef2;
+  --muted: #93a2ad;
+  --line: #26343d;
+  --danger: #ff7a7a;
+  --ok: #5fd68d;
+  color-scheme: dark;
+}
+:root[data-theme='light'] { color-scheme: light; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
 #app { height: 100%; }
@@ -84,3 +97,6 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 
 .sheet-back { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
 .sheet { width: 100%; max-width: 560px; max-height: 92%; overflow-y: auto; background: var(--bg); border-radius: 20px 20px 0 0; padding: 16px; }
+
+.brand { display: flex; align-items: center; gap: 8px; }
+.logo { width: 28px; height: 28px; border-radius: 8px; background: #0e1418; padding: 3px; }

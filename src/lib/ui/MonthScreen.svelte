@@ -70,4 +70,5 @@
 </section>
 
 {#if view.approx}<p class="muted">{messages.approx}</p>{/if}
+{#each view.missingRates as c (c)}<p class="err" role="alert">{messages.ratesMissing(c)}</p>{/each}
 {#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}

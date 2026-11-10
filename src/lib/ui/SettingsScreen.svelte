@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AppState } from '../app.svelte'
-  import { MIN_YEAR } from '../config'
+  import { MIN_YEAR, type Theme } from '../config'
   import { messages } from '../messages'
   import { SCHEMA_VERSION } from '../schema'
   import { CURRENCIES, type Currency } from '../types'
@@ -43,6 +43,14 @@
 {/if}
 
 <section class="card">
+  <label class="field">
+    <span>{messages.theme}</span>
+    <select value={app.device.theme} onchange={(e) => app.setDevice({ theme: e.currentTarget.value as Theme })} data-testid="theme">
+      <option value="system">{messages.themeSystem}</option>
+      <option value="light">{messages.themeLight}</option>
+      <option value="dark">{messages.themeDark}</option>
+    </select>
+  </label>
   <label class="field">
     <span>{messages.defaultCurrency}</span>
     <select value={app.device.currency} onchange={(e) => app.setDevice({ currency: e.currentTarget.value as Currency })}>

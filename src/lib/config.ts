@@ -6,12 +6,13 @@ import type { Currency } from './types'
 
 export const MIN_YEAR = 2019
 
-export type DeviceSettings = { currency: Currency; kind: Kind; places: KnownPlace[]; lastCategory: Record<string, string> }
+export type Theme = 'system' | 'light' | 'dark'
+export type DeviceSettings = { currency: Currency; kind: Kind; places: KnownPlace[]; lastCategory: Record<string, string>; theme: Theme }
 type KV = Pick<Storage, 'getItem' | 'setItem'>
 
 const SHEETS_KEY = 'fitracker.sheets'
 const DEVICE_KEY = 'fitracker.device'
-const DEFAULT_DEVICE: DeviceSettings = { currency: 'EUR', kind: 'expense', places: [], lastCategory: {} }
+const DEFAULT_DEVICE: DeviceSettings = { currency: 'EUR', kind: 'expense', places: [], lastCategory: {}, theme: 'system' }
 
 function readJson(storage: KV, key: string): unknown {
   try {

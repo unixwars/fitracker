@@ -18,7 +18,7 @@
       <p class="muted">{messages.reasons[op.reason ?? 'Other']}</p>
       <div class="row">
         <button class="secondary" onclick={() => app.discard(op)}>{messages.discard}</button>
-        {#if op.type !== 'delete'}<button class="secondary" onclick={() => app.readd(op)}>{messages.readd}</button>{/if}
+        {#if op.type !== 'delete'}<button class="secondary" disabled={!app.canWrite} onclick={() => app.readd(op)}>{messages.readd}</button>{/if}
       </div>
     </div>
   {:else}<p class="muted">{messages.nothingToReview}</p>{/each}
@@ -39,7 +39,7 @@
     <div class="stat">
       <span>{messages.ops[op.type]} · {op.entry ? dateLabel(op.entry.date) : ''} {op.entry?.description || op.entry?.place || ''}</span>
       {#if op.undone}<span class="muted">{messages.undone}</span>
-      {:else if op.type !== 'add' || op.entry}<button class="secondary" onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
+      {:else if op.type !== 'add' || op.entry}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
     </div>
   {:else}<p class="muted">{messages.noChanges}</p>{/each}
 </section>

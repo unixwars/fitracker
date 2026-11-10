@@ -27,7 +27,7 @@
       <h2>{messages.edit}</h2>
       <button class="secondary fit" onclick={onclose}>{messages.cancel}</button>
     </div>
-    <EntryForm bind:form lists={app.lists} history={[]} device={app.device} submitLabel={messages.saveChanges} {onsubmit} lockKind />
+    <EntryForm bind:form lists={app.lists} history={[]} device={app.device} submitLabel={messages.saveChanges} year={app.year} {onsubmit} lockKind />
     <div style="margin-top: 16px">
       {#if confirming}
         <p>{messages.confirmDelete}</p>
@@ -36,7 +36,7 @@
           <button class="secondary danger" onclick={remove} data-testid="confirm-delete">{messages.confirmDeleteYes}</button>
         </div>
       {:else}
-        <button class="secondary danger" style="width:100%" onclick={() => (confirming = true)} data-testid="delete">{messages.delete}</button>
+        <button class="secondary danger" style="width:100%" disabled={!app.canWrite} onclick={() => (confirming = true)} data-testid="delete">{messages.delete}</button>
       {/if}
     </div>
   </div>

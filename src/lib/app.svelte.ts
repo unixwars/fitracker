@@ -1,6 +1,6 @@
 // Application state. Components render this; the rules live in the modules it composes.
 import type { Auth } from './auth'
-import { createConfig, type DeviceSettings } from './config'
+import { createConfig, type DeviceSettings, type Theme } from './config'
 import { AuthExpired, FlaggedRows, NewerThanApp, SchemaMismatch, UnrecognisedLayout, WrongYear } from './errors'
 import { createKv, type Kv } from './kv'
 import { verifyYear } from './link'
@@ -8,7 +8,7 @@ import { detectVersion, pendingMigrations, runMigrations } from './migrations'
 import { applyPending, makeOp, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
-import type { Entry } from './rows'
+import { todayLocal, type Entry } from './rows'
 import { createSheetsStore } from './sheets/sheetsStore'
 import type { SheetsApi } from './sheets/types'
 import type { EntryStore } from './store'
@@ -32,7 +32,13 @@ const EMPTY_LISTS: Lists = { expenseCategories: [], incomeCategories: [], accoun
 const EMPTY_RATES: Rates = { base: 'EUR', rates: { EUR: 1, GBP: 1, USD: 1 } }
 const BLOCKED: Status[] = ['unlinked', 'needs-migration', 'newer']
 const currentYear = (): number => new Date().getFullYear()
-const currentMonth = (): string => new Date().toISOString().slice(0, 7)
+const currentMonth = (): string => todayLocal().slice(0, 7)
+const PRUNE_AFTER_MS = 30 * 86_400_000
+export const applyTheme = (theme: Theme): void => {
+  if (typeof document === 'undefined') return
+  if (theme === 'system') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = theme
+}
 
 export class AppState {
   env: Env
@@ -53,7 +59,7 @@ export class AppState {
   status = $state<Status>('loading')
   online = $state(true)
   authExpired = $state(false)
-  device = $state<DeviceSettings>({ currency: 'EUR', kind: 'expense', places: [], lastCategory: {} })
+  device = $state<DeviceSettings>({ currency: 'EUR', kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
   sheetVersion = $state<number | null>(null)
   flaggedRows = $state<{ kind: string; row: number; reason: string }[]>([])
@@ -73,6 +79,7 @@ export class AppState {
     this.kv = createKv(env.idb)
     this.sheets = this.config.getSheets()
     this.device = this.config.getDevice()
+    applyTheme(this.device.theme)
     const linked = Object.keys(this.sheets).map(Number)
     if (linked.length && !this.sheets[this.year]) this.year = Math.max(...linked)
     if (!this.month.startsWith(String(this.year))) this.month = `${this.year}-01`
@@ -93,7 +100,14 @@ export class AppState {
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void this.sync() })
     }
     this.env.auth.onExpired(() => (this.authExpired = true))
-    this.ops = await this.db.all()
+    try {
+      this.ops = await this.db.all()
+      await this.db.prune(PRUNE_AFTER_MS)
+    } catch {
+      this.status = 'error'
+      this.message = messages.storageUnavailable
+      return
+    }
     await this.loadCache()
     await this.sync()
   }
@@ -128,15 +142,20 @@ export class AppState {
     }
     this.syncing = true
     this.authExpired = false
+    const year = this.year // the user may switch year while this runs; never mix the two
     try {
       await this.replayer.run()
-      this.entries = await this.store.list(this.year)
-      this.lists = await this.store.lists(this.year)
-      this.rates = await this.store.rates(this.year)
+      const entries = await this.store.list(year)
+      const lists = await this.store.lists(year)
+      const rates = await this.store.rates(year)
+      if (this.year !== year) return // a sync for the new year follows (see `again`)
+      this.entries = entries
+      this.lists = lists
+      this.rates = rates
       this.status = 'ok'
       this.message = ''
-      await this.kv.set(`year-${this.year}`, { entries: $state.snapshot(this.entries), lists: $state.snapshot(this.lists), rates: $state.snapshot(this.rates) })
-      await this.replayer.verify(this.year)
+      await this.kv.set(`year-${year}`, { entries: $state.snapshot(entries), lists: $state.snapshot(lists), rates: $state.snapshot(rates) })
+      await this.replayer.verify(year)
     } catch (err) {
       await this.handleSyncError(err)
     } finally {
@@ -179,15 +198,22 @@ export class AppState {
   setDevice(patch: Partial<DeviceSettings>) {
     this.config.setDevice(patch)
     this.device = this.config.getDevice()
+    applyTheme(this.device.theme)
   }
 
   async save(entry: Entry, remember: Partial<DeviceSettings>) {
+    if (!this.canWrite) throw new Error('read-only')
     this.setDevice(remember)
     await this.enqueue(makeOp('add', this.year, entry))
   }
-  async edit(entry: Entry, previous: Entry) { await this.enqueue(makeOp('edit', this.year, entry, previous)) }
-  async remove(entry: Entry) { await this.enqueue(makeOp('delete', this.year, entry, entry)) }
+  async edit(entry: Entry, previous: Entry) {
+    if (this.canWrite) await this.enqueue(makeOp('edit', this.year, entry, previous))
+  }
+  async remove(entry: Entry) {
+    if (this.canWrite) await this.enqueue(makeOp('delete', this.year, entry, entry))
+  }
   async undoOp(op: Op) {
+    if (!this.canWrite) return
     await this.db.update(op.opId, { undone: true })
     await this.enqueue(undo(op))
   }
@@ -196,6 +222,7 @@ export class AppState {
     this.ops = await this.db.all()
   }
   async readd(op: Op) {
+    if (!this.canWrite) return
     if (op.entry && op.type !== 'delete') await this.db.put($state.snapshot(makeOp('add', op.year, op.entry)) as Op)
     await this.db.remove(op.opId)
     this.ops = await this.db.all()

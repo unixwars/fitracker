@@ -3,7 +3,7 @@ import { applySuggestion, initialForm, rememberChoices, resetAfterSave, toEntry,
 import type { DeviceSettings } from './config'
 import { DEFAULT_LISTS } from './sheets/fixtures'
 
-const device: DeviceSettings = { currency: 'GBP', kind: 'income', places: [], lastCategory: { 'expense:category': 'Bills', 'expense:account': 'M-Cash' } }
+const device: DeviceSettings = { currency: 'GBP', kind: 'income', theme: 'system', places: [], lastCategory: { 'expense:category': 'Bills', 'expense:account': 'M-Cash' } }
 const now = new Date('2024-01-10T23:30:00-05:00')
 
 describe('initialForm', () => {

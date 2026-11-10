@@ -33,7 +33,7 @@ describe('config', () => {
   })
   it('keeps device settings with sensible defaults', () => {
     const c = createConfig(memory().storage)
-    expect(c.getDevice()).toMatchObject({ currency: 'EUR', kind: 'expense', places: [] })
+    expect(c.getDevice()).toMatchObject({ currency: 'EUR', kind: 'expense', places: [], theme: 'system' })
     c.setDevice({ currency: 'GBP' })
     expect(c.getDevice().currency).toBe('GBP')
     expect(c.getDevice().kind).toBe('expense')

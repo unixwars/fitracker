@@ -11,3 +11,6 @@ Rare situations the app accepts; each can be fixed by a person in the sheet.
 - Rows sorted in Sheets keep their ids in column A; if an id ends up on a different entry the app refuses to edit it and flags it.
 - Template quirks left as they are: Expenses `H14` has a category dropdown on an account column, and Transfers `E10:G10` have date validation instead of account dropdowns.
 - Rollover budgets (Setup "Use Rollover") are shown by the sheet only, not by the app.
+- Entries with a negative amount typed in the sheet are shown but cannot be edited in the app (the form only accepts positive amounts).
+- Ids for rows typed directly in Sheets are written to the row numbers of the read that found them; sorting the sheet in the few milliseconds in between could attach an id to the wrong row, which the wrong-row check then flags on the next edit.
+- An entry must be dated inside the selected year; to record one in another year, switch the year in Settings first.

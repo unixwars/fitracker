@@ -16,6 +16,7 @@
     submitLabel,
     onsubmit,
     lockKind = false,
+    year,
   }: {
     form: FormState
     lists: Lists
@@ -24,6 +25,7 @@
     submitLabel: string
     onsubmit: (form: FormState, coords: LatLng | null) => void
     lockKind?: boolean
+    year?: number
   } = $props()
 
   let errors = $state<Errors>({})
@@ -66,7 +68,7 @@
 
   function submit(ev: Event) {
     ev.preventDefault()
-    errors = validate(form, lists)
+    errors = validate(form, lists, year)
     if (Object.keys(errors).length === 0) onsubmit(form, coords)
   }
 
@@ -159,6 +161,8 @@
     </button>
     <input bind:this={dateEl} type="date" bind:value={form.date} aria-label={messages.date} style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;min-height:0;padding:0;border:0" tabindex="-1" />
   </div>
+
+  {#if errors.date}<p class="err">{messages.errors.date}</p>{/if}
 
   <button class="primary" type="submit" data-testid="save">{submitLabel}</button>
 </form>
