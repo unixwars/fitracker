@@ -1,8 +1,8 @@
-import { NewerThanApp, SchemaMismatch } from '../errors'
+import { NewerThanApp, RowChanged, RowGone, SchemaMismatch } from '../errors'
 import type { AddResult, EntryStore, RefreshOpts } from '../store'
 import { toMinor } from '../money'
-import { rowToEntry, type Entry, type Kind } from '../rows'
-import { FIRST_ROW, KINDS, META_KEY, SCHEMA_VERSION, SETUP, TABS, dataRange } from '../schema'
+import { clearWrites, entryToWrites, findFreeRow, rowToEntry, type Entry, type Kind } from '../rows'
+import { FIRST_ROW, KINDS, META_KEY, SCHEMA_VERSION, SETUP, TABS, columnRange, dataRange } from '../schema'
 import { CURRENCIES, type Currency, type Lists } from '../types'
 import type { SheetsApi } from './types'
 
@@ -114,7 +114,70 @@ export function createSheetsStore(api: SheetsApi, ids: Record<number, string>, o
     return { data, fetched: true }
   }
 
-  const notImplemented = (): never => { throw new Error('write path not implemented') }
+  const MAX_PLACE_ATTEMPTS = 5
+  const markDirty = (year: number) => {
+    stale.add(year)
+    notify()
+  }
+
+  // A different row than the one the user edited: none of date, amount or description match.
+  const looksSame = (a: Entry, b: Entry) =>
+    a.date === b.date || a.description === b.description || (a.money.minor === b.money.minor && a.money.currency === b.money.currency)
+
+  async function locate(year: number, kind: Kind, entryId: string, expectedPrevious?: Entry): Promise<{ row: number; previous: Entry }> {
+    await ensureVersion(year)
+    const [data, base] = await api.batchGet(sheetId(year), [dataRange(kind), SETUP.baseCurrency])
+    const baseCur: Currency = isCurrency(base?.[0]?.[0]) ? (base[0][0] as Currency) : 'EUR'
+    const i = data.findIndex((r) => str(r?.[0]) === entryId)
+    const previous = i < 0 ? null : rowToEntry(kind, data[i], baseCur)
+    if (!previous) throw new RowGone(entryId)
+    if (expectedPrevious && !looksSame(previous, expectedPrevious)) throw new RowChanged(entryId)
+    return { row: FIRST_ROW + i, previous: { ...previous, id: entryId } }
+  }
+
+  async function addMany(year: number, entries: Entry[]): Promise<AddResult[]> {
+    await ensureVersion(year)
+    const id = sheetId(year)
+    const results = new Map<string, AddResult>()
+    let pending = entries.filter((e, i) => entries.findIndex((x) => x.id === e.id) === i)
+    for (let attempt = 0; attempt < MAX_PLACE_ATTEMPTS && pending.length; attempt++) {
+      const kinds = KINDS.filter((k) => pending.some((e) => e.kind === k))
+      const cols = (k: Kind) => [TABS[k].cols.id, TABS[k].cols.date, TABS[k].cols.amount, TABS[k].cols.fields.description!]
+      const got = await api.batchGet(id, kinds.flatMap((k) => cols(k).map((c) => columnRange(k, c))))
+      const flat = (k: Kind, n: number) => (got[kinds.indexOf(k) * 4 + n] ?? []).map((r) => r?.[0] ?? '')
+      const present = new Set(kinds.flatMap((k) => flat(k, 0).map(str)))
+      pending = pending.filter((e) => {
+        if (!present.has(e.id)) return true
+        results.set(e.id, { id: e.id, ok: true })
+        return false
+      })
+      const placed: { entry: Entry; row: number }[] = []
+      for (const k of kinds) {
+        const ids = flat(k, 0)
+        for (const e of pending.filter((x) => x.kind === k)) {
+          const row = findFreeRow(k, ids, flat(k, 1), flat(k, 2), flat(k, 3))
+          if (row === 'full') {
+            results.set(e.id, { id: e.id, ok: false, reason: 'TabFull' })
+            continue
+          }
+          ids[row - FIRST_ROW] = e.id // reserve for the next entry of this kind
+          placed.push({ entry: e, row })
+        }
+      }
+      pending = pending.filter((e) => !results.has(e.id))
+      if (!placed.length) break
+      await api.valuesBatchUpdate(id, placed.flatMap((p) => entryToWrites(p.entry, p.row)))
+      const back = await api.batchGet(id, kinds.map((k) => columnRange(k, TABS[k].cols.id)))
+      for (const p of placed) {
+        const cell = back[kinds.indexOf(p.entry.kind)]?.[p.row - FIRST_ROW]?.[0]
+        if (str(cell) === p.entry.id) results.set(p.entry.id, { id: p.entry.id, ok: true })
+      }
+      pending = pending.filter((e) => !results.has(e.id))
+    }
+    markDirty(year)
+    if (pending.length) throw new Error('Could not place all entries; try again')
+    return entries.map((e) => results.get(e.id)!)
+  }
 
   const store: EntryStore = {
     async list(year) { return (await load(year)).data.entries },
@@ -128,9 +191,19 @@ export function createSheetsStore(api: SheetsApi, ids: Record<number, string>, o
       listeners.add(fn)
       return () => listeners.delete(fn)
     },
-    addMany: async (): Promise<AddResult[]> => notImplemented(),
-    edit: async () => notImplemented(),
-    delete: async () => notImplemented(),
+    addMany,
+    async edit(year, entry, expectedPrevious) {
+      const { row, previous } = await locate(year, entry.kind, entry.id, expectedPrevious)
+      await api.valuesBatchUpdate(sheetId(year), entryToWrites(entry, row))
+      markDirty(year)
+      return { previous }
+    },
+    async delete(year, kind, entryId, expectedPrevious) {
+      const { row, previous } = await locate(year, kind, entryId, expectedPrevious)
+      await api.valuesBatchClear(sheetId(year), clearWrites(kind, row).map((c) => c.range))
+      markDirty(year)
+      return { previous }
+    },
   }
   return Object.assign(store, { _internals: { api, sheetId, stale, cache, notify, newId, now } as Internals })
 }
