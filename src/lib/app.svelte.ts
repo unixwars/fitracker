@@ -58,6 +58,7 @@ export class AppState {
   sheetVersion = $state<number | null>(null)
   flaggedRows = $state<{ kind: string; row: number; reason: string }[]>([])
   syncing = $state(false)
+  private again = false // a change arrived while a sync was running
 
   displayed = $derived(applyPending(this.entries, this.ops.filter((o) => o.year === this.year)))
   attention = $derived(this.ops.filter((o) => o.status === 'flagged'))
@@ -112,7 +113,10 @@ export class AppState {
   }
 
   async sync() {
-    if (this.syncing) return
+    if (this.syncing) {
+      this.again = true
+      return
+    }
     if (!this.sheets[this.year]) {
       this.status = 'unlinked'
       return
@@ -138,6 +142,10 @@ export class AppState {
     } finally {
       this.ops = await this.db.all()
       this.syncing = false
+      if (this.again) {
+        this.again = false
+        void this.sync()
+      }
     }
   }
 
@@ -148,7 +156,10 @@ export class AppState {
       try {
         this.sheetVersion = await detectVersion(this.env.api, this.sheets[this.year])
         this.status = this.sheetVersion === 2 ? 'loading' : 'needs-migration'
-        if (this.sheetVersion === 2) { this.build(); queueMicrotask(() => { this.syncing = false; void this.sync() }) }
+        if (this.sheetVersion === 2) {
+          this.build()
+          this.again = true
+        }
       } catch (e) {
         this.status = 'error'
         this.message = e instanceof UnrecognisedLayout ? e.message : String(e)
@@ -160,7 +171,7 @@ export class AppState {
   }
 
   private async enqueue(op: Op) {
-    await this.db.put(op)
+    await this.db.put($state.snapshot(op) as Op)
     this.ops = await this.db.all()
     void this.sync()
   }
@@ -185,7 +196,7 @@ export class AppState {
     this.ops = await this.db.all()
   }
   async readd(op: Op) {
-    if (op.entry && op.type !== 'delete') await this.db.put(makeOp('add', op.year, op.entry))
+    if (op.entry && op.type !== 'delete') await this.db.put($state.snapshot(makeOp('add', op.year, op.entry)) as Op)
     await this.db.remove(op.opId)
     this.ops = await this.db.all()
     void this.sync()
