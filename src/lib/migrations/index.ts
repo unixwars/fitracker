@@ -1,13 +1,14 @@
-import { NewerThanApp, UnrecognisedLayout } from '../errors'
+import { FlaggedRows, NewerThanApp, UnrecognisedLayout } from '../errors'
 import { KINDS, META_KEY, SCHEMA_VERSION, TABS, dataRange, headerRange } from '../schema'
 import type { SheetOp, SheetsApi } from '../sheets/types'
 import type { Flagged, Migration, SheetState } from './types'
 import { m0to1 } from './m0to1'
+import { m1to2 } from './m1to2'
 import type { Currency } from '../types'
 
 export type { Flagged, Migration, SheetState } from './types'
 
-export const MIGRATIONS: Migration[] = [m0to1]
+export const MIGRATIONS: Migration[] = [m0to1, m1to2]
 
 export const pendingMigrations = (current: number): Migration[] => MIGRATIONS.filter((m) => m.from >= current)
 
@@ -55,6 +56,7 @@ export async function runMigrations(api: SheetsApi, id: string, opts: RunOptions
   for (const m of pendingMigrations(version).filter((x) => x.to <= target)) {
     const state = await readState(api, id)
     const plan = m.plan(state, ctx)
+    if (plan.flagged.length) throw new FlaggedRows(plan.flagged)
     const backups: SheetOp[] = KINDS.map((k) => ({ t: 'copyTab', from: TABS[k].name, to: `${TABS[k].name} (backup v${m.from})` }))
     await api.applyOps(id, [...backups, ...plan.ops, { t: 'metadata', key: META_KEY, value: String(m.to) }])
     applied.push([m.from, m.to])

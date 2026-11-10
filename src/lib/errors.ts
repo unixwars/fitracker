@@ -14,3 +14,6 @@ export class RowGone extends AppError { constructor(public id: string) { super('
 export class RowChanged extends AppError { constructor(public id: string) { super('RowChanged', `Row ${id} now holds a different entry`) } }
 export class TabFull extends AppError { constructor() { super('TabFull') } }
 export class WrongYear extends AppError { constructor(public found: unknown) { super('WrongYear') } }
+export class FlaggedRows extends AppError {
+  constructor(public rows: { kind: string; row: number; reason: string }[]) { super('FlaggedRows', `${rows.length} rows need a manual fix before migrating`) }
+}
