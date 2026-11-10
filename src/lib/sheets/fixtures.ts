@@ -44,3 +44,25 @@ export function seedV2(fake: FakeSheets, id: string, opts: { year?: number; base
   }
   if (opts.metadata !== false) b.metadata.set(META_KEY, String(SCHEMA_VERSION))
 }
+
+const V0_CONVERSION = (row: number) => ({ f: `=IFERROR(__xludf.DUMMYFUNCTION("IF(NOT(ISBLANK(D${row})),GOOGLEFINANCE(""CURRENCY:GBPEUR"")*D${row},"""")"),"")`, v: '' })
+
+export type V0Row = { kind: 'expense' | 'income' | 'transfer'; row: number; cells: Record<string, unknown> } // cells by column letter
+export { V0_CONVERSION }
+
+/** Seeds a fake spreadsheet in the raw template layout (version 0): EUR in C, GBP in D, formulas in C. */
+export function seedV0(fake: FakeSheets, id: string, opts: { rows?: V0Row[]; year?: number; lists?: Lists } = {}): void {
+  seedV2(fake, id, { year: opts.year, lists: opts.lists, metadata: false })
+  const b = fake.book(id)
+  for (const k of KINDS) {
+    const t = TABS[k]
+    b.clear(`${t.name}!B9:${t.cols.currency}9`)
+    t.headersV0.forEach((h, i) => b.set(`${t.name}!${String.fromCharCode(66 + i)}9`, h))
+    b.clear(`${t.name}!C10:C${t.lastRow}`)
+    for (let r = 10; r <= t.lastRow; r++) b.set(`${t.name}!C${r}`, V0_CONVERSION(r))
+  }
+  for (const r of opts.rows ?? []) {
+    const name = TABS[r.kind].name
+    for (const [col, v] of Object.entries(r.cells)) b.set(`${name}!${col}${r.row}`, v)
+  }
+}
