@@ -1,0 +1,24 @@
+{
+  "name": "Finance PWA",
+  "image": "docker.io/library/node:lts-bookworm-slim",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils": {"username": "none", "extraPackages": ["libatomic1"]},
+    "ghcr.io/devcontainers/features/github-cli:1": {"installDirectlyFromGitHubRelease": false}
+  },
+  "remoteUser": "root",
+  "mounts": [
+    "source=claude-code-config,target=/root/.claude,type=volume",
+    "source=claude-code-agents,target=/root/.agents,type=volume",
+    "source=claude-code-secrets,target=/root/.secrets,type=volume"
+  ],
+  "forwardPorts": [5173, 8787],
+  "postCreateCommand": "ln -sf /root/.secrets/gh_token /root/.gh_token && apt-get update && apt-get install -y openssh-client python3 python3-pip python3-venv ripgrep jq unzip && mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts && npm install -g pnpm @anthropic-ai/claude-code && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium; fi",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "anthropic.claude-code"
+      ]
+    }
+  }
+}
