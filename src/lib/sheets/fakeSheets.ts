@@ -48,7 +48,7 @@ export class Book {
     const r = parseRange(range)
     const t = this.sheets.get(r.sheet) ?? new Map<string, Cell>()
     const rows: unknown[][] = []
-    for (let row = r.r1; row <= r.r2; row++) {
+    for (let row = r.r1; row <= Math.min(r.r2, this.lastRow(r.sheet)); row++) {
       const out: unknown[] = []
       for (let col = r.c1; col <= r.c2; col++) {
         const c = t.get(`${row},${col}`)
@@ -69,7 +69,13 @@ export class Book {
   clear(range: string): void {
     const r = parseRange(range)
     const t = this.tab(r.sheet)
-    for (let row = r.r1; row <= r.r2; row++) for (let col = r.c1; col <= r.c2; col++) t.delete(`${row},${col}`)
+    for (let row = r.r1; row <= Math.min(r.r2, this.lastRow(r.sheet)); row++) for (let col = r.c1; col <= r.c2; col++) t.delete(`${row},${col}`)
+  }
+
+  lastRow(sheet: string): number {
+    let max = 0
+    for (const key of this.sheets.get(sheet)?.keys() ?? []) max = Math.max(max, Number(key.split(',')[0]))
+    return max
   }
 }
 

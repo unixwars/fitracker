@@ -1,7 +1,7 @@
 import type { Currency, Money } from './types'
 
-const GROUPED_DOT = /^\d{1,3}(\.\d{3})+$/
-const GROUPED_COMMA = /^\d{1,3}(,\d{3})+$/
+const GROUPED_DOT = /^[1-9]\d{0,2}(\.\d{3})+$/
+const GROUPED_COMMA = /^[1-9]\d{0,2}(,\d{3})+$/
 
 // Returns minor units (2 digits) or null. A lone separator followed by exactly three digits is
 // read as a thousands group; followed by one or two digits as the decimal separator.

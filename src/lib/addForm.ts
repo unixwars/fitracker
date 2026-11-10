@@ -15,20 +15,27 @@ export type FormState = {
   account: string
   toAccount: string
 }
-export type Errors = Partial<Record<'amount' | 'category' | 'account' | 'toAccount', string>>
+export type Errors = Partial<Record<'amount' | 'category' | 'account' | 'toAccount' | 'date', string>>
 
 export const categoriesFor = (kind: Kind, lists: Lists): string[] =>
   kind === 'expense' ? lists.expenseCategories : kind === 'income' ? lists.incomeCategories : []
 
 const valid = (v: string | undefined, options: string[]) => (v && options.includes(v) ? v : '')
 
-export function initialForm(device: DeviceSettings, lists: Lists, now: Date = new Date()): FormState {
+// Entries belong to the sheet of the selected year, so the default date stays inside that year.
+function defaultDate(now: Date, year?: number): string {
+  const today = todayLocal(now)
+  if (year === undefined || Number(today.slice(0, 4)) === year) return today
+  return year < Number(today.slice(0, 4)) ? `${year}-12-31` : `${year}-01-01`
+}
+
+export function initialForm(device: DeviceSettings, lists: Lists, now: Date = new Date(), year?: number): FormState {
   const kind = device.kind
   return {
     kind,
     amount: '',
     currency: device.currency,
-    date: todayLocal(now),
+    date: defaultDate(now, year),
     place: '',
     description: '',
     category: valid(device.lastCategory[`${kind}:category`], categoriesFor(kind, lists)),
@@ -45,8 +52,9 @@ export function applySuggestion(form: FormState, s: Suggestion, lists: Lists, fi
   return next
 }
 
-export function validate(form: FormState, lists: Lists): Errors {
+export function validate(form: FormState, lists: Lists, year?: number): Errors {
   const errors: Errors = {}
+  if (year !== undefined && !form.date.startsWith(`${year}-`)) errors.date = 'date'
   const minor = parseAmount(form.amount)
   if (minor === null || minor <= 0) errors.amount = 'amount'
   if (form.kind !== 'transfer' && !valid(form.category, categoriesFor(form.kind, lists))) errors.category = 'category'

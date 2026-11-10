@@ -144,3 +144,24 @@ describe('delete', () => {
     await expect(make().delete(2024, 'expense', 'nope')).rejects.toBeInstanceOf(RowGone)
   })
 })
+
+describe('wrong-row protection', () => {
+  const noText = (id: string) => mk(id, { description: '', place: 'Cafe' })
+  beforeEach(() => {
+    seedV2(fake, ID, { entries: [{ row: 10, entry: noText('a') }] })
+    // ids drifted away from their entries: row 10 still has id "a" but now holds another entry
+    fake.book(ID).write('Expenses!B10:I10', [[45400, '', 999, 'Rent', '', 'Bills', 'Joint', 'EUR']])
+  })
+  it('refuses to edit it even though both descriptions are empty', async () => {
+    await expect(make().edit(2024, { ...noText('a'), money: { minor: 100, currency: 'EUR' } }, noText('a'))).rejects.toBeInstanceOf(RowChanged)
+    expect(fake.book(ID).get('Expenses!E10')?.v).toBe('Rent')
+  })
+  it('refuses to delete it', async () => {
+    await expect(make().delete(2024, 'expense', 'a', noText('a'))).rejects.toBeInstanceOf(RowChanged)
+    expect(fake.book(ID).get('Expenses!A10')?.v).toBe('a')
+  })
+  it('still lets a change to only the amount through', async () => {
+    fake.book(ID).write('Expenses!B10:I10', [[45296, '', 999, 'Cafe', '', 'Groceries', 'Joint', 'GBP']])
+    await expect(make().edit(2024, noText('a'), noText('a'))).resolves.toBeDefined()
+  })
+})

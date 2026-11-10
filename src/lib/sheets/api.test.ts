@@ -42,6 +42,15 @@ describe('createSheetsApi', () => {
     await expect(api(new Response('nope', { status: 403 })).getMetadata('S1', 'k')).rejects.toBeInstanceOf(ApiError)
   })
 
+  it('understands Retry-After as seconds, as an HTTP date, and falls back when it is unusable', async () => {
+    const wait = async (h: string) => (await createSheetsApi(() => 'tok', stub([new Response('', { status: 429, headers: { 'Retry-After': h } })]).fetchImpl).getMetadata('S1', 'k').catch((x) => x)).retryAfterMs
+    expect(await wait('3')).toBe(3000)
+    const future = await wait(new Date(Date.now() + 5000).toUTCString())
+    expect(future).toBeGreaterThan(0)
+    expect(future).toBeLessThanOrEqual(5000)
+    expect(await wait('garbage')).toBe(2000)
+  })
+
   it('fails with AuthExpired without a token, before any request', async () => {
     const { calls, fetchImpl } = stub([])
     await expect(createSheetsApi(() => null, fetchImpl).getMetadata('S1', 'k')).rejects.toBeInstanceOf(AuthExpired)
@@ -95,6 +104,10 @@ describe('compileOps', () => {
   it('updates metadata that already exists', () => {
     const r = compileOps([{ t: 'metadata', key: 'k', value: '2' }], tabs, new Set(['k']))
     expect(r[0].updateDeveloperMetadata.developerMetadata.metadataValue).toBe('2')
+  })
+  it('leaves the end row off for ranges that run to the bottom', () => {
+    const r = compileOps([{ t: 'clear', range: 'Expenses!C10:C' }], tabs, new Set())
+    expect(r[0].repeatCell.range).toEqual({ sheetId: 7, startRowIndex: 9, startColumnIndex: 2, endColumnIndex: 3 })
   })
   it('rejects unknown tabs', () => {
     expect(() => compileOps([{ t: 'hideColumn', tab: 'Nope', column: 'A' }], tabs, new Set())).toThrow()

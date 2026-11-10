@@ -17,7 +17,7 @@ describe('parseAmount', () => {
     expect(parseAmount('0')).toBe(0)
   })
   it('rejects empty, junk, exponents and negatives', () => {
-    for (const bad of ['', '  ', 'abc', '1e9', '-3', '1.2.3,4,5', '1.234,567']) {
+    for (const bad of ['', '  ', 'abc', '1e9', '-3', '1.2.3,4,5', '1.234,567', '0.125', '0,125']) {
       expect(parseAmount(bad)).toBeNull()
     }
   })

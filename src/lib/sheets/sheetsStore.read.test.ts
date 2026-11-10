@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { SchemaMismatch } from '../errors'
+import { NewerThanApp, SchemaMismatch } from '../errors'
 import type { Entry } from '../rows'
 import { createFakeSheets, type FakeSheets } from './fakeSheets'
 import { seedV2 } from './fixtures'
@@ -89,6 +89,14 @@ describe('sheets store: read', () => {
     expect(b.get('Expenses!A20')?.v).toBe('gen-id')
     const writes = fake.calls.filter((c) => c.method === 'valuesBatchUpdate').flatMap((c) => c.args[1] as { range: string }[])
     expect(writes.every((w) => /!A\d+$/.test(w.range))).toBe(true)
+  })
+
+  it('re-checks the schema version now and then so a stale session notices a newer sheet', async () => {
+    const store = make()
+    await store.list(2024)
+    fake.book('sheet-2024').metadata.set('fitracker.schemaVersion', '3')
+    now += 6 * 60_000
+    await expect(store.refresh(2024, { force: true })).rejects.toBeInstanceOf(NewerThanApp)
   })
 
   it('notifies subscribers after a refresh', async () => {

@@ -12,11 +12,12 @@ export type MonthView = {
   income: Section
   savingsRate: number | null
   approx: boolean // true when entries in more than one currency were combined
+  missingRates: Currency[] // currencies used this month whose exchange rate is unavailable (left out of combined totals)
 }
 
 type Rates = Record<Currency, number>
 
-function section(entries: Entry[], names: string[], budgets: Record<string, number[]>, monthIndex: number, rates: Rates, base: Currency): Section {
+function section(entries: Entry[], names: string[], budgets: Record<string, number[]>, monthIndex: number, rates: Rates, base: Currency, missing: Set<Currency>): Section {
   const known = new Set(names)
   const rows = names.map((name) => ({ name, native: new Map<Currency, number>(), planned: budgets[name]?.[monthIndex] ?? 0 }))
   const byName = new Map(rows.map((r) => [r.name, r]))
@@ -33,7 +34,10 @@ function section(entries: Entry[], names: string[], budgets: Record<string, numb
   if (other) rows.push(other)
   const toBase = (native: Map<Currency, number>) => {
     let sum = 0
-    for (const [cur, minor] of native) sum += minor * rates[cur]
+    for (const [cur, minor] of native) {
+      if (Number.isFinite(rates[cur])) sum += minor * rates[cur]
+      else missing.add(cur)
+    }
     return Math.sign(sum) * Math.round(Math.abs(sum))
   }
   const categories: CategoryRow[] = rows.map((r) => ({
@@ -49,8 +53,9 @@ function section(entries: Entry[], names: string[], budgets: Record<string, numb
 export function monthView(entries: Entry[], lists: Lists, month: string, rates: Rates, base: Currency): MonthView {
   const monthIndex = Number(month.slice(5, 7)) - 1
   const inMonth = entries.filter((e) => e.date.startsWith(month))
-  const exp = section(inMonth.filter((e) => e.kind === 'expense'), lists.expenseCategories, lists.expenseBudgets, monthIndex, rates, base)
-  const inc = section(inMonth.filter((e) => e.kind === 'income'), lists.incomeCategories, lists.incomeBudgets, monthIndex, rates, base)
+  const missing = new Set<Currency>()
+  const exp = section(inMonth.filter((e) => e.kind === 'expense'), lists.expenseCategories, lists.expenseBudgets, monthIndex, rates, base, missing)
+  const inc = section(inMonth.filter((e) => e.kind === 'income'), lists.incomeCategories, lists.incomeBudgets, monthIndex, rates, base, missing)
   const business: Money = exp.categories.find((c) => c.name === BUSINESS)?.actual ?? { minor: 0, currency: base }
   const used = new Set(inMonth.filter((e) => e.kind !== 'transfer').map((e) => e.money.currency))
   const savingsRate = inc.actual.minor > 0 ? (inc.actual.minor - exp.actual.minor) / inc.actual.minor : null
@@ -60,5 +65,6 @@ export function monthView(entries: Entry[], lists: Lists, month: string, rates: 
     income: inc,
     savingsRate,
     approx: used.size > 1,
+    missingRates: [...missing].sort(),
   }
 }

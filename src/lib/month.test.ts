@@ -27,6 +27,21 @@ const entries: Entry[] = [
   e({ kind: 'income', date: '2024-01-25', money: { minor: 300000, currency: 'EUR' }, category: 'Paycheck' }),
 ]
 
+describe('unavailable exchange rates', () => {
+  it('excludes the currency from combined totals and reports it instead of showing NaN', () => {
+    const v = monthView(entries, lists, '2024-01', { EUR: 1, GBP: NaN, USD: 0.9 }, 'EUR')
+    expect(v.missingRates).toEqual(['GBP'])
+    expect(Number.isNaN(v.expenses.actual.minor)).toBe(false)
+    expect(v.expenses.actual.minor).toBe(7700) // 8850 without the GBP 1000 (= 1150)
+    const groceries = v.expenses.categories.find((c) => c.name === 'Groceries')!
+    expect(groceries.byCurrency).toContainEqual({ minor: 1000, currency: 'GBP' })
+    expect(Number.isNaN(v.savingsRate as number)).toBe(false)
+  })
+  it('reports nothing when every needed rate is available', () => {
+    expect(monthView(entries, lists, '2024-01', rates, 'EUR').missingRates).toEqual([])
+  })
+})
+
 describe('monthView', () => {
   const v = monthView(entries, lists, '2024-01', rates, 'EUR')
 

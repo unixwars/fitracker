@@ -22,7 +22,7 @@ export const m1to2: Migration = {
     const ops: SheetOp[] = []
     const flagged: Flagged[] = []
     for (const kind of KINDS) {
-      const { name, cols, lastRow, headersV2 } = TABS[kind]
+      const { name, cols, headersV2 } = TABS[kind]
       const [cI, dI] = [colIndex(cols.base), colIndex(cols.amount)]
       const amounts: unknown[][] = []
       const currencies: unknown[][] = []
@@ -34,8 +34,8 @@ export const m1to2: Migration = {
         let amount: unknown = ''
         let currency: unknown = ''
         if (typeof c === 'number') {
-          amount = c // typed over the conversion formula: the amount actually paid
-          currency = ctx.baseCurrency
+          amount = c // typed over the conversion formula in the template's euro column
+          currency = 'EUR'
         } else if (!blank(c) && !isTemplateConversion(c)) {
           flag(isFormula(c) ? 'Column C holds a custom formula' : 'Column C holds text')
         } else if (typeof d === 'number') {
@@ -53,11 +53,11 @@ export const m1to2: Migration = {
         ops.push({ t: 'set', range: `${name}!D${FIRST_ROW}:D${last}`, values: amounts })
         ops.push({ t: 'set', range: `${name}!${cols.currency}${FIRST_ROW}:${cols.currency}${last}`, values: currencies })
       }
-      ops.push({ t: 'clear', range: `${name}!C${FIRST_ROW}:C${lastRow}` })
+      ops.push({ t: 'clear', range: `${name}!C${FIRST_ROW}:C` })
       ops.push({ t: 'set', range: `${name}!C${FIRST_ROW}`, values: [[conversionFormula(cols.currency)]] })
-      ops.push({ t: 'listValidation', range: `${name}!${cols.currency}${FIRST_ROW}:${cols.currency}${lastRow}`, values: [...CURRENCIES] })
-      ops.push({ t: 'numberFormat', range: `${name}!D${FIRST_ROW}:D${lastRow}`, pattern: '#,##0.00' })
-      if (ctx.baseCurrency !== 'EUR') ops.push({ t: 'numberFormat', range: `${name}!C${FIRST_ROW}:C${lastRow}`, pattern: '#,##0.00' })
+      ops.push({ t: 'listValidation', range: `${name}!${cols.currency}${FIRST_ROW}:${cols.currency}`, values: [...CURRENCIES] })
+      ops.push({ t: 'numberFormat', range: `${name}!D${FIRST_ROW}:D`, pattern: '#,##0.00' })
+      if (ctx.baseCurrency !== 'EUR') ops.push({ t: 'numberFormat', range: `${name}!C${FIRST_ROW}:C`, pattern: '#,##0.00' })
     }
     const rateFormula = (c: Currency, row: number) => (c === ctx.baseCurrency ? 1 : `=GOOGLEFINANCE("CURRENCY:"&T${row}&$U$8)`)
     ops.push({ t: 'set', range: SETUP.baseLabel, values: [['Base currency']] })

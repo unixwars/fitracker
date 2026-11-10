@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { FlaggedRows } from '../errors'
 import { META_KEY } from '../schema'
 import { createFakeSheets, type FakeSheets } from '../sheets/fakeSheets'
-import { seedV0 } from '../sheets/fixtures'
+import { seedV0, V0_CONVERSION } from '../sheets/fixtures'
 import { pendingMigrations, runMigrations } from './index'
 
 const ID = 'sheet-1'
@@ -47,10 +47,24 @@ describe('migration 1 -> 2', () => {
     expect([b.get('Transfers!D10')?.v, b.get('Transfers!H10')?.v]).toEqual([100, 'GBP'])
   })
 
-  it('uses the chosen base currency for amounts that were typed in C', async () => {
-    await runMigrations(fake, ID, { newId, baseCurrency: 'USD' })
-    expect(fake.book(ID).get('Expenses!I12')?.v).toBe('USD')
-    expect(fake.book(ID).get('Setup!U8')?.v).toBe('USD')
+  it('keeps amounts typed in the euro column as EUR whatever base currency is chosen', async () => {
+    await runMigrations(fake, ID, { newId, baseCurrency: 'GBP' })
+    const b = fake.book(ID)
+    expect(b.get('Expenses!I12')?.v).toBe('EUR')
+    expect(b.get('Setup!U8')?.v).toBe('GBP')
+    expect(b.get('Setup!U16')?.f).toBe('=GOOGLEFINANCE("CURRENCY:"&T16&$U$8)')
+    expect(b.get('Setup!U17')?.v).toBe(1)
+  })
+
+  it('migrates rows below the template range and leaves nothing in C under the array formula', async () => {
+    const b = fake.book(ID)
+    b.set('Expenses!C1001', { f: V0_CONVERSION(1001).f, v: '' }) // a row inserted by hand pushed the formulas down
+    b.write('Expenses!B1001:H1001', [[45300, '', 7, 'Cafe', 'Late', 'Bills', 'Joint']])
+    await runMigrations(fake, ID, { newId })
+    const after = fake.book(ID) // the fake swaps in a new book for each atomic batch
+    expect([after.get('Expenses!D1001')?.v, after.get('Expenses!I1001')?.v]).toEqual([7, 'GBP'])
+    expect(after.get('Expenses!C1001')).toBeUndefined()
+    expect(after.get('Expenses!A1001')?.v).toBeDefined()
   })
 
   it('leaves exactly one array formula in C10 and nothing below it', async () => {
@@ -68,8 +82,8 @@ describe('migration 1 -> 2', () => {
     expect(b.get('Expenses!D9')?.v).toBe('Amount')
     expect(b.get('Expenses!I9')?.v).toBe('Currency')
     expect(b.get('Income!H9')?.v).toBe('Currency')
-    expect(b.validations.some((v) => v.range === 'Expenses!I10:I1000' && v.values.join() === 'EUR,GBP,USD')).toBe(true)
-    expect(b.formats['Expenses!D10:D1000']).toBeDefined()
+    expect(b.validations.some((v) => v.range === 'Expenses!I10:I' && v.values.join() === 'EUR,GBP,USD')).toBe(true)
+    expect(b.formats['Expenses!D10:D']).toBeDefined()
   })
 
   it('writes the base currency and the three rate cells to Setup', async () => {

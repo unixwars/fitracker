@@ -12,7 +12,7 @@ function grid(range: string, tabs: Map<string, number>) {
   const r = parseRange(range)
   const sheetId = tabs.get(r.sheet)
   if (sheetId === undefined) throw new Error(`Unknown tab ${r.sheet}`)
-  return { sheetId, startRowIndex: r.r1 - 1, endRowIndex: r.r2, startColumnIndex: r.c1 - 1, endColumnIndex: r.c2 }
+  return { sheetId, startRowIndex: r.r1 - 1, ...(r.r2 === Infinity ? {} : { endRowIndex: r.r2 }), startColumnIndex: r.c1 - 1, endColumnIndex: r.c2 }
 }
 
 function cellValue(v: unknown) {
@@ -84,6 +84,14 @@ export function compileOps(ops: SheetOp[], tabs: Map<string, number>, existingMe
   })
 }
 
+function retryAfterMs(header: string | null): number {
+  if (!header?.trim()) return 2000
+  const seconds = Number(header)
+  if (Number.isFinite(seconds)) return seconds * 1000
+  const date = Date.parse(header)
+  return Number.isNaN(date) ? 2000 : Math.max(0, date - Date.now())
+}
+
 export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof fetch = fetch): SheetsApi {
   async function request<T>(method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> {
     const token = getToken()
@@ -94,7 +102,7 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     if (res.status === 401) throw new AuthExpired()
-    if (res.status === 429) throw new RateLimited(Number(res.headers.get('Retry-After') ?? 2) * 1000)
+    if (res.status === 429) throw new RateLimited(retryAfterMs(res.headers.get('Retry-After')))
     if (!res.ok) throw new ApiError(res.status, (await res.text()).slice(0, 300))
     return (await res.json()) as T
   }

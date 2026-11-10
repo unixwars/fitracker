@@ -32,6 +32,20 @@ describe('applySuggestion', () => {
   })
 })
 
+describe('selected year', () => {
+  it('defaults the date inside the selected year when today is outside it', () => {
+    expect(initialForm(device, DEFAULT_LISTS, new Date('2027-01-05T12:00:00'), 2026).date).toBe('2026-12-31')
+    expect(initialForm(device, DEFAULT_LISTS, new Date('2027-01-05T12:00:00'), 2028).date).toBe('2028-01-01')
+    expect(initialForm(device, DEFAULT_LISTS, new Date('2027-01-05T12:00:00'), 2027).date).toBe('2027-01-05')
+  })
+  it('rejects a date outside the selected year', () => {
+    const f = { ...initialForm({ ...device, kind: 'expense' }, DEFAULT_LISTS, now), amount: '5', category: 'Bills', account: 'Joint', date: '2027-01-05' }
+    expect(validate(f, DEFAULT_LISTS, 2026).date).toBeDefined()
+    expect(validate({ ...f, date: '2026-12-31' }, DEFAULT_LISTS, 2026).date).toBeUndefined()
+    expect(validate(f, DEFAULT_LISTS).date).toBeUndefined()
+  })
+})
+
 describe('validate', () => {
   const ok = { ...initialForm({ ...device, kind: 'expense' }, DEFAULT_LISTS, now), amount: '12,50', category: 'Bills', account: 'Joint' }
   it('accepts a complete form', () => {

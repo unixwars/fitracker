@@ -7,6 +7,7 @@ export type ReplayerOptions = { locks?: LockManager; sleep?: (ms: number) => Pro
 type Patch = [opId: string, patch: Partial<Op>]
 
 const MAX_RETRIES = 5
+const MAX_ATTEMPTS = 3
 const VERIFY_WINDOW_MS = 7 * 24 * 3600 * 1000
 
 export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOptions = {}) {
@@ -46,11 +47,25 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
     }
   }
 
+  // An unknown failure keeps the ops pending and stops this run (order matters). After a few runs
+  // it is flagged so one bad op cannot block the queue forever.
+  async function recordFailure(group: Op[]): Promise<boolean> {
+    let flagged = true
+    for (const op of group) {
+      const attempts = (op.attempts ?? 0) + 1
+      if (attempts >= MAX_ATTEMPTS) await db.update(op.opId, { attempts, status: 'flagged', reason: 'Other' })
+      else {
+        await db.update(op.opId, { attempts })
+        flagged = false
+      }
+    }
+    return flagged
+  }
+
   async function send(group: Op[]): Promise<boolean> {
     for (let tries = 0; tries <= MAX_RETRIES; tries++) {
       try {
         const patches = await attempt(group)
-        await store.refresh(group[0].year, { force: true }).catch(() => undefined)
         for (const [id, patch] of patches) await db.update(id, patch)
         return true
       } catch (err) {
@@ -59,10 +74,10 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
           return false
         }
         if (err instanceof RateLimited) {
-          await sleep(err.retryAfterMs)
+          await sleep(err.retryAfterMs * 2 ** tries)
           continue
         }
-        return false // unknown failure: leave the ops pending, keep order, try again later
+        return recordFailure(group)
       }
     }
     return false

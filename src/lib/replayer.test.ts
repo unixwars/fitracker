@@ -1,5 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RateLimited } from './errors'
 import { makeOp } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
@@ -129,6 +130,29 @@ describe('replayer', () => {
     await createReplayer(store, db, { sleep }).run()
     expect(sleeps).toHaveLength(1)
     expect(await statuses()).toEqual({ 'a:add': 'done' })
+  })
+
+  it('flags an op that keeps failing for an unknown reason so the queue is not blocked forever', async () => {
+    const broken: EntryStore = { ...store, edit: async () => { throw new Error('400 tab renamed') } }
+    await db.put(makeOp('edit', 2024, e('x')))
+    await db.put(makeOp('add', 2024, e('z')))
+    const r = createReplayer(broken, db, { sleep })
+    await r.run()
+    await r.run()
+    expect(await statuses()).toMatchObject({ 'x:edit': 'pending', 'z:add': 'pending' })
+    await r.run()
+    expect(await statuses()).toEqual({ 'x:edit': 'flagged/Other', 'z:add': 'done' })
+  })
+
+  it('backs off exponentially when rate limited and reads the year only once per run', async () => {
+    let n = 0
+    const limited: EntryStore = { ...store, addMany: async (...a) => { if (n++ < 2) throw new RateLimited(100); return store.addMany(...a) } }
+    const refresh = vi.spyOn(limited, 'refresh')
+    await db.put(makeOp('add', 2024, e('a')))
+    await db.put(makeOp('edit', 2024, e('a', { description: 'Tea' })))
+    await createReplayer(limited, db, { sleep }).run()
+    expect(sleeps).toEqual([100, 200])
+    expect(refresh).not.toHaveBeenCalled()
   })
 
   it('never lets two replayers send at the same time when they share a lock', async () => {

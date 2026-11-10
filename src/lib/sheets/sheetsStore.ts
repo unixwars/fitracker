@@ -17,6 +17,7 @@ type YearData = {
   rates: { base: Currency; rates: Record<Currency, number> }
 }
 
+const VERSION_RECHECK_MS = 5 * 60_000
 const isCurrency = (v: unknown): v is Currency => (CURRENCIES as readonly unknown[]).includes(v)
 const str = (v: unknown) => (v === undefined || v === null ? '' : String(v)).trim()
 
@@ -38,7 +39,7 @@ export function createSheetsStore(api: SheetsApi, ids: Record<number, string>, o
   const ttl = options.ttlMs ?? 15_000
   const cache = new Map<number, YearData>()
   const stale = new Set<number>()
-  const verified = new Set<number>()
+  const verifiedAt = new Map<number, number>()
   const inflight = new Map<number, Promise<YearData>>()
   const listeners = new Set<() => void>()
   const notify = () => listeners.forEach((fn) => fn())
@@ -50,12 +51,13 @@ export function createSheetsStore(api: SheetsApi, ids: Record<number, string>, o
   }
 
   async function ensureVersion(year: number): Promise<void> {
-    if (verified.has(year)) return
+    const last = verifiedAt.get(year)
+    if (last !== undefined && now() - last < VERSION_RECHECK_MS) return
     const raw = await api.getMetadata(sheetId(year), META_KEY)
     const version = raw === null ? null : Number(raw)
     if (version !== null && version > SCHEMA_VERSION) throw new NewerThanApp(version)
     if (version !== SCHEMA_VERSION) throw new SchemaMismatch(version)
-    verified.add(year)
+    verifiedAt.set(year, now())
   }
 
   async function fetchYear(year: number): Promise<YearData> {
@@ -120,9 +122,14 @@ export function createSheetsStore(api: SheetsApi, ids: Record<number, string>, o
     notify()
   }
 
-  // A different row than the one the user edited: none of date, amount or description match.
-  const looksSame = (a: Entry, b: Entry) =>
-    a.date === b.date || a.description === b.description || (a.money.minor === b.money.minor && a.money.currency === b.money.currency)
+  // The same entry if at least two of date, amount and place/description agree. Text only counts
+  // when both sides have some, so two blank descriptions never vouch for each other.
+  const looksSame = (a: Entry, b: Entry) => {
+    const text = (e: Entry) => (e.place || e.description || '').trim().toLowerCase()
+    let matches = (a.date === b.date ? 1 : 0) + (a.money.minor === b.money.minor && a.money.currency === b.money.currency ? 1 : 0)
+    if (text(a) && text(b) && text(a) === text(b)) matches++
+    return matches >= 2
+  }
 
   async function locate(year: number, kind: Kind, entryId: string, expectedPrevious?: Entry): Promise<{ row: number; previous: Entry }> {
     await ensureVersion(year)

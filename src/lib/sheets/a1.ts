@@ -22,13 +22,14 @@ export function parseRange(range: string): Rect {
   const rawSheet = range.slice(0, bang)
   const sheet = rawSheet.startsWith("'") ? rawSheet.slice(1, -1).replace(/''/g, "'") : rawSheet
   const [a, b = a] = range.slice(bang + 1).split(':')
-  const cell = (s: string) => {
-    const m = /^([A-Z]+)(\d+)$/.exec(s)
-    if (!m) throw new Error(`Unsupported range: ${range}`)
-    return { c: colToNum(m[1]), r: Number(m[2]) }
+  // The second cell may omit its row ("C10:C"): the range then runs to the bottom of the sheet.
+  const cell = (s: string, needRow: boolean) => {
+    const m = /^([A-Z]+)(\d*)$/.exec(s)
+    if (!m || (needRow && !m[2])) throw new Error(`Unsupported range: ${range}`)
+    return { c: colToNum(m[1]), r: m[2] ? Number(m[2]) : Infinity }
   }
-  const p = cell(a)
-  const q = cell(b)
+  const p = cell(a, true)
+  const q = cell(b, false)
   return { sheet, c1: Math.min(p.c, q.c), r1: Math.min(p.r, q.r), c2: Math.max(p.c, q.c), r2: Math.max(p.r, q.r) }
 }
 

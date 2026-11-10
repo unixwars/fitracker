@@ -72,7 +72,7 @@ export const lastColumn = (kind: Kind): string => TABS[kind].cols.currency
 
 export function dataRange(kind: Kind): string {
   const t = TABS[kind]
-  return `${t.name}!A${FIRST_ROW}:${t.cols.currency}${t.lastRow}`
+  return `${t.name}!A${FIRST_ROW}:${t.cols.currency}` // to the bottom: rows inserted by hand push the template range down
 }
 
 export function columnRange(kind: Kind, letter: string): string {

@@ -30,7 +30,7 @@ export const messages = {
   useLocation: 'Use my location',
   locationNone: 'No known place nearby',
   locationDenied: 'Location is unavailable',
-  errors: { amount: 'Enter an amount above zero', category: 'Pick a category', account: 'Pick an account', toAccount: 'Pick a different destination account' },
+  errors: { amount: 'Enter an amount above zero', category: 'Pick a category', account: 'Pick an account', toAccount: 'Pick a different destination account', date: 'That date is not in the selected year' },
 
   monthTitle: 'Month',
   planned: 'Planned',
