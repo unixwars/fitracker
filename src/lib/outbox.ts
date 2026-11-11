@@ -43,3 +43,6 @@ export function undo(op: Op): Op {
   const before = op.previous ?? op.entry!
   return makeOp(op.type === 'delete' ? 'add' : 'edit', op.year, before)
 }
+
+// Changes still waiting to reach a year's sheet. Unlinking or relinking that year is refused meanwhile.
+export const pendingForYear = (ops: Op[], year: number): number => ops.filter((o) => o.year === year && o.status === 'pending').length

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createConfig, MIN_YEAR } from './config'
+import { createConfig, yearOptions } from './config'
 import { WrongYear } from './errors'
 import { verifyYear } from './link'
 import { createFakeSheets } from './sheets/fakeSheets'
@@ -12,12 +12,19 @@ const memory = () => {
 }
 
 describe('config', () => {
-  it('rejects years before 2019 and too far in the future', () => {
-    const c = createConfig(memory().storage, () => new Date('2026-06-01'))
-    expect(MIN_YEAR).toBe(2019)
-    expect(() => c.linkSheet(2018, 'x')).toThrow()
-    expect(() => c.linkSheet(2028, 'x')).toThrow()
-    expect(() => c.linkSheet(2027, 'x')).not.toThrow()
+  it('accepts any four-digit year, past or future, and rejects non-years', () => {
+    const c = createConfig(memory().storage)
+    expect(() => c.linkSheet(2012, 'x')).not.toThrow()
+    expect(() => c.linkSheet(2040, 'x')).not.toThrow()
+    expect(() => c.linkSheet(99, 'x')).toThrow()
+    expect(() => c.linkSheet(2024.5, 'x')).toThrow()
+    expect(c.getSheets()).toEqual({ 2012: 'x', 2040: 'x' })
+  })
+  it('relinking a year replaces its sheet', () => {
+    const c = createConfig(memory().storage)
+    c.linkSheet(2024, 'wrong')
+    c.linkSheet(2024, 'right')
+    expect(c.getSheets()).toEqual({ 2024: 'right' })
   })
   it('stores the year to spreadsheet-id list and reads it back', () => {
     const m = memory()
@@ -65,5 +72,14 @@ describe('verifyYear', () => {
     const f = createFakeSheets()
     seedV2(f, 's', { year: 2023 })
     await expect(verifyYear(f, 's', 2024)).rejects.toBeInstanceOf(WrongYear)
+  })
+})
+
+describe('yearOptions', () => {
+  it('lists linked years plus last, current and next year, newest first, without duplicates', () => {
+    expect(yearOptions([2019, 2025], 2026, 2026)).toEqual([2027, 2026, 2025, 2019])
+  })
+  it('always includes the selected year, even if far away', () => {
+    expect(yearOptions([], 2026, 2010)).toEqual([2027, 2026, 2025, 2010])
   })
 })

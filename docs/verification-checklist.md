@@ -21,6 +21,8 @@ Do them in order; stop and report at the first failure. Use a **copy** of any re
    *Pass:* Settings → **Sign in with Google** opens Google's consent screen asking only for access to files the app opens.
 6. Settings → pick the year of your sheet → **Link the … sheet** → choose the sheet in the Picker.
    *Pass:* it says Linked. Choosing a sheet whose `Setup!C8` year differs shows "That sheet is for …".
+6b. Settings → **Unlink this year** → confirm; then **Link the … sheet** again, or pick a different sheet.
+   *Pass:* it warns first and says the sheet is not changed; after unlinking it shows Not linked; relinking works; "Another year" opens a year such as 2012.
 7. Open the app's Network tab: *Pass:* no request goes anywhere except `sheets.googleapis.com`, `accounts.google.com`, `apis.google.com`, your own host; and Application → Local Storage contains no token (only `fitracker.sheets` and `fitracker.device`).
 
 ## C. Live entry

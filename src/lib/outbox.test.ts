@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyPending, makeOp, undo, type Op } from './outbox'
+import { applyPending, makeOp, pendingForYear, undo, type Op } from './outbox'
 import type { Entry } from './rows'
 
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
@@ -45,5 +45,12 @@ describe('undo', () => {
   })
   it('deletes what an add created', () => {
     expect(undo({ ...makeOp('add', 2024, e('a')), status: 'done' as const })).toMatchObject({ type: 'delete', entryId: 'a' })
+  })
+})
+
+describe('pendingForYear', () => {
+  it('counts only pending ops of that year', () => {
+    const mk = (year: number, status: Op['status']) => ({ ...makeOp('add', year, e('a')), status })
+    expect(pendingForYear([mk(2024, 'pending'), mk(2024, 'done'), mk(2024, 'flagged'), mk(2023, 'pending')], 2024)).toBe(1)
   })
 })

@@ -5,7 +5,7 @@ import { AuthExpired, FlaggedRows, NewerThanApp, SchemaMismatch, UnrecognisedLay
 import { createKv, type Kv } from './kv'
 import { verifyYear } from './link'
 import { detectVersion, pendingMigrations, runMigrations } from './migrations'
-import { applyPending, makeOp, undo, type Op } from './outbox'
+import { applyPending, makeOp, pendingForYear, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
@@ -249,19 +249,39 @@ export class AppState {
 
   async link(year: number) {
     this.message = ''
+    if (pendingForYear(this.ops, year)) { this.message = messages.relinkBlocked(pendingForYear(this.ops, year)); return }
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
       const id = await this.env.pick()
       if (!id) return
       await verifyYear(this.env.api, id, year)
+      const replaced = Boolean(this.sheets[year]) && this.sheets[year] !== id
       this.config.linkSheet(year, id)
       this.sheets = this.config.getSheets()
       this.build()
       this.year = year
+      if (replaced) await this.kv.set(`year-${year}`, undefined)
       await this.loadCache()
       await this.sync()
     } catch (err) {
       this.message = err instanceof WrongYear ? messages.wrongYear(String(err.found)) : messages.linkFailed
+    }
+  }
+
+  // Forgets this device's link to a year's sheet. The sheet itself is never touched.
+  async unlink(year: number) {
+    this.message = ''
+    const waiting = pendingForYear(this.ops, year)
+    if (waiting) { this.message = messages.relinkBlocked(waiting); return }
+    this.config.unlinkSheet(year)
+    this.sheets = this.config.getSheets()
+    this.build()
+    await this.kv.set(`year-${year}`, undefined)
+    if (year === this.year) {
+      const rest = Object.keys(this.sheets).map(Number)
+      this.sheetVersion = null
+      if (rest.length) await this.setYear(Math.max(...rest))
+      else await this.loadCache()
     }
   }
 

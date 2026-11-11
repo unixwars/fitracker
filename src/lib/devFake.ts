@@ -22,7 +22,7 @@ export function createFakeEnv(): Env {
   seedV2(fake, FAKE_ID, { year, entries: seeded })
   const auth: Auth = { token: () => 'fake', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
   const storage = {
-    getItem: (k: string) => (k === 'fitracker.sheets' ? JSON.stringify({ [year]: FAKE_ID }) : window.localStorage.getItem(k)),
+    getItem: (k: string) => window.localStorage.getItem(k) ?? (k === 'fitracker.sheets' ? JSON.stringify({ [year]: FAKE_ID }) : null),
     setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
   }
   ;(window as unknown as { __fake: unknown }).__fake = fake

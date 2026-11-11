@@ -14,7 +14,7 @@ the Google Sheets API straight from your browser.
 - **Offline first.** Changes are queued on the device and replayed in order when you are back
   online. A change to a row that no longer exists is set aside for you, never silently retried.
 - **Undo.** Deletes and edits keep the previous values so you can undo them from Activity.
-- **Your sheets, your years.** Link one sheet per year (2019 onward). A versioned migration brings
+- **Your sheets, your years.** Link one sheet per year, for any year. A versioned migration brings
   older sheets to the current layout, with backup tabs first.
 - **Shared by whoever has the sheet.** Each person signs in with their own Google account.
 
