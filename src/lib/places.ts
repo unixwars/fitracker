@@ -23,3 +23,9 @@ export function nearestPlace(pos: LatLng, known: KnownPlace[], maxMeters = 150):
   }
   return best
 }
+
+// Auto-locate on opening the form only when the browser already granted access (no surprise prompt)
+// and there is a known place to match against.
+export function shouldAutoLocate(permission: string | undefined, known: KnownPlace[]): boolean {
+  return permission === 'granted' && known.length > 0
+}

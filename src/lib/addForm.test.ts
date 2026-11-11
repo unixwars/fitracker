@@ -102,3 +102,16 @@ describe('entryToForm', () => {
     expect(f).toEqual({ kind: 'expense', amount: '12.50', currency: 'GBP', date: '2024-01-05', place: 'Cafe', description: 'Coffee', category: 'Bills', account: 'Joint', toAccount: '' })
   })
 })
+
+import { switchKind } from './addForm'
+describe('switchKind', () => {
+  it('restores the category and account last used for the new kind and clears the destination', () => {
+    const base = initialForm({ ...device, kind: 'income' }, DEFAULT_LISTS, now)
+    const f = switchKind({ ...base, amount: '5', toAccount: 'X' }, 'expense', device, DEFAULT_LISTS)
+    expect(f).toMatchObject({ kind: 'expense', category: 'Bills', account: 'M-Cash', toAccount: '', amount: '5' })
+  })
+  it('leaves category and account empty when nothing is remembered for that kind', () => {
+    const f = switchKind(initialForm(device, DEFAULT_LISTS, now), 'transfer', device, DEFAULT_LISTS)
+    expect(f).toMatchObject({ kind: 'transfer', category: '', account: '' })
+  })
+})

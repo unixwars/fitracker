@@ -51,12 +51,6 @@
       <option value="dark">{messages.themeDark}</option>
     </select>
   </label>
-  <label class="field">
-    <span>{messages.defaultCurrency}</span>
-    <select value={app.device.currency} onchange={(e) => app.setDevice({ currency: e.currentTarget.value as Currency })}>
-      {#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
-    </select>
-  </label>
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
   <div class="stat"><span>{messages.version}</span><span>{app.sheetVersion ?? SCHEMA_VERSION}</span></div>
   <div class="row" style="margin-top: 8px">

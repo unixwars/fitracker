@@ -34,6 +34,10 @@ describe('suggest', () => {
   it('returns the most recent items for an empty prefix, honouring the limit', () => {
     expect(suggest('place', '', history, now, 2)).toHaveLength(2)
   })
+  it('ranks an empty prefix by frequency, not only by the latest date', () => {
+    // Tesco: 3 recent uses; Taxi One: 1 use but one day newer than Tesco's latest.
+    expect(suggest('place', '', history, now)[0].text).toBe('Tesco')
+  })
   it('carries category, account and currency from the latest use', () => {
     expect(suggest('place', 'Tesco', history, now)[0]).toEqual({
       text: 'Tesco', category: 'Groceries', account: 'Joint', currency: 'GBP',
@@ -42,5 +46,23 @@ describe('suggest', () => {
   it('suggests descriptions and ignores entries without the field', () => {
     const h = [mk('2024-05-01', 'x', { description: 'Lunch' }), { ...mk('2024-05-02', 'y'), place: undefined, description: '' }]
     expect(suggest('description', 'lu', h, now).map((s) => s.text)).toEqual(['Lunch'])
+  })
+})
+
+import { usualAmounts } from './predict'
+describe('usualAmounts', () => {
+  const h = [
+    mk('2024-05-30', 'Tesco', { money: { minor: 1250, currency: 'GBP' } }),
+    mk('2024-05-20', 'Tesco', { money: { minor: 1250, currency: 'GBP' } }),
+    mk('2024-05-10', 'tesco', { money: { minor: 3000, currency: 'GBP' } }),
+    mk('2024-05-31', 'Taxi One', { money: { minor: 900, currency: 'EUR' } }),
+  ]
+  it('lists the amounts paid at a place, most usual first, case-insensitively', () => {
+    expect(usualAmounts('TESCO', h, now)).toEqual([{ minor: 1250, currency: 'GBP' }, { minor: 3000, currency: 'GBP' }])
+  })
+  it('honours the limit and returns nothing for an unknown or empty place', () => {
+    expect(usualAmounts('Tesco', h, now, 1)).toHaveLength(1)
+    expect(usualAmounts('Nowhere', h, now)).toEqual([])
+    expect(usualAmounts('  ', h, now)).toEqual([])
   })
 })

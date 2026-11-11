@@ -52,6 +52,16 @@ export function applySuggestion(form: FormState, s: Suggestion, lists: Lists, fi
   return next
 }
 
+export function switchKind(form: FormState, kind: Kind, device: DeviceSettings, lists: Lists): FormState {
+  return {
+    ...form,
+    kind,
+    category: valid(device.lastCategory[`${kind}:category`], categoriesFor(kind, lists)),
+    account: valid(device.lastCategory[`${kind}:account`], lists.accounts),
+    toAccount: '',
+  }
+}
+
 export function validate(form: FormState, lists: Lists, year?: number): Errors {
   const errors: Errors = {}
   if (year !== undefined && !form.date.startsWith(`${year}-`)) errors.date = 'date'

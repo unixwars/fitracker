@@ -20,3 +20,15 @@ describe('nearestPlace', () => {
     expect(nearestPlace({ lat: 51.5025, lng: -0.1246 }, known, 500)).toBe('Tesco')
   })
 })
+
+import { shouldAutoLocate } from './places'
+describe('shouldAutoLocate', () => {
+  it('only runs when permission was already granted and a place is known', () => {
+    const known = [{ name: 'A', lat: 1, lng: 1 }]
+    expect(shouldAutoLocate('granted', known)).toBe(true)
+    expect(shouldAutoLocate('prompt', known)).toBe(false)
+    expect(shouldAutoLocate('denied', known)).toBe(false)
+    expect(shouldAutoLocate('granted', [])).toBe(false)
+    expect(shouldAutoLocate(undefined, known)).toBe(false)
+  })
+})
