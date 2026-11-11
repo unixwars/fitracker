@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" alt="fitracker logo" width="96" /></p>
+<p align="center"><img src="assets/banner.webp" alt="fitracker logo" width="100%" /></p>
 
 # fitracker
 

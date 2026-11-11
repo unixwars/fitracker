@@ -15,7 +15,7 @@
 
 <div class="shell">
   <header class="top">
-    <span class="brand"><img class="logo" src={import.meta.env.BASE_URL + 'favicon.svg'} alt="" width="28" height="28" /><strong>{messages.appName}</strong></span>
+    <span class="brand"><img class="logo" src={import.meta.env.BASE_URL + 'favicon.svg'} alt="" width="28" height="28" /><strong><span class="fi">{messages.appName.slice(0, 2)}</span>{messages.appName.slice(2)}</strong></span>
     <span class="pill" data-testid="year-pill">{app.year}{app.pendingCount ? ' · ' + messages.syncPending(app.pendingCount) : ''}</span>
   </header>
 
