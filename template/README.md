@@ -22,11 +22,19 @@ Running `buildTemplate` again is safe: existing tabs are reused, data rows are n
 formulas, validation and protections are rewritten, and the view tabs are rebuilt keeping their selector values.
 
 `addCharts` is a separate function, run later after the data gate (spec 8, gate 4): paste the script again,
-run `addCharts`, then delete the script again.
+run `addCharts`, then delete the script again. `addCharts` first removes ALL charts on `Monthly Summary`,
+`Annual Summary` and `Balances`, including charts you made yourself, then adds the template charts.
+
+Speed: spikes S3/S4 must time THIS template (not only the spike formulas) on a ledger of about 10,000 rows:
+edit one `Ledger` amount and time until `Monthly Summary`, `Annual Summary` and `Balances` stop showing
+"Loading...". Pass: under 10 seconds.
 
 ## Checklist
 
 Synthetic test data for the checklist (type it, then delete it before any import):
+
+Note: a new `Accounts` row starts with its `active`, `In Monthly` and `In Annual` boxes unticked (a checkbox
+cannot default to ticked). Tick them by hand, here and for every real account.
 
 - `Accounts` row 2: `Account A (EUR)` | `EUR` | ticked | ticked | ticked
 - `Accounts` row 3: `Account B (GBP)` | `GBP` | ticked | ticked | ticked
@@ -40,7 +48,7 @@ Tick each item:
 
 - [ ] 1. All 13 tabs exist in this order: `Ledger`, `Snapshots`, `Settings`, `Accounts`, `Categories`, `Budgets`,
   `Rates`, `Expenses`, `Income`, `Transfers`, `Monthly Summary`, `Annual Summary`, `Balances`; `Sheet1` is gone;
-  column A of `Ledger` and `Snapshots` is hidden; `Settings!B1` is `EUR`.
+  column A of `Ledger` and `Snapshots` is hidden; `Settings!B1` is `EUR` and offers only `EUR`, `GBP`, `USD`.
 - [ ] 2. `J2` converts a typed row: `Ledger!J2` shows `10` and `J3` shows `11.70` (10 x 1.17). `J2` is the only
   formula in column J (click `J3`: the formula bar shows no formula).
 - [ ] 3. Changing a currency in `Accounts` changes the result: set `Account A (EUR)` currency to `GBP`; `J2`
@@ -58,9 +66,14 @@ Tick each item:
 - [ ] 7. The version metadata is present: in the Apps Script editor choose `showSchemaVersion` and Run. The
   toast in the sheet (and View > Logs / Execution log) shows `fitracker.schemaVersion = 3 (DOCUMENT)`.
   (Data > Named ranges does not show developer metadata; do not look there.)
-- [ ] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`;
-  `Balances` lists both accounts with "none" as snapshot date and balances `-10` and `-10` (base `-10` and
-  `-11.70`).
+- [ ] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`
+  and `base_amount` `10` and `11.70` (not blank: a blank there means `QUERY` typed the column as text because
+  of the empty `J` cells; report it); `Balances` lists both accounts with "none" as snapshot date and balances
+  `-10` and `-10` (base `-10` and `-11.70`).
+- [ ] 9. A row without an account shows an error: in `Ledger` row 4 type
+  `t0 | 2026-11-09 | expense | 3 | | Test | Cat 1` and leave `account` empty. `J4` shows an error (`#N/A`) and
+  "Unresolved ledger rows (all dates)" on `Monthly Summary` shows `1`. Then clear `Ledger` A4:I4: `J4` is
+  empty and the count is `0` again.
 
 Keep the test data for the self-check below. When done, clear all test rows (`Ledger` A2:I, `Snapshots` A2:E,
 and the test rows of `Accounts`, `Categories` and `Rates`) and delete the script (run step 8).
@@ -108,8 +121,6 @@ the script instead.
   app (`INSERT_ROWS`) inherit it; after a large paste below the last row, run `buildTemplate` again.
 - Category names and account names used as `SUMIFS` criteria must not start with `<`, `>` or `=` and should not
   contain `*` or `?` (wildcards).
-- A `Rates` cell left blank counts as a rate of 0 (the row converts to 0, not an error). The app and the
-  converter always write both rates; check `Rates` by eye after an import.
 - Only `EUR`, `GBP`, `USD` are supported, with `EUR` as base. A base currency other than `EUR` is out of scope.
 
 ## Decisions made while writing this script
@@ -118,10 +129,22 @@ the script instead.
   and Remaining.
 - Savings rate = (income - expenses) / income, blank when income is 0.
 - "Accounts included: n of m": n = accounts ticked for that view, m = all named accounts (active or not).
-- Error rows are skipped in `SUMIFS` with the criterion `J < 1E+300` (an error never matches a numeric
-  criterion), instead of a helper column, because `Ledger` columns are fixed.
-- Ledger `J` also returns `#N/A` when the date or amount is not a number or blank, so a half-typed row counts as
-  unresolved instead of silently converting to 0.
+- Error rows are skipped in `SUMIFS` with the criterion `J < 1E+300`, on the assumption that an error never
+  matches a numeric criterion (to be verified by self-check probe 1), instead of a helper column, because
+  `Ledger` columns are fixed. The month-end "Net worth" row sums with `SUMIF(..., "<1E+300")` for the same reason.
+- Ledger `J` returns `""` only for a truly empty row (no date, type, amount or account). Any other row that
+  cannot be resolved (no or unknown account, no `Rates` row, a blank rate cell, a date or amount that is not a
+  number) shows an error and counts as unresolved, instead of silently converting to 0 or "".
+- The rate lookup is `VLOOKUP(date, Rates, n, TRUE)`: `Rates` rows are first-of-month dates in ascending order,
+  so this returns the entry month's row without `EOMONTH`.
+- Ticked accounts: `Monthly Summary` and `Annual Summary` each hold ONE spilled `FILTER` of the ticked account
+  names in column `Z` ("Accounts counted (helper)"); every summary cell passes only that list (sized exactly with
+  `INDEX`) to `SUMIFS`, so it runs one `SUMIFS` per ticked account and the `FILTER` runs once per tab. With no
+  account ticked the list is `#none#`, which matches no ledger row.
+- Transfers into a non-base account: `FILTER` first keeps only that account's transfer rows in the period, and
+  the `Rates` lookup runs on those rows only (not on the whole ledger). Error rows count as 0 there.
+- `Settings!B1` has a list validation (`EUR`, `GBP`, `USD`); only `EUR` is supported as base.
+- An empty default sheet is deleted; a non-template sheet with content is kept and a toast says so.
 - Lists in `Ledger` (type, category, account, to_account), `Snapshots`, `Budgets` and `Accounts` currency reject
   invalid input, like dates and amounts. Import `Accounts` and `Categories` before `Ledger`.
 - `Snapshots` balance accepts any number (balances can be negative). `Budgets` amount must be 0 or more.

@@ -95,31 +95,44 @@ const SELECTOR_BACKGROUND = '#fff2cc';
 // Shared formula fragments (named constants; resolved with resolveTabs / sub)
 // ---------------------------------------------------------------------------------------------
 
-// Ledger!J2. Account currency from Accounts, rate from Rates (latest month row on or before the
-// entry's month; column 2 = GBP, 3 = USD), 1 for the base currency (Settings!B1). Unknown account,
-// unknown currency, missing rate, or a non-numeric date or amount: #N/A. Blank account: "".
-// INDEX/MATCH do not vectorise inside ARRAYFORMULA, hence the nested IF + VLOOKUP shape.
+// Ledger!J2. Account currency from Accounts, rate from Rates, 1 for the base currency (Settings!B1).
+// Rates rows are first-of-month dates in ascending order, so VLOOKUP(date, Rates, n, TRUE) returns the
+// entry month's row (latest row on or before the date); column 2 = GBP, 3 = USD.
+// Truly empty rows (no date, type, amount or account): "". Any other row that cannot be resolved
+// (no or unknown account, unknown currency, no Rates row, blank rate cell, non-numeric date or
+// amount): an error, counted as "Unresolved ledger rows" on the views.
+// A blank rate cell becomes #DIV/0! through the division by (rate<>"") instead of a silent 0.
+// INDEX does not vectorise inside ARRAYFORMULA (MATCH does), hence the nested IF + VLOOKUP shape.
 const J_CURRENCY = 'VLOOKUP(H2:H,{{Accounts}}$A$2:$B,2,FALSE)';
-const J_MONTH = 'EOMONTH(B2:B,-1)+1';
+const J_RATE_GBP = 'VLOOKUP(B2:B,{{Rates}}$A$2:$C,2,TRUE)';
+const J_RATE_USD = 'VLOOKUP(B2:B,{{Rates}}$A$2:$C,3,TRUE)';
 const LEDGER_J2 =
-  '=ARRAYFORMULA(IF(H2:H="","",IF(ISNUMBER(B2:B)*ISNUMBER(D2:D)=0,NA(),D2:D*' +
+  '=ARRAYFORMULA(IF(LEN(B2:B&C2:C&D2:D&H2:H)=0,"",IF(ISNUMBER(B2:B)*ISNUMBER(D2:D)=0,NA(),D2:D*' +
   'IF(' + J_CURRENCY + '={{Settings}}$B$1,1,' +
-  'IF(' + J_CURRENCY + '="GBP",VLOOKUP(' + J_MONTH + ',{{Rates}}$A$2:$C,2,TRUE),' +
-  'IF(' + J_CURRENCY + '="USD",VLOOKUP(' + J_MONTH + ',{{Rates}}$A$2:$C,3,TRUE),NA()))))))';
+  'IF(' + J_CURRENCY + '="GBP",' + J_RATE_GBP + '/(' + J_RATE_GBP + '<>""),' +
+  'IF(' + J_CURRENCY + '="USD",' + J_RATE_USD + '/(' + J_RATE_USD + '<>""),NA()))))))';
 
 // SUMIFS criterion pair that keeps only Ledger rows whose J is a number: an error cell never
-// satisfies a numeric criterion, so one unresolved row cannot turn a summary into an error.
+// satisfies a numeric criterion (assumed; README self-check probe 1 verifies it), so one unresolved
+// row cannot turn a summary into an error.
 // 1E+300 has no decimal separator on purpose: criterion strings are parsed in the sheet's locale.
 const J_IS_NUMBER = '{{Ledger}}$J:$J,"<1E+300"';
 
 // Count of Ledger rows whose J is an error (shown on every view).
 const UNRESOLVED_COUNT = '=SUMPRODUCT(--ISERROR({{Ledger}}$J$2:$J))';
 
-// Sum of Ledger!J (base currency) over the accounts ticked in Accounts column %TICK%
-// (D = In Monthly, E = In Annual). %CRITERIA% = more SUMIFS criteria pairs.
+// Monthly and Annual Summary: column TICKED_COL of the tab holds, from row 2, ONE spilled FILTER of the
+// account names ticked for that view (TICKED_ACCOUNTS; %TICK% = Accounts column D In Monthly or
+// E In Annual), or "#none#" when none is ticked. TICKED_NAMES is that list sized exactly to its length,
+// so each summary cell runs one SUMIFS per ticked account and the FILTER runs once per tab.
+const TICKED_COL = 'Z';
+const TICKED_ACCOUNTS =
+  '=IFNA(FILTER({{Accounts}}$A$2:$A,{{Accounts}}$A$2:$A<>"",{{Accounts}}$%TICK%$2:$%TICK%=TRUE),"#none#")';
+const TICKED_NAMES = '$' + TICKED_COL + '$2:INDEX($' + TICKED_COL + '$2:$' + TICKED_COL +
+  ',COUNTA($' + TICKED_COL + '$2:$' + TICKED_COL + '))';
+// Sum of Ledger!J (base currency) over the ticked accounts. %CRITERIA% = more SUMIFS criteria pairs.
 const TICKED_SUM =
-  'SUMPRODUCT(SUMIFS({{Ledger}}$J:$J,{{Ledger}}$H:$H,{{Accounts}}$A$2:$A,' + J_IS_NUMBER +
-  ',%CRITERIA%)*({{Accounts}}$%TICK%$2:$%TICK%=TRUE))';
+  'SUMPRODUCT(SUMIFS({{Ledger}}$J:$J,{{Ledger}}$H:$H,' + TICKED_NAMES + ',' + J_IS_NUMBER + ',%CRITERIA%))';
 
 // "Accounts included: n of m" for tick column %TICK%.
 const ACCOUNTS_INCLUDED =
@@ -152,14 +165,16 @@ const NATIVE_SUM =
 // Balances: transfers INTO account %ACC% (currency %CUR%), converted into %CUR%: J holds the source
 // amount in base at the entry month's rate; dividing by the destination's rate of the same month
 // gives the amount in the destination currency (spec 3.5). Base-currency destinations need no rate.
+// Non-base destinations: FILTER keeps only the matching transfer rows (cheap comparisons), so the
+// VLOOKUP into Rates runs only for those rows, not for the whole ledger. Error rows count as 0.
+const TRANSFER_IN_ROWS =
+  '{{Ledger}}$I$2:$I=%ACC%,{{Ledger}}$C$2:$C="transfer",{{Ledger}}$B$2:$B>%FROM%,{{Ledger}}$B$2:$B<=%TO%';
 const TRANSFER_IN =
   'IF(%CUR%={{Settings}}$B$1,' +
   'SUMIFS({{Ledger}}$J:$J,{{Ledger}}$I:$I,%ACC%,{{Ledger}}$C:$C,"transfer",' +
   '{{Ledger}}$B:$B,">"&%FROM%,{{Ledger}}$B:$B,"<="&%TO%,' + J_IS_NUMBER + '),' +
-  'SUMPRODUCT(({{Ledger}}$I$2:$I=%ACC%)*({{Ledger}}$C$2:$C="transfer")*' +
-  '({{Ledger}}$B$2:$B>%FROM%)*({{Ledger}}$B$2:$B<=%TO%),' +
-  'ARRAYFORMULA(IFERROR({{Ledger}}$J$2:$J/VLOOKUP(EOMONTH({{Ledger}}$B$2:$B,-1)+1,' +
-  '{{Rates}}$A$2:$C,IF(%CUR%="GBP",2,3),TRUE),0))))';
+  'SUM(ARRAYFORMULA(IFERROR(FILTER({{Ledger}}$J$2:$J,' + TRANSFER_IN_ROWS + ')/' +
+  'VLOOKUP(FILTER({{Ledger}}$B$2:$B,' + TRANSFER_IN_ROWS + '),{{Rates}}$A$2:$C,IF(%CUR%="GBP",2,3),TRUE),0))))';
 // Balances: latest snapshot date of account %ACC% on or before %TO% (0 when none).
 const SNAPSHOT_DATE =
   'MAXIFS({{Snapshots}}$B:$B,{{Snapshots}}$C:$C,%ACC%,{{Snapshots}}$B:$B,"<="&%TO%)';
@@ -168,8 +183,10 @@ const SNAPSHOT_BALANCE =
   'IF(%DATE%=0,0,IFNA(CHOOSEROWS(FILTER({{Snapshots}}$D$2:$D,{{Snapshots}}$C$2:$C=%ACC%,' +
   '{{Snapshots}}$B$2:$B=%DATE%),-1),0))';
 // Rate (one unit of currency %CUR% in base) for the month containing date %DATE%.
+// A blank rate cell gives #DIV/0! instead of 0.
+const RATE_LOOKUP = 'VLOOKUP(%DATE%,{{Rates}}$A$2:$C,IF(%CUR%="GBP",2,3),TRUE)';
 const RATE_AT =
-  'IF(%CUR%={{Settings}}$B$1,1,VLOOKUP(EOMONTH(%DATE%,-1)+1,{{Rates}}$A$2:$C,IF(%CUR%="GBP",2,3),TRUE))';
+  'IF(%CUR%={{Settings}}$B$1,1,' + RATE_LOOKUP + '/(' + RATE_LOOKUP + '<>""))';
 
 // ---------------------------------------------------------------------------------------------
 // Entry points
@@ -257,6 +274,7 @@ function makeSettings() {
   const sh = sheet(TAB.SETTINGS);
   sh.getRange('A1').setValue('Base currency');
   if (sh.getRange('B1').getValue() === '') sh.getRange('B1').setValue(BASE_CURRENCY_DEFAULT);
+  sh.getRange('B1').setDataValidation(listRule(CURRENCIES));
   sh.getRange('A3').setValue('The schema version is developer metadata (run showSchemaVersion), not a cell.');
 }
 
@@ -352,7 +370,8 @@ function makeTransfers() {
 function makeMonthlySummary() {
   const sh = prepareView(TAB.MONTHLY, [yearSelector('B1'), monthSelector('B2')]);
   const period = '{{Ledger}}$B:$B,">="&$B$3,{{Ledger}}$B:$B,"<"&$B$4';
-  const sum = function (criteria) { return sub(TICKED_SUM, { TICK: 'D', CRITERIA: criteria }); };
+  const sum = function (criteria) { return sub(TICKED_SUM, { CRITERIA: criteria }); };
+  writeTickedAccounts(sh, 'D');
   const first = 19;
   const lastExp = first + MAX_EXPENSE_CATEGORIES - 1;
   const lastInc = first + MAX_INCOME_CATEGORIES - 1;
@@ -409,7 +428,8 @@ function makeMonthlySummary() {
 
 function makeAnnualSummary() {
   const sh = prepareView(TAB.ANNUAL, [yearSelector('B1')]);
-  const sum = function (criteria) { return sub(TICKED_SUM, { TICK: 'E', CRITERIA: criteria }); };
+  const sum = function (criteria) { return sub(TICKED_SUM, { CRITERIA: criteria }); };
+  writeTickedAccounts(sh, 'E');
 
   sh.getRange('A2:A5').setValues([['From'], ['To (exclusive)'], ['Accounts'], ['Unresolved ledger rows (all dates)']]);
   setF(sh, 'B2', '=DATE($B$1,1,1)');
@@ -553,7 +573,7 @@ function balancesMatrix(sh, top) {
   sh.getRange(first, 2, MAX_ACCOUNTS + 1, 12).setNumberFormat(MONEY_FORMAT);
   sh.getRange('A' + (last + 1)).setValue('Net worth (base)');
   fillFormulas(sh, last + 1, 2, 1, 12,
-    '=IF(COUNT({c}' + first + ':{c}' + last + ')=0,"",SUM({c}' + first + ':{c}' + last + '))');
+    '=IF(COUNT({c}' + first + ':{c}' + last + ')=0,"",SUMIF({c}' + first + ':{c}' + last + ',"<1E+300"))');
   return last + 1;
 }
 
@@ -575,7 +595,8 @@ function balancesFlows(sh, top) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Charts (spec 3.7). Run after the data gate. Safe to re-run: replaces the charts on these tabs.
+// Charts (spec 3.7). Run after the data gate. Removes ALL charts on Monthly Summary, Annual Summary
+// and Balances first (user-made ones included), then adds the template charts.
 // ---------------------------------------------------------------------------------------------
 
 function addCharts() {
@@ -744,8 +765,14 @@ function prepareView(name, selectors) {
   return sh;
 }
 
+// Helper column of a summary tab: the account names ticked in Accounts column `tick` (see TICKED_ACCOUNTS).
+function writeTickedAccounts(sh, tick) {
+  sh.getRange(TICKED_COL + '1').setValue('Accounts counted (helper)');
+  setF(sh, TICKED_COL + '2', sub(TICKED_ACCOUNTS, { TICK: tick }));
+}
+
 function writeUnresolved(sh, a1) {
-  sh.getRange(a1).setValue('Unresolved ledger rows (all years)');
+  sh.getRange(a1).setValue('Unresolved ledger rows (all dates)');
   setF(sh, sh.getRange(a1).offset(0, 1).getA1Notation(), UNRESOLVED_COUNT);
 }
 
@@ -784,8 +811,13 @@ function setSchemaVersion() {
 function removeDefaultSheet(original) {
   const ss = SpreadsheetApp.getActive();
   original.forEach(function (sh) {
-    if (TAB_ORDER.indexOf(sh.getName()) < 0 && sh.getLastRow() === 0 && sh.getLastColumn() === 0) {
+    if (TAB_ORDER.indexOf(sh.getName()) >= 0) return;
+    if (sh.getLastRow() === 0 && sh.getLastColumn() === 0) {
       ss.deleteSheet(sh);
+    } else {
+      const msg = 'Kept tab "' + sh.getName() + '" because it has content; delete it by hand if it is not needed.';
+      Logger.log(msg);
+      ss.toast(msg, 'Fitracker', 10);
     }
   });
 }
