@@ -1,4 +1,6 @@
-<p align="center"><img src="assets/banner.webp" alt="fitracker logo" width="100%" /></p>
+<p align="center"><img src="assets/title.svg" alt="fitracker logo" width="40%" /></p>
+
+<p align="center"><img src="assets/hero.webp" alt="The fitracker PWA on a phone, adding an expense" width="100%" /></p>
 
 # fitracker
 
