@@ -102,7 +102,7 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 =GOOGLEFINANCE("CURRENCY:GBPEUR","price",DATE(2026,9,1),DATE(2026,10,1),"DAILY")
 ```
    Wait about a minute for the sheet to finish loading before reading, and note whether it shows a table or an error such as `#N/A`.
-3. **History rows.** Spec gate 2 also needs history loaded into `Rates`. Insert 36 rows above row 2 and fill them in ascending date order with the months `2023-09-01` to `2026-08-01` (real dates). Use obviously synthetic values: `GBP` = `2` and `USD` = `3` on every one of these rows. Then add a `Ledger` row dated `2024-03-15` for `Account B (GBP)` with amount `10` and another for `Account C (USD)` with amount `10`; check that `J` shows `20` and `30`.
+3. **History rows.** Spec gate 2 also needs history loaded into `Rates`. Do not insert rows above row 2 (that would shift the range in the `J2` formula). Instead select `Rates!A2:C4`, cut it (Ctrl+X) and paste it at `A38` (Ctrl+V), so the three original rows now sit in rows 38 to 40 and any references to them move along; the `J2` range `Rates!A2:C` is larger than the moved block, so it keeps pointing at row 2. Then fill rows 2 to 37 with 36 history months, `2023-09-01` to `2026-08-01` (they end right before the row-38 month): type `2023-09-01` in `A2`, `=EDATE(A2,1)` in `A3` and fill down to `A37`, then select `A2:A37`, copy and Edit > Paste special > Values only over itself. Use obviously synthetic values: `GBP` = `2` and `USD` = `3` on every one of `B2:C37`. Then add a `Ledger` row dated `2024-03-15` for `Account B (GBP)` with amount `10` and another for `Account C (USD)` with amount `10`; check that `J` shows `20` and `30`. If `J` shows `#N/A`, re-enter the `J2` formula from the common setup.
 4. API Explorer for `spreadsheets.values.batchGet` (<https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/batchGet>). Parameters:
    - `spreadsheetId`: your ID
    - `ranges` (add the field twice): `Rates!A40:C40`, `Ledger!J2:J`. The original rows 2 to 4 are now rows 38 to 40, so row 40 is the November (current-month) row; check that before reading.
@@ -111,7 +111,7 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
    - `majorDimension`: `ROWS`
 5. Execute. Record whether `B` and `C` of the current-month row come back as JSON numbers (not strings, not error text), whether `Ledger!J2:J` returns JSON numbers for rows with data (and `""` for the cleared row), and that the 2024-03-15 rows read `20` and `30`.
 6. Wait a few minutes, execute again, and note whether the current-month rates are still numbers.
-7. Optionally add a third `ranges` entry `Rates!E2:F40` and note what the API returns for the history formula.
+7. Optionally add a third `ranges` entry `Rates!E2:F40` (the history formula stays in `E2` because only columns A to C moved) and note what the API returns for it.
 
 **Pass.** The current-month `GBP` and `USD` cells and the non-empty `Ledger!J` values come back as JSON numbers, and `J` resolves the older-month entries from the history rows. Record separately whether the history formula returned data or `#N/A`; either answer passes, but write it down.
 
@@ -126,8 +126,8 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 **Steps.**
 
 1. Do S2 first, then use File > Make a copy to get a scratch copy for S3. In the copy, select `Ledger!A2:I` and press Delete, keeping the `J2` array formula.
-2. `Accounts`: rows 2 to 4 stay as they are. Fill rows 5 to 19 with `Account 1 (EUR)` to `Account 15 (EUR)` (currency `EUR`, active TRUE). Tick `In Monthly` (column D) on rows 5 to 16 only (12 accounts) and leave rows 17 to 19 unticked.
-3. Generate the ledger so the account names cycle through the 15 accounts. In `Ledger` row 2 type the formulas below, then select `A2:H10001` and press Ctrl+D to fill down:
+2. `Accounts`: rows 2 to 4 stay as they are. Fill rows 5 to 19 with `Account 1 (EUR)` to `Account 15 (EUR)` (currency `EUR`, active TRUE). Format `C5:D19` as checkboxes (Insert > Checkbox), then tick `In Monthly` (column D) on rows 5 to 16 only (12 accounts) and leave rows 17 to 19 unticked.
+3. Generate the ledger so the account names cycle through the 15 accounts. In `Ledger` row 2 type the formulas below, then type `A2:H10001` into the Name box (left of the formula bar), press Enter, and press Ctrl+D to fill down:
    - `A2`: `=ROW()`
    - `B2`: `=DATE(2024,1,1)+MOD(ROW()*7,1065)`
    - `C2`: `expense`
@@ -136,7 +136,7 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
    - `G2`: `="Cat "&(MOD(ROW(),15)+1)`
    - `H2`: `=INDEX(Accounts!$A$5:$A$19,MOD(ROW(),15)+1)`
 
-   Then select `A2:H10001`, copy, and use Edit > Paste special > Values only over itself, so the sheet holds plain values like a real ledger. Confirm `J` shows numbers down to row 10001. If you use real converted data instead, first copy your real `Accounts` and `Rates` tabs into the scratch sheet and paste the converted ledger (three times for about 10k rows) in place of steps 2 and 3.
+   Then select `A2:H10001` through the Name box again, copy, and use Edit > Paste special > Values only over itself, so the sheet holds plain values like a real ledger. Confirm `J` shows numbers down to row 10001. Alternative with real converted data, in place of steps 2 and 3: in the scratch copy, replace the `Accounts` and `Rates` tabs with copies of your real ones (so the account names and rate months match the ledger), paste the converted ledger into `Ledger!A2:I` three times in a row to reach about 10,000 rows, and add one snapshot per real account in step 4. The categories and account names then differ from `Cat n` and `Account n (EUR)`, so in step 5 list your real category names in `Summary!A2:A16` and in step 6 your real account names in `BalancesTest!A2:A16`.
 4. Add a `Snapshots` tab, row 1: `id | date | account | balance | note`. Add 15 rows, one per `Account 1 (EUR)` to `Account 15 (EUR)`, date `2024-01-31`, balance `1000`.
 5. Add a tab `Summary`. `A2:A16`: `Cat 1` to `Cat 15`. `B1:M1`: 12 month starts (`2026-01-01` to `2026-12-01`, as dates). Enter in `B2` and fill to `B2:M16`:
 ```
