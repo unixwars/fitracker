@@ -61,11 +61,21 @@ to the API key's HTTP referrers. To release, rebuild and run the same deploy com
 Run Wrangler through `pnpm dlx`, not as a dependency, and leave pnpm's ignored build scripts
 for `esbuild` and `workerd` unapproved: neither is needed to upload static files.
 
-**Git-connected** (optional, builds on every push to `main`). Create the project with *Connect to
-Git* instead: framework preset *None*, build command `pnpm build`, output directory `dist`, and
-the three `VITE_GOOGLE_*` values as environment variables (public by nature). Set `NODE_VERSION` if the
-build asks for it. A Pages project is one kind or the other; a direct-upload project cannot be
-switched to Git later, so create a new project to change.
+**Git-connected** (optional, builds on every push to `main`). Open the project's **Settings** tab,
+under *Build* click **Connect** next to *Git repository*, and authorize the repo. This works on a
+project first created with the manual upload. Then:
+
+- The dashboard can take a while to refresh after linking (it may even show the link twice or not at
+  all). Reload the Settings tab and wait: the build configuration (*Framework preset*, build command,
+  output directory) only appears once the link is shown.
+- Framework preset *None*, build command `pnpm build`, output directory `dist`.
+- Under *Variables and secrets* add `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` and
+  `VITE_GOOGLE_PROJECT_NUMBER` (public by nature) and `NODE_VERSION` = `24`. The repo pins no Node
+  version; 24 satisfies every dependency (use 22.22 or later if the image rejects 24).
+
+**Cache headers.** `public/_headers` is copied into `dist/` by the build, and Cloudflare Pages reads
+it from there on every deploy, manual or Git. There is nothing to set in the dashboard. To check
+after a deploy: `curl -sI https://<hostname>/sw.js | grep -i cache-control` should say `no-cache`.
 
 The OAuth *client secret* is never used by this app (sign-in runs in the browser with the client
 ID only). Do not put it in `.env` or in Cloudflare's variables.
