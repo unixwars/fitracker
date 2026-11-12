@@ -6,6 +6,10 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ## [Unreleased]
 
+
+### Added
+- Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
+
 ---
 
 ## [0.2.0] - 2026-11-15
