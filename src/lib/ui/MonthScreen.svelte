@@ -3,6 +3,7 @@
   import { messages } from '../messages'
   import { monthView, UNCATEGORISED, type CategoryRow } from '../month'
   import type { Entry } from '../rows'
+  import CategoryIcon from './CategoryIcon.svelte'
   import EntrySheet from './EntrySheet.svelte'
   import { dateLabel, fmt, monthLabel, shiftMonth } from './format'
 
@@ -39,7 +40,7 @@
   <div class="stat muted"><span>{messages.business}</span><span>{fmt(view.expenses.business)}</span></div>
   {#each view.expenses.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('e:' + c.name)} aria-expanded={open === 'e:' + c.name}>
-      <span class="line"><span>{c.name}</span><span>{fmt(c.actual)} / {fmt(c.planned)}</span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span>{fmt(c.actual)} / {fmt(c.planned)}</span></span>
       <span class="bar" class:over={over(c)}><i style="width: {pct(c)}%"></i></span>
     </button>
     {#if open === 'e:' + c.name}
@@ -59,7 +60,7 @@
   <div class="stat"><span>{messages.savingsRate}</span><b>{view.savingsRate === null ? messages.noSavingsRate : Math.round(view.savingsRate * 100) + '%'}</b></div>
   {#each view.income.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('i:' + c.name)} aria-expanded={open === 'i:' + c.name}>
-      <span class="line"><span>{c.name}</span><span>{fmt(c.actual)}</span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span>{fmt(c.actual)}</span></span>
     </button>
     {#if open === 'i:' + c.name}
       {#each entriesOf('income', c.name) as e (e.id)}

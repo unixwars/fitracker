@@ -74,6 +74,9 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .chips.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 10px 14px; min-height: 44px; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; }
+.cat .name { display: inline-flex; align-items: center; gap: 8px; }
+.ci { flex: none; }
 .chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row > * { flex: 1; }

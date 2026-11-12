@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
+  import CategoryIcon from './CategoryIcon.svelte'
   import { applySuggestion, categoriesFor, switchKind, validate, type Errors, type FormState } from '../addForm'
   import type { DeviceSettings } from '../config'
   import { messages } from '../messages'
@@ -158,7 +159,7 @@
     <h3>{messages.category}</h3>
     <div class="chips" data-testid="categories">
       {#each categories as c (c)}
-        <button type="button" class="chip" aria-pressed={form.category === c} onclick={() => (form = { ...form, category: c })}>{c}</button>
+        <button type="button" class="chip" aria-pressed={form.category === c} onclick={() => (form = { ...form, category: c })}><CategoryIcon name={c} />{c}</button>
       {/each}
     </div>
     {#if errors.category}<p class="err">{messages.errors.category}</p>{/if}
