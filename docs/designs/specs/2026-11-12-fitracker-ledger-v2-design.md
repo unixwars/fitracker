@@ -180,7 +180,9 @@ Each sub-project gets its own plan. A failed gate returns to this spec.
    S3 view formulas fast on a ten-thousand-row ledger; S4 import, `QUERY` and array survive, charts and
    protections through the API.
 3. Converter report clean on 2024-2026 and `accounts.csv` reviewed.
-4. User imports into the template and the Monthly and Annual views match the old sheets within a few units.
+4. The template is built by an Apps Script (`template/build-template.gs`) and passes its checklist; the
+   user imports the converted tables into it and the Monthly and Annual views match the old sheets
+   within a few units.
 5. App core on the real data.
 6. Accounts screen and performance.
 7. Earlier years (any time after gate 4).
