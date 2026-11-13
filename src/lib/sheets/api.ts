@@ -114,25 +114,36 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
   }
 
+  async function applyOps(id: string, ops: SheetOp[]): Promise<void> {
+    const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
+    const tabs = new Map(meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]))
+    const existing = new Set<string>()
+    for (const op of ops) if (op.t === 'metadata' && (await metadataValue(id, op.key)) !== null) existing.add(op.key)
+    await request('POST', `${BASE}/${id}:batchUpdate`, { requests: compileOps(ops, tabs, existing) })
+  }
+
   return {
     async batchGet(id, ranges, render: RenderOption = 'UNFORMATTED_VALUE') {
       const q = [...ranges.map((r) => `ranges=${encodeURIComponent(r)}`), 'majorDimension=ROWS', `valueRenderOption=${render}`, 'dateTimeRenderOption=SERIAL_NUMBER']
       const r = await request<{ valueRanges?: { values?: unknown[][] }[] }>('GET', `${BASE}/${id}/values:batchGet?${q.join('&')}`)
       return ranges.map((_, i) => r.valueRanges?.[i]?.values ?? [])
     },
-    async valuesBatchUpdate(id, data) {
-      await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: 'RAW', data })
+    async valuesBatchUpdate(id, data, input = 'RAW') {
+      await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: input, data })
+    },
+    // Google reference: POST /v4/spreadsheets/{id}/values/{range}:append, response.updates.updatedRange.
+    async valuesAppend(id, range, values) {
+      const url = `${BASE}/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
+      const r = await request<{ updates?: { updatedRange?: string } }>('POST', url, { values })
+      return { updatedRange: r.updates?.updatedRange ?? '' }
     },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })
     },
-    async applyOps(id, ops) {
-      const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
-      const tabs = new Map(meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]))
-      const existing = new Set<string>()
-      for (const op of ops) if (op.t === 'metadata' && (await metadataValue(id, op.key)) !== null) existing.add(op.key)
-      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: compileOps(ops, tabs, existing) })
+    async setMetadata(id, key, value) {
+      await applyOps(id, [{ t: 'metadata', key, value }])
     },
+    applyOps,
     getMetadata: metadataValue,
   }
 }

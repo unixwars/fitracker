@@ -28,7 +28,9 @@ export function parseRange(range: string): Rect {
     if (!m || (needRow && !m[2])) throw new Error(`Unsupported range: ${range}`)
     return { c: colToNum(m[1]), r: m[2] ? Number(m[2]) : Infinity }
   }
-  const p = cell(a, true)
+  // A whole-column range such as "A:I" (no row on either cell) runs from row 1 to the bottom.
+  const whole = a !== b && !/\d/.test(a) && !/\d/.test(b)
+  const p = whole ? { c: cell(a, false).c, r: 1 } : cell(a, true)
   const q = cell(b, false)
   return { sheet, c1: Math.min(p.c, q.c), r1: Math.min(p.r, q.r), c2: Math.max(p.c, q.c), r2: Math.max(p.r, q.r) }
 }

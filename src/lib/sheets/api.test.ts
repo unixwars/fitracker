@@ -78,6 +78,37 @@ describe('createSheetsApi', () => {
   })
 })
 
+describe('createSheetsApi additions', () => {
+  it('valuesAppend appends RAW with INSERT_ROWS and returns the updated range', async () => {
+    const { calls, fetchImpl } = stub([json({ updates: { updatedRange: 'Ledger!A22:I22' } })])
+    const out = await createSheetsApi(() => 'tok', fetchImpl).valuesAppend('S1', 'Ledger!A:I', [['id1', 45292]])
+    expect(out).toEqual({ updatedRange: 'Ledger!A22:I22' })
+    expect(calls[0].url).toBe('https://sheets.googleapis.com/v4/spreadsheets/S1/values/Ledger!A%3AI:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS')
+    expect(calls[0].init?.method).toBe('POST')
+    expect(JSON.parse(calls[0].init!.body as string)).toEqual({ values: [['id1', 45292]] })
+  })
+
+  it('valuesBatchUpdate can be asked for USER_ENTERED; RAW stays the default', async () => {
+    const { calls, fetchImpl } = stub([json({}), json({})])
+    const api = createSheetsApi(() => 'tok', fetchImpl)
+    await api.valuesBatchUpdate('S1', [{ range: 'Rates!A9', values: [['=1+1']] }], 'USER_ENTERED')
+    await api.valuesBatchUpdate('S1', [{ range: 'Rates!A9', values: [['=1+1']] }])
+    expect(JSON.parse(calls[0].init!.body as string).valueInputOption).toBe('USER_ENTERED')
+    expect(JSON.parse(calls[1].init!.body as string).valueInputOption).toBe('RAW')
+  })
+
+  it('setMetadata creates the entry when none exists and updates it when one does', async () => {
+    const tabs = () => json({ sheets: [{ properties: { sheetId: 1, title: 'Ledger' } }] })
+    const create = stub([tabs(), json({ matchedDeveloperMetadata: [] }), json({})])
+    await createSheetsApi(() => 'tok', create.fetchImpl).setMetadata('S1', 'k', '3')
+    expect(JSON.parse(create.calls[create.calls.length - 1].init!.body as string).requests[0].createDeveloperMetadata.developerMetadata)
+      .toMatchObject({ metadataKey: 'k', metadataValue: '3', visibility: 'DOCUMENT' })
+    const update = stub([tabs(), json({ matchedDeveloperMetadata: [{ developerMetadata: { metadataValue: '2' } }] }), json({})])
+    await createSheetsApi(() => 'tok', update.fetchImpl).setMetadata('S1', 'k', '3')
+    expect(JSON.parse(update.calls[update.calls.length - 1].init!.body as string).requests[0].updateDeveloperMetadata.developerMetadata.metadataValue).toBe('3')
+  })
+})
+
 describe('compileOps', () => {
   const tabs = new Map([['Expenses', 7], ['Setup', 3]])
   it('compiles each op to the matching request', () => {

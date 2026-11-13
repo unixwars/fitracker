@@ -86,6 +86,12 @@ export type FakeSheets = SheetsApi & {
   failNext(status: number): void
   failApplyAfter(opsApplied: number): void
   afterNextWrite(fn: () => void): void
+  /** Runs `fn` just before the next write lands (simulates a competing device). */
+  beforeNextWrite(fn: () => void): void
+  /** Values `=GOOGLEFINANCE("CURRENCY:XXXYYY")` takes when written with USER_ENTERED, by XXX. */
+  liveRates: Record<string, number>
+  /** When true, reading a range on a tab that does not exist is a 400, like the real API. */
+  strictTabs: boolean
   injectWrite(id: string, range: string, values: unknown[][]): void
 }
 
@@ -95,6 +101,7 @@ export function createFakeSheets(): FakeSheets {
   let failStatus: number | null = null
   let failApply: number | null = null
   let afterWrite: (() => void) | null = null
+  let beforeWrite: (() => void) | null = null
 
   const book = (id: string): Book => {
     let b = books.get(id)
@@ -111,34 +118,72 @@ export function createFakeSheets(): FakeSheets {
       throw new ApiError(s, 'injected failure')
     }
   }
+  const fireBeforeWrite = () => {
+    const fn = beforeWrite
+    beforeWrite = null
+    fn?.()
+  }
   const fireAfterWrite = () => {
     const fn = afterWrite
     afterWrite = null
     fn?.()
   }
 
-  return {
+  const fake: FakeSheets = {
     book,
     calls,
     count: (m) => calls.filter((c) => c.method === m).length,
     failNext: (s) => { failStatus = s },
     failApplyAfter: (n) => { failApply = n },
     afterNextWrite: (fn) => { afterWrite = fn },
+    beforeNextWrite: (fn) => { beforeWrite = fn },
+    liveRates: { EUR: 1, GBP: 1.17, USD: 0.94 },
+    strictTabs: false,
     injectWrite: (id, range, values) => book(id).write(range, values),
 
     async batchGet(id, ranges, render = 'UNFORMATTED_VALUE') {
       enter('batchGet', id, ranges, render)
+      if (fake.strictTabs) {
+        for (const r of ranges) {
+          const tab = parseRange(r).sheet
+          if (!book(id).sheets.has(tab)) throw new ApiError(400, `Unable to parse range: ${r}`)
+        }
+      }
       return ranges.map((r) => book(id).read(r, render))
     },
-    async valuesBatchUpdate(id, data) {
-      enter('valuesBatchUpdate', id, data)
-      for (const d of data) book(id).write(d.range, d.values)
+    async valuesBatchUpdate(id, data, input = 'RAW') {
+      enter('valuesBatchUpdate', id, data, input)
+      fireBeforeWrite()
+      for (const d of data) {
+        const values = input === 'USER_ENTERED' ? d.values.map((row) => row.map((v) => userEntered(v, fake.liveRates))) : d.values
+        book(id).write(d.range, values)
+      }
       fireAfterWrite()
+    },
+    async valuesAppend(id, range, values) {
+      enter('valuesAppend', id, range, values)
+      fireBeforeWrite()
+      const r = parseRange(range)
+      const b = book(id)
+      let last = 0
+      for (const key of b.sheets.get(r.sheet)?.keys() ?? []) {
+        const [row, col] = key.split(',').map(Number)
+        if (col >= r.c1 && col <= r.c2) last = Math.max(last, row)
+      }
+      const first = Math.max(last + 1, 2)
+      b.write(`${r.sheet}!${numToCol(r.c1)}${first}:${numToCol(r.c1 + Math.max(...values.map((v) => v.length)) - 1)}${first + values.length - 1}`, values)
+      fireAfterWrite()
+      return { updatedRange: `${r.sheet}!${numToCol(r.c1)}${first}:${numToCol(r.c2)}${first + values.length - 1}` }
     },
     async valuesBatchClear(id, ranges) {
       enter('valuesBatchClear', id, ranges)
+      fireBeforeWrite()
       for (const r of ranges) book(id).clear(r)
       fireAfterWrite()
+    },
+    async setMetadata(id, key, value) {
+      enter('setMetadata', id, key, value)
+      book(id).metadata.set(key, value)
     },
     async applyOps(id, ops: SheetOp[]) {
       enter('applyOps', id, ops)
@@ -156,6 +201,14 @@ export function createFakeSheets(): FakeSheets {
       return book(id).metadata.get(key) ?? null
     },
   }
+  return fake
+}
+
+// USER_ENTERED: a GOOGLEFINANCE current-rate formula becomes a formula cell whose value is the live rate.
+function userEntered(v: unknown, live: Record<string, number>): unknown {
+  if (typeof v !== 'string' || !v.startsWith('=')) return v
+  const m = /^=GOOGLEFINANCE\("CURRENCY:([A-Z]{3})[A-Z]{3}"\)$/.exec(v)
+  return { f: v, v: m ? (live[m[1]] ?? '') : '' }
 }
 
 function applyOp(b: Book, op: SheetOp): void {

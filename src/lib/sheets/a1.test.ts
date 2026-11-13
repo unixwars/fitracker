@@ -10,4 +10,11 @@ describe('parseRange', () => {
     expect(parseRange('Expenses!C10:C')).toEqual({ sheet: 'Expenses', c1: 3, r1: 10, c2: 3, r2: Infinity })
     expect(parseRange("'Expenses (backup v0)'!A10:I").r2).toBe(Infinity)
   })
+  it('parses whole-column ranges such as Ledger!A:I as rows 1 to the bottom', () => {
+    expect(parseRange('Ledger!A:I')).toEqual({ sheet: 'Ledger', c1: 1, r1: 1, c2: 9, r2: Infinity })
+    expect(parseRange('Snapshots!B:C')).toEqual({ sheet: 'Snapshots', c1: 2, r1: 1, c2: 3, r2: Infinity })
+  })
+  it('still rejects a single column without a row', () => {
+    expect(() => parseRange('Ledger!A')).toThrow()
+  })
 })
