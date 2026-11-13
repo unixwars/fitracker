@@ -1,10 +1,11 @@
 import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
-import { parseLedgerRow, parseSnapshotRow, type Entry } from '../rows'
+import { ledgerRowValues, parseLedgerRow, parseSnapshotRow, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS } from '../schema'
-import type { LedgerStore, RefreshOpts } from '../store'
+import type { AddResult, LedgerStore, RefreshOpts } from '../store'
 import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
+import { parseRange } from './a1'
 import type { SheetsApi } from './types'
 import { ensureVersion } from './version'
 
@@ -23,6 +24,8 @@ type Data = {
 
 const VERSION_RECHECK_MS = 5 * 60_000
 const notYet = (): never => { throw new Error('not implemented') }
+const MAX_ADD_ATTEMPTS = 3
+const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v)).trim()
 
 export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options: StoreOptions = {}): LedgerStore & { _internals: Internals } {
   const now = options.now ?? Date.now
@@ -114,6 +117,39 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     notify()
     return data
   }
+  // Adds entries with values:append (spec 3.2). Every attempt first reads ALL ids, so an entry that is already in the
+  // sheet anywhere (a retry after a lost response, a row moved by a sort) is never appended twice; the append is then
+  // read back from the response's updatedRange and the entries that did not land are retried (at most three attempts).
+  async function addMany(entries: Entry[]): Promise<AddResult[]> {
+    await checkVersion()
+    const results = new Map<string, AddResult>()
+    let pending = entries.filter((e, i) => entries.findIndex((x) => x.id === e.id) === i)
+    for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS && pending.length; attempt++) {
+      const [idCells, accountRows] = await api.batchGet(spreadsheetId, [LEDGER.ranges.ids, REFERENCE.accounts], 'UNFORMATTED_VALUE')
+      const present = new Set((idCells ?? []).map((r) => str(r?.[0])))
+      const accounts = parseReference([], accountRows ?? [], [], []).accounts
+      pending = pending.filter((e) => {
+        if (present.has(e.id)) { results.set(e.id, { id: e.id, ok: true }); return false }
+        const from = accounts.find((a) => a.name === e.account)
+        const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
+        if (!from || from.currency !== e.money.currency || !toKnown) { results.set(e.id, { id: e.id, ok: false, reason: 'AccountChanged' }); return false }
+        return true
+      })
+      if (!pending.length) break
+      const { updatedRange } = await api.valuesAppend(spreadsheetId, LEDGER.ranges.append, pending.map(ledgerRowValues))
+      const landed = parseRange(updatedRange)
+      const [back] = await api.batchGet(spreadsheetId, [`${LEDGER.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
+      pending = pending.filter((e, i) => {
+        if (str(back?.[i]?.[0]) !== e.id) return true
+        results.set(e.id, { id: e.id, ok: true })
+        return false
+      })
+    }
+    markDirty()
+    if (pending.length) throw new Error('Could not place all entries; try again')
+    return entries.map((e) => results.get(e.id)!)
+  }
+
   const markDirty = () => {
     stale = true
     notify()
@@ -133,7 +169,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       listeners.add(fn)
       return () => listeners.delete(fn)
     },
-    addMany: async () => notYet(),
+    addMany,
     edit: async () => notYet(),
     delete: async () => notYet(),
     addSnapshot: async () => notYet(),
