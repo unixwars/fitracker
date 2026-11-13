@@ -1,35 +1,62 @@
 # The sheet template
 
-`assets/FIRE-TEMPLATE.xlsx` is a generic yearly budget sheet (originally based on The Frugal Gene's
-template). It is already in the layout the app expects (schema version 2). It contains no personal
-data: the accounts, categories and budgets are placeholders for you to edit.
+**BLUF:** Fitracker's data lives in a Google Sheet. Make your own copy of the public template, fill in
+your accounts and categories, and start entering rows. Everything below uses placeholder data only.
 
-## Use it
+Get it: <https://docs.google.com/spreadsheets/d/1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-jUfcqgaTLp8yY/copy>
 
-1. Upload the file to Google Drive and open it with Google Sheets, then **File → Save as Google
-   Sheets**. The Sheets API refuses `.xlsx` files, so the conversion is required.
-2. In **Setup**, set the year (`C8`), your income and expense categories, budgets and accounts.
-   Set the base currency in `U8` (default `EUR`); the rates table below it converts EUR, GBP and
-   USD to that base.
-3. In the app, link the sheet for that year (Settings → Link). The app recognises the layout by its
-   headers and stamps the schema version; no migration is needed.
+## Start in three steps
 
-## Layout the app relies on
+1. Open the link above (sign in to Google if asked).
+2. Click **Make a copy**. The copy is yours; the template stays untouched.
+3. Once the app exists, link your copy in Settings (one Picker consent, once).
 
-- Entry tabs `Expenses`, `Income`, `Transfers`: headers in row 9, entries from row 10.
-- Column A is a hidden id column written by the app. `D` is the amount as entered, the last column
-  (`I` on Expenses, `H` on the others) is the currency (EUR, GBP or USD).
-- `C` is one array formula in `C10` that converts each row to the base currency. **Do not type in
-  column C**; the app never writes it and the sheet's summary tabs sum it.
-- `Setup` lists: income categories `B16:B35`, expense categories `B46:B68`, accounts `B76:B102`,
-  monthly budgets in `C:N` next to the categories.
+## Tabs
 
-The array formula is stored in the file with Google's own export wrapper, the same way the other
-Google-only formulas in the template are, so Sheets turns it back into `ARRAYFORMULA(...)` on import.
+| Tab | Purpose | Written by |
+| --- | --- | --- |
+| `Ledger` | Every expense, income and transfer, all years | you or the app |
+| `Snapshots` | Account balances on a date | you or the app |
+| `Rates` | Monthly GBP and USD rates into the base currency | you, the app, formulas |
+| `Settings` | Base currency (default EUR) | you |
+| `Accounts` | Account names, currencies, ticks | you |
+| `Categories` | Expense and income categories | you |
+| `Budgets` | Monthly budget per category and year | you |
+| `Expenses`, `Income`, `Transfers` | Filtered views of `Ledger` by year | formulas |
+| `Monthly Summary`, `Annual Summary` | Budget vs actual, totals, savings rate, charts | formulas |
+| `Balances` | Balance per account, net worth over time | formulas |
 
-## Older sheets
+Never type in the formula tabs; they warn you if you try.
 
-Sheets made from the earlier two-column layout (EUR in `C`, GBP in `D`) are migrated by the app
-(Settings → Sheet update), step by step, with backup tabs first. Rows it cannot classify (custom
-formulas or text in `C` or `D`) stop the update before anything is written; fix them in the sheet and
-run it again.
+## Entering data by hand in `Ledger`
+
+Columns: `id` (hidden, leave empty; the app fills it), `date`, `type` (`expense`, `income`, `transfer`),
+`amount`, `place`, `description`, `category`, `account`, `to_account`, `base amount` (formula, never type).
+
+- Amounts are always positive and in the **account's own currency**.
+- A refund is income, not a negative expense.
+- A transfer uses `account` as the source and `to_account` as the destination; no category.
+- Dates must be real dates, amounts real numbers (validation rejects text).
+
+## Accounts
+
+- Tick `active`, `In Monthly` and `In Annual` for each account (new rows start unticked).
+- `In Monthly` and `In Annual` decide which accounts count in the two summaries.
+- Each account has one currency (EUR, GBP or USD). Set it once; changing it reinterprets its history.
+- List each account name once.
+
+## Snapshots
+
+A snapshot is an end-of-day balance; it resets the baseline for that account. Small drift between your
+snapshot and the computed balance is normal (it is only flagged at 10 in base currency or more).
+
+## Rates
+
+- One row per month, first day of the month; each value is one unit of GBP or USD in the base currency.
+- The current month is a live `GOOGLEFINANCE` row.
+- At month end paste that row as values and add next month's row with the formula, until the app does it.
+
+## Migrating older yearly sheets
+
+Not needed for new users. The old one-sheet-per-year files are converted by a Python tool on the orphan
+branch `legacy-ingest`. The import runbook is in `template/README.md`.
