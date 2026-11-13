@@ -49,12 +49,12 @@ cannot default to ticked). Tick them by hand, here and for every real account.
 
 Tick each item:
 
-- [x] 1. All 13 tabs exist in this order: `Ledger`, `Snapshots`, `Settings`, `Accounts`, `Categories`, `Budgets`,
+- [ ] 1. All 13 tabs exist in this order: `Ledger`, `Snapshots`, `Settings`, `Accounts`, `Categories`, `Budgets`,
   `Rates`, `Expenses`, `Income`, `Transfers`, `Monthly Summary`, `Annual Summary`, `Balances`; `Sheet1` is gone;
   column A of `Ledger` and `Snapshots` is hidden; `Settings!B1` is `EUR` and offers only `EUR`, `GBP`, `USD`.
-- [x] 2. `J2` converts a typed row: `Ledger!J2` shows `10` and `J3` shows `11.70` (10 x 1.17). `J2` is the only
+- [ ] 2. `J2` converts a typed row: `Ledger!J2` shows `10` and `J3` shows `11.70` (10 x 1.17). `J2` is the only
   formula in column J (click `J3`: the formula bar shows no formula).
-- [x] 3. Changing a currency in `Accounts` changes the result: set `Account A (EUR)` currency to `GBP`; `J2`
+- [ ] 3. Changing a currency in `Accounts` changes the result: set `Account A (EUR)` currency to `GBP`; `J2`
   becomes `11.70`. Set it back to `EUR`; `J2` is `10` again.
 - [ ] 4. The account ticks change the `Monthly Summary` total. Select year 2026 and month 11 and check "Actual
   expenses (total)", the `Cat 1` "Spent" cell and the "Accounts included" line in each case (`In Monthly` column):
@@ -65,21 +65,21 @@ Tick each item:
 
   Repeat the "both" and "none" cases with the `In Annual` column on `Annual Summary` (year 2026): Expenses
   `21.70` and `0.00`. Tick everything again afterwards.
-- [x] 5. Editing a view tab shows a warning: type anything in `Expenses!C10` (and in a cell of `Monthly Summary`
+- [ ] 5. Editing a view tab shows a warning: type anything in `Expenses!C10` (and in a cell of `Monthly Summary`
   and `Balances`); Sheets shows "You are trying to edit a protected cell or object" with a warning you can
   cancel. Press Cancel. The yellow selector cells (year, month) edit without a warning. Typing in `Ledger!J5`
   also shows the warning.
-- [x] 6. A text date or amount in `Ledger` is rejected: in `Ledger!B4` type `next tuesday`, then in `Ledger!D4`
+- [ ] 6. A text date or amount in `Ledger` is rejected: in `Ledger!B4` type `next tuesday`, then in `Ledger!D4`
   type `ten`, then `-5`; each is refused with "Input must be ...". A type other than `expense`, `income`,
   `transfer` in `C4` is refused too.
-- [x] 7. The version metadata is present: in the Apps Script editor choose `showSchemaVersion` and Run. The
+- [ ] 7. The version metadata is present: in the Apps Script editor choose `showSchemaVersion` and Run. The
   toast in the sheet (and View > Logs / Execution log) shows `fitracker.schemaVersion = 3 (DOCUMENT)`.
   (Data > Named ranges does not show developer metadata; do not look there.)
-- [x] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`
+- [ ] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`
   and `base_amount` `10` and `11.70` (not blank: a blank there means `QUERY` typed the column as text because
   of the empty `J` cells; report it); `Balances` lists both accounts with "none" as snapshot date and balances
   `-10` and `-10` (base `-10` and `-11.70`).
-- [x] 9. A row without an account shows an error: in `Ledger` row 4 type
+- [ ] 9. A row without an account shows an error: in `Ledger` row 4 type
   `t0 | 2026-11-09 | expense | 3 | | Test | Cat 1` and leave `account` empty. `J4` shows an error (`#N/A`) and
   "Unresolved ledger rows (all dates)" on `Monthly Summary` shows `1`. Then clear `Ledger` A4:I4: `J4` is
   empty and the count is `0` again.
@@ -138,6 +138,7 @@ the script instead.
 - Category names and account names used as `SUMIFS` criteria must not start with `<`, `>` or `=` and should not
   contain `*` or `?` (wildcards).
 - Only `EUR`, `GBP`, `USD` are supported, with `EUR` as base. A base currency other than `EUR` is out of scope.
+- "Accounts included n" counts an account name listed twice in `Accounts` twice, while the totals count it once.
 
 ## Decisions made while writing this script
 
@@ -188,4 +189,110 @@ the script instead.
 
 ## Import
 
-Written in Task 14.
+Loads your history (the converter's CSV files) into YOUR OWN COPY of the template. Never import into the public
+master. The CSVs and `report.md` hold private financial data: do not email them, do not commit them, and delete
+the downloaded copies after a successful import (step 10).
+
+An import is always a FULL REPLACE, never an append. Write down the freeze date of the export. Anything typed in
+the old yearly sheets after that date is not in the CSVs: re-export, re-run the converter, then repeat this whole
+runbook from step 1 on a fresh copy of the template.
+
+You need: `ledger.csv`, `sheet_accounts.csv`, `categories.csv`, `budgets.csv`, `snapshots.csv`, `rates.csv` and
+`report.md` (all from the converter's `out` folder).
+
+### A. Prepare the copy
+
+1. Open the public template and choose File > Make a copy. Open your copy. It must have no data: `Accounts`,
+   `Categories`, `Budgets`, `Ledger`, `Snapshots` and `Rates` hold only their header row (and `J2` in `Ledger`).
+2. File > Settings > Locale: United Kingdom or United States, then Save settings. (Decimals, dates and formula
+   separators depend on it.)
+3. On `Settings`, check `B1` is `EUR`. If not, choose `EUR` from its list.
+
+### B. Import the six files
+
+Same method for every file. First open the tab and click the destination cell, then:
+
+- File > Import > Upload > Browse (choose the file).
+- Import location: **Replace data at selected cell**.
+- **Convert text to numbers, dates and formulas**: ON. (Dates, numbers and TRUE/FALSE ticks then arrive typed.)
+- Import data. Do NOT choose "Replace spreadsheet" or "Append".
+
+Each CSV starts with a header row, so always select cell **A1** (not A2): the CSV header replaces the template's
+header row. For `Accounts`, `Categories`, `Snapshots`, `Rates` and `Ledger` (A:I) the headers are identical (the
+`Accounts` and `Rates` headers differ only in capitals), so nothing visible changes.
+
+Order matters (`Ledger` rejects accounts and categories it does not know yet):
+
+4. Tab `Accounts`, select `A1`, import `sheet_accounts.csv`. Columns: name, currency, active, in_monthly,
+   in_annual. Pass: the `active`, `In Monthly` and `In Annual` columns show ticked checkboxes (TRUE) or empty
+   boxes (FALSE), not the words TRUE/FALSE.
+5. Tab `Categories`, `A1`, import `categories.csv` (name, type, active). Same tick check.
+6. Tab `Budgets`, `A1`, import `budgets.csv` (year, type, category, monthly). The header in `D1` becomes
+   `monthly`; retype it as `monthly amount` if you like (nothing reads it).
+7. Tab `Rates`, `A1`, import `rates.csv` (month, gbp, usd). Then fix the LAST row: it is the current month and
+   holds a partial-month average. Keep its month, and type in the two rate cells:
+   `=GOOGLEFINANCE("CURRENCY:GBPEUR")` and `=GOOGLEFINANCE("CURRENCY:USDEUR")`. That row stays live and must be
+   pasted as values (Edit > Paste special > Values only) at month end (the app will do this later). Past months
+   are frozen Bank of England monthly averages. Pass: the month column is right-aligned (real dates).
+8. Tab `Ledger`, `A1`, import `ledger.csv`. Its nine columns (id, date, type, amount, place, description,
+   category, account, to_account) fill A:I; column J (`base_amount`) is not in the CSV and is left alone.
+   Then check `J2` still holds the formula (click it: the formula bar shows `=ARRAYFORMULA(...)`) and that
+   `J3` holds no formula. If `J2` is empty or `J3` has its own formula, restore it: clear `J2:J`, then copy the
+   `J2` formula from a fresh copy of the template and paste it into `J2` only.
+9. Tab `Snapshots`, `A1`, import `snapshots.csv` (id, date, account, balance, note).
+
+Import errors such as "Input must be ..." mean a list or date check rejected a value: stop and tell the person
+who ran the converter; do not clean cells by hand.
+
+### C. Post-import checks
+
+In an empty cell (for example `Settings!D1`) type each formula, read the result, then delete the cell.
+
+| Check | Type | Pass |
+|---|---|---|
+| Ledger rows | `=COUNTA(Ledger!A2:A)` | equals the ledger row count in `report.md` |
+| Other tabs | `=COUNTA(Accounts!A2:A)`, same for `Categories`, `Budgets`, `Snapshots`, `Rates` | each equals the count in the converter's report/output |
+| Dates are real dates | `=COUNTA(Ledger!B2:B)-COUNT(Ledger!B2:B)` | 0 |
+| Amounts are numbers | `=COUNTA(Ledger!D2:D)-COUNT(Ledger!D2:D)` | 0 |
+| Unresolved rows | `Balances!B4` | 0 |
+| No errors in J | `=COUNTIF(Ledger!J2:J,"#N/A")` | 0 |
+| Sample rows | pick three rows you know well in `Ledger`; compare date, amount, category, account with the old sheet | identical, and `J` is filled |
+
+If the unresolved count is above 0, filter `Ledger` on `J` for `#N/A`: the usual causes are an account name missing
+in `Accounts`, a date before the first `Rates` month, or a text date or amount. Report it; do not patch it by hand.
+
+### D. Compare with the old sheets
+
+For each imported year, set the year on `Monthly Summary` and `Annual Summary` and compare with the old Monthly and
+Annual Summary of that year:
+
+- `Monthly Summary`: the category totals for several months.
+- `Annual Summary`: income, expenses and savings rate.
+- Tolerance (from `report.md`): 2% or 10 EUR per category and year, whichever is larger.
+- The report lists the categories it expects to differ and why. Typical reasons: the old sheets used one
+  export-day exchange rate for foreign currency, and the old summaries omitted some rows. A difference outside
+  tolerance in a category the report does not list is a failure.
+- `Balances`: compare each account with the report's model-fit table. Large differences on investment and bank
+  accounts are expected: the ledger holds only the movements you recorded, not market gains, interest or fees.
+  The answer is to enter a snapshot (real balance) for each account regularly.
+
+### E. Finish
+
+10. Delete the downloaded CSVs and `report.md` from your computer (and Downloads, and the trash).
+11. Optionally add the charts and delete the script as described above (Run steps).
+
+The converter's CSVs contain no field starting with `=`, `+`, `-` or `@` (which "Convert text ..." could turn into
+formulas); the converter's README warns about this. If the data changes, re-check before importing.
+
+### Pass / fail
+
+| Item | Pass | Fail: action |
+|---|---|---|
+| Locale, `Settings!B1` | UK or US, `EUR` | fix before importing |
+| Row counts per tab | equal the report | redo from step 1 on a fresh copy |
+| Non-numeric `B` or `D` in `Ledger` | 0 | redo with "Convert text..." ON |
+| `Balances!B4` | 0 | find the `#N/A` rows (see C), report |
+| `J2` formula | present, only in `J2` | restore (step 8) |
+| Summaries vs old | within tolerance, or listed in the report | report to the converter's owner |
+| `Balances` vs model fit | near, or explained above | enter snapshots |
+| CSVs deleted | yes | delete now |
