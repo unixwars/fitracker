@@ -6,14 +6,9 @@ Do them in order; stop and report at the first failure. Use a **copy** of any re
 
 ## A. The template in Google Sheets
 
-1. Upload `assets/FIRE-TEMPLATE.xlsx` to Google Drive, open with Google Sheets, **File → Save as Google Sheets**.
-   *Pass:* the `Setup`, `Expenses`, `Income`, `Transfers`, `Monthly Summary`, `Annual Summary` tabs and the two charts are present.
-2. On `Expenses`, type `10` in `D10`, `GBP` in `I10` (the cell has a dropdown with EUR, GBP, USD), a date in `B10`.
-   *Pass:* `C10` shows a number (10 × the GBP→base rate), `C11` and below stay empty, typing in `D11` fills `C11`
-   automatically with no formula there. Column A is hidden.
-3. In `Setup`, check `U8` = `EUR` and `U16:U18` = `1` and two numbers (no `#N/A`).
-   *Pass:* GBP and USD rates are numbers. If they show `#N/A`, tell me the exact text of `U17`.
-4. Enter an expense with category and date this month. *Pass:* `Monthly Summary` (pick the month) shows it under that category.
+Superseded: the template is now a Google Sheet (see `docs/template.md`) with its own checklist in
+`template/README.md`. The sections below still describe the v0.1 app (one sheet per year) and are
+rewritten with the app plan for the multi-year ledger.
 
 ## B. Google Cloud and sign-in
 

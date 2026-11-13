@@ -33,8 +33,7 @@ dev-dist
 private/
 out/
 
-# Private data files (the tracked template is the only exception)
+# Private data files
 *.xlsx
 *.csv
 *.zip
-!assets/FIRE-TEMPLATE.xlsx
