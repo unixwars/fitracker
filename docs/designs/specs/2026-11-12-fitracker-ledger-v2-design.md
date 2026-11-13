@@ -1,6 +1,6 @@
 # Fitracker v2: one multi-year ledger
 
-Status: draft rev 2 (after independent review), awaiting user approval. Date: 2026-11-12.
+Status: draft rev 3 (after the live template build), awaiting user approval. Date: 2026-11-12.
 
 Supersedes sections 3 (template findings), 5 (data layer, migrations) and the year switcher in section 7
 of `2026-11-10-fitracker-design.md`. Everything else there (architecture, sync and undo, auth, testing
@@ -125,7 +125,14 @@ balance in the account's currency and in base, plus a month-end matrix for the n
 - `Annual Summary`: year selector; income, expenses, net savings; income and expenses by category by month;
   savings rate. Counts only accounts ticked `In Annual`.
 - `Balances`: as in 3.5.
-- Ticked filtering uses `SUMPRODUCT(SUMIFS(..., account, Accounts!names) * ticks)` (spike S3).
+- Ticked filtering (spike S3): `SUMIFS` does not broadcast a multi-cell criteria range (a live sheet gave 0
+  with two ticked accounts), so the summary tabs do not use `SUMPRODUCT(SUMIFS(..., Accounts!names) * ticks)`.
+  Each summary tab lists its ticked account names once in helper column Z
+  (`IFNA(FILTER(...),"#none#")`), then one `FILTER` of the period's ledger rows whose account is in that list
+  fills helper columns AA:AD (date, type, category, base amount; error in `J` counted as 0 via `IFERROR`).
+  Every summary cell is a plain `SUMIFS` with single-cell criteria over those helper rows.
+- Consequences: the summary tabs keep 5000 (`Monthly Summary`) and 20000 (`Annual Summary`) rows; an account
+  name listed twice in `Accounts` counts once in totals; the spikes time this design, not the old shape.
 
 ### 3.7 Charts (added after the data gate, not on the critical path)
 
@@ -139,11 +146,24 @@ The template is built by an Apps Script (`template/build-template.gs`, `@OnlyCur
 tabs, validation, hidden columns, the version metadata and warning-only protections, then the script is removed
 from the sheet. Charts are added by a second function after the data gate.
 
+### 3.8 Template distribution
+
+- The template is a public master Google Sheet built by `template/build-template.gs` and published as "Anyone
+  with the link: Viewer". It is handed out as its copy link,
+  `https://docs.google.com/spreadsheets/d/1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-jUfcqgaTLp8yY/copy` (the sheet URL
+  ending in `/copy`: Google shows "Make a copy").
+- The bound Apps Script project is removed before sharing; the copy dialog must show no attached script.
+- Copies keep tabs, formulas, validation, protections, charts and the version tag.
+- Charts are added by `addCharts()` on the master.
+- The owner's own ledger is a separate copy of the master, never the master itself.
+- `assets/FIRE-TEMPLATE.xlsx` is superseded for v3 and is not distributed.
+
 ## 4. Rules
 
 - The app writes only `Ledger` columns A-I, `Snapshots`, and the `Rates` maintenance rows. Never `J`, never a
   view or other reference tab.
 - Rows are found by the hidden id, never by row number.
+- No formula may pass a multi-cell range as a `SUMIFS`, `COUNTIFS`, `SUMIF` or `COUNTIF` criterion.
 - Money is integer minor units in the app, read with `UNFORMATTED_VALUE`.
 - Drift threshold is the constant 10 in base currency: below it the app accepts silently, at or above it flags
   the difference when a balance is set. No adjustment entry is created or stored.
@@ -151,6 +171,9 @@ from the sheet. Charts are added by a second function after the data gate.
   override the app converts with the entry month's `Rates` row and stores the converted amount (no note added).
 - A newer version tag than the app: read-only with an "update the app" notice. Unrecognised layout: abort
   before any write.
+- Version tag fallback: when the metadata is missing but the `Ledger` and `Snapshots` headers match the v3
+  layout, the app stamps `fitracker.schemaVersion` = 3 itself (one write). A copy of the template keeps the
+  tag (verified live with Make a copy); the fallback only protects against a lost tag.
 - `AGENTS.md` rules to amend with the app plan: migrations in `src/lib/migrations/`, "never writes column C or
   Setup", the year to sheet-id config, and "layout fixed across years".
 
@@ -209,6 +232,14 @@ full replace, never an append, with a freeze date for the cutover, because FIRE-
 - Month screen: per-entry conversion with the entry month's rate; honours the `In Monthly` ticks.
 - New Accounts screen: balances, "last set N days ago", "Set balance" with the drift display.
 - Needs attention gains "row not understood".
+- Settings gains "Create your sheet from the template": it opens the template's copy link (3.8) in a new tab.
+  No API call is made, so the `drive.file` scope is enough: the user makes the copy themselves, then the app
+  asks them to link the new copy with the Picker. A first-run app with no linked sheet shows this action first.
+- The app does not copy the template through the Drive API: copying a file the app did not create needs a
+  broader Drive scope than `drive.file`, which `AGENTS.md` rules out (to be re-checked against the Drive API
+  docs before the app plan).
+- The copy-link URL is a build-time constant read from `VITE_TEMPLATE_COPY_URL` (the app plan lists the name in
+  `.env.example`; it is public but configurable per fork).
 
 ## 7. Testing
 
@@ -225,7 +256,8 @@ Each sub-project gets its own plan. A failed gate returns to this spec.
 2. Spikes pass (they can run alongside the converter): S1 append with `INSERT_ROWS` on a ledger with a cleared
    gap, a three-row append, two concurrent appends and a hand-typed row below; S2 the current-rate formula and
    `Ledger!J` read through the Sheets API, and Bank of England history loaded into `Rates`; S3 view and
-   `Balances` month-end formulas fast on a ten-thousand-row ledger; S4 the Apps Script build (formulas,
+   `Balances` month-end formulas fast on a ten-thousand-row ledger, timing the helper-column design of 3.6
+   (ticked-account `FILTER` into AA:AD, plain `SUMIFS`), not the old `SUMPRODUCT` shape; S4 the Apps Script build (formulas,
    validation, protections) behaves as specified.
 3. Converter report clean on 2024-2026 and `accounts.csv` reviewed.
 4. The template passes its checklist; the user imports the converted tables and the Monthly and Annual views
@@ -245,6 +277,9 @@ Ships as 0.2.0, a breaking layout change replacing the unused 0.1.0 deployment.
 - Drift between the card's rate and the monthly rate is absorbed by snapshots.
 - Rollover and per-month budgets are gone until wanted.
 - `In Monthly` and `In Annual` are separate ticks although they may rarely differ.
+- Summary tabs use helper columns and grow to 5000 / 20000 rows.
+- The current month's `Rates` row is live until the app (or the owner) freezes it.
+- The template must be republished (new link) when the layout version changes.
 
 ## 10. Out of scope
 
