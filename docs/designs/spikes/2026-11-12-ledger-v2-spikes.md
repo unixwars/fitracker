@@ -1,4 +1,4 @@
-# Ledger v2 spike runbook (S1 to S4)
+# Ledger v2 spike runbook (S1 to S5)
 
 Spec: `docs/designs/specs/2026-11-12-fitracker-ledger-v2-design.md` (rev 2), sections 3.2, 3.4, 3.5, 3.6 and 8.
 
@@ -169,3 +169,22 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 **Pass.** Every item in the checklist in `template/README.md` is ticked.
 
 **Result:** _(PASS / FAIL; list of failed checklist items; not yet run, waits for Task 13)_
+
+---
+
+## S5 Picker then files.copy with drive.file
+
+**Question.** With only the `drive.file` scope, can the app open the Picker with the template's file id preselected (or find it via Shared with me / Recent), and then copy the picked template into the user's Drive with `files.copy`? (Spec 3.8, 6, gate 2.) The Google docs do not state either copying a Picker-selected file the app did not create, or preselecting an "Anyone with the link" file in the Picker.
+
+**Steps.**
+
+1. In a terminal in `docs/designs/spikes/`, run `python3 -m http.server 5173` and open http://localhost:5173/s5-picker-copy.html. `http://localhost:5173` is already an authorized JavaScript origin in `docs/deploy-your-own.md`; if the owner's OAuth client lacks it, add it in the OAuth client first.
+2. Fill in the page's four fields: OAuth client ID, API key, Google Cloud project number, and template file id (the id inside the copy link in spec 3.8). These come from the owner's `.env`; they are typed into the page and never stored or committed.
+3. Click "Sign in" with an account that is NOT the template's owner: a different Google account, ideally a Workspace one, then repeat with a personal gmail one. Note whether the consent screen showed ONLY the `drive.file` scope.
+4. Click "Pick template". Pass 1: the Picker shows the template file when its id is preselected. If it shows nothing, close it and try "Pick from Shared with me / Recent"; record which of the two worked.
+5. After picking, the page calls `files.copy` and prints the HTTP status, the new file id and name. Pass 2: status 200 and a new file "S5 spike copy" in My Drive of the signed-in account. Open it and check it has no attached script and that the version tag is there (the earlier Make-a-copy test already showed the tag survives a copy).
+6. Record the exact error text for any failure (for example 403 with the reason). Afterwards delete the spike copy from Drive.
+
+**Pass.** Pass 1 and pass 2 both hold, and consent showed only `drive.file`, for both the Workspace and the personal account. If the preselected Picker fails but the Shared with me / Recent button works, record that (the flow still passes with a different Picker view). If copy fails, the spec falls back to the copy-link flow of 3.8.
+
+**Result:** _(PASS / FAIL; which Picker button worked; HTTP status and error text; consent scopes shown; Workspace and personal results; copy has no script and keeps the version tag yes/no)_
