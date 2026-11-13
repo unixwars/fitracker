@@ -1,3 +1,4 @@
+import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
 import { parseLedgerRow, parseSnapshotRow, type Entry } from '../rows'
@@ -18,7 +19,6 @@ type Data = {
   rates: RateRow[]
   unreadable: Unreadable[]
   rows: Map<string, RowRef> // id -> where it sits (Ledger or Snapshots)
-  idless: RowRef[] // parseable rows without an id yet (Task 10 backfills them)
 }
 
 const VERSION_RECHECK_MS = 5 * 60_000
@@ -48,30 +48,61 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       'UNFORMATTED_VALUE',
     )
     const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
-    const entries: Entry[] = []
-    const snapshots: Snapshot[] = []
     const unreadable: Unreadable[] = []
-    const rows = new Map<string, RowRef>()
-    const idless: RowRef[] = []
+    const entryRows: { row: number; entry: Entry }[] = []
+    const snapshotItems: { row: number; snapshot: Snapshot }[] = []
     ;(ledger ?? []).forEach((row, i) => {
       const sheetRow = LEDGER.firstRow + i
       const r = parseLedgerRow(row, reference.accounts)
       if ('skip' in r) return
       if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text }); return }
-      if (r.value.id === '') { idless.push({ tab: 'Ledger', row: sheetRow }); return }
-      entries.push(r.value)
-      rows.set(r.value.id, { tab: 'Ledger', row: sheetRow })
+      entryRows.push({ row: sheetRow, entry: r.value })
     })
     ;(snapshotRows ?? []).forEach((row, i) => {
       const sheetRow = SNAPSHOTS.firstRow + i
       const r = parseSnapshotRow(row, reference.accounts)
       if ('skip' in r) return
       if ('reason' in r) { unreadable.push({ tab: 'Snapshots', row: sheetRow, reason: r.reason, text: r.text }); return }
-      if (r.value.id === '') { idless.push({ tab: 'Snapshots', row: sheetRow }); return }
-      snapshots.push(r.value)
-      rows.set(r.value.id, { tab: 'Snapshots', row: sheetRow })
+      snapshotItems.push({ row: sheetRow, snapshot: r.value })
     })
-    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows, idless }
+
+    await backfillIds(entryRows, snapshotItems)
+
+    const entries: Entry[] = []
+    const snapshots: Snapshot[] = []
+    const rows = new Map<string, RowRef>()
+    for (const { row, entry } of entryRows) if (entry.id !== '') { entries.push(entry); rows.set(entry.id, { tab: 'Ledger', row }) }
+    for (const { row, snapshot } of snapshotItems) if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
+    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows }
+  }
+
+  // Gives hand-typed rows an id (spec 3.2): one write to column A only (consecutive rows as one block), then a read-back
+  // of just the written cells so the store adopts the value the sheet holds. An id that did not stick leaves the row
+  // without an id (unusable, retried on the next refresh).
+  async function backfillIds(entryRows: { row: number; entry: Entry }[], snapshotItems: { row: number; snapshot: Snapshot }[]): Promise<void> {
+    const targets = [
+      ...entryRows.filter((x) => x.entry.id === '').map((x) => ({ tab: 'Ledger' as const, row: x.row, set: (id: string) => { x.entry.id = id }, id: backfillId('Ledger', x.row, [x.entry.date, x.entry.money.minor, x.entry.account ?? '']) })),
+      ...snapshotItems.filter((x) => x.snapshot.id === '').map((x) => ({ tab: 'Snapshots' as const, row: x.row, set: (id: string) => { x.snapshot.id = id }, id: backfillId('Snapshots', x.row, [x.snapshot.date, x.snapshot.balance.minor, x.snapshot.account]) })),
+    ]
+    if (!targets.length) return
+    const blocks: { tab: 'Ledger' | 'Snapshots'; first: number; last: number }[] = []
+    for (const t of [...targets].sort((a, b) => (a.tab === b.tab ? a.row - b.row : a.tab.localeCompare(b.tab)))) {
+      const open = blocks[blocks.length - 1]
+      if (open && open.tab === t.tab && open.last + 1 === t.row) open.last = t.row
+      else blocks.push({ tab: t.tab, first: t.row, last: t.row })
+    }
+    const range = (b: { tab: string; first: number; last: number }) => (b.first === b.last ? `${b.tab}!A${b.first}` : `${b.tab}!A${b.first}:A${b.last}`)
+    await api.valuesBatchUpdate(
+      spreadsheetId,
+      blocks.map((b) => ({ range: range(b), values: targets.filter((t) => t.tab === b.tab && t.row >= b.first && t.row <= b.last).sort((x, y) => x.row - y.row).map((t) => [t.id]) })),
+    )
+    const back = await api.batchGet(spreadsheetId, blocks.map(range), 'UNFORMATTED_VALUE')
+    blocks.forEach((b, i) => {
+      for (const t of targets.filter((x) => x.tab === b.tab && x.row >= b.first && x.row <= b.last)) {
+        const cell = back[i]?.[t.row - b.first]?.[0]
+        t.set(cell === undefined || cell === null ? '' : String(cell).trim())
+      }
+    })
   }
 
   async function load(force = false): Promise<Data> {
