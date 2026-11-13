@@ -1,8 +1,9 @@
 import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
+import { RowChanged, RowGone, AccountChanged } from '../errors'
 import { ledgerRowValues, parseLedgerRow, parseSnapshotRow, type Entry } from '../rows'
-import { LEDGER, RATES, REFERENCE, SNAPSHOTS } from '../schema'
+import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
 import type { AddResult, LedgerStore, RefreshOpts } from '../store'
 import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
 import { parseRange } from './a1'
@@ -150,6 +151,52 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return entries.map((e) => results.get(e.id)!)
   }
 
+  // The same entry if at least two of date, amount and place/description agree. Text only counts when both sides have
+  // some, so two blank descriptions never vouch for each other.
+  const looksSame = (a: Entry, b: Entry) => {
+    const text = (e: Entry) => (e.place || e.description || '').trim().toLowerCase()
+    let matches = (a.date === b.date ? 1 : 0) + (a.money.minor === b.money.minor && a.money.currency === b.money.currency ? 1 : 0)
+    if (text(a) && text(b) && text(a) === text(b)) matches++
+    return matches >= 2
+  }
+
+  // Finds a Ledger row by id (spec 3.2): read column A, then read just that row with the account list (so the currency
+  // can be checked). Never by row number.
+  async function locate(id: string, expectedPrevious?: Entry): Promise<{ row: number; previous: Entry; accounts: Reference['accounts'] }> {
+    await checkVersion()
+    const [idCells] = await api.batchGet(spreadsheetId, [LEDGER.ranges.ids], 'UNFORMATTED_VALUE')
+    const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
+    if (at < 0) throw new RowGone(id)
+    const row = LEDGER.firstRow + at
+    const [cells, accountRows] = await api.batchGet(spreadsheetId, [rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts], 'UNFORMATTED_VALUE')
+    const accounts = parseReference([], accountRows ?? [], [], []).accounts
+    const parsed = parseLedgerRow(cells?.[0] ?? [], accounts)
+    if (!('value' in parsed)) throw new RowChanged(id)
+    if (expectedPrevious && !looksSame(parsed.value, expectedPrevious)) throw new RowChanged(id)
+    return { row, previous: parsed.value, accounts }
+  }
+
+  const accountMatches = (e: Entry, accounts: Reference['accounts']): boolean => {
+    const from = accounts.find((a) => a.name === e.account)
+    const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
+    return !!from && from.currency === e.money.currency && toKnown
+  }
+
+  async function edit(entry: Entry, expectedPrevious?: Entry): Promise<{ previous: Entry }> {
+    const { row, previous, accounts } = await locate(entry.id, expectedPrevious)
+    if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
+    await api.valuesBatchUpdate(spreadsheetId, [{ range: rowRange(LEDGER.tab, row, 'I'), values: [ledgerRowValues(entry)] }])
+    markDirty()
+    return { previous }
+  }
+
+  async function remove(id: string, expectedPrevious?: Entry): Promise<{ previous: Entry }> {
+    const { row, previous } = await locate(id, expectedPrevious)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
+    markDirty()
+    return { previous }
+  }
+
   const markDirty = () => {
     stale = true
     notify()
@@ -170,8 +217,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       return () => listeners.delete(fn)
     },
     addMany,
-    edit: async () => notYet(),
-    delete: async () => notYet(),
+    edit,
+    delete: remove,
     addSnapshot: async () => notYet(),
     deleteSnapshot: async () => notYet(),
     maintainRates: async () => notYet(),
