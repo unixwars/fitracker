@@ -28,7 +28,8 @@
  *   cell appears when a list is longer, and an "other or inactive" row keeps the totals complete.
  * - Per-category tables list ACTIVE categories only; spending in inactive categories is in the
  *   "Other or inactive categories" row and in all totals.
- * - Summaries skip Ledger rows whose J is an error (unresolved conversion) and show how many there are.
+ * - Summaries count Ledger rows whose J is an error (unresolved conversion) as 0 and show how many
+ *   there are. Ticked-account totals go through helper columns Z:AD on each summary tab.
  * - The Balances month-end matrix covers the 12 month-ends of one selected year, in base currency
  *   converted at each month-end's Rates row; future months are left blank.
  * - New rows in Accounts get unticked checkboxes; tick In Monthly and In Annual by hand.
@@ -79,8 +80,8 @@ const ENTRY_TYPES = ['expense', 'income', 'transfer'];
 const CATEGORY_TYPES = ['expense', 'income'];
 const BUSINESS_CATEGORY = 'Business';
 
-// Accounts keeps exactly 1 + MAX_ACCOUNTS rows (when they are empty), so the open ranges
-// Accounts!$A$2:$A used inside SUMPRODUCT(SUMIFS(...)) stay small and fast. Insert rows to add more.
+// Accounts keeps 1 + MAX_ACCOUNTS rows (extra rows are deleted only when empty), matching the
+// 40-row account tables of Balances. Insert rows to add more.
 const MAX_ACCOUNTS = 40;
 const MAX_EXPENSE_CATEGORIES = 30;
 const MAX_INCOME_CATEGORIES = 15;
@@ -121,18 +122,41 @@ const J_IS_NUMBER = '{{Ledger}}$J:$J,"<1E+300"';
 // Count of Ledger rows whose J is an error (shown on every view).
 const UNRESOLVED_COUNT = '=SUMPRODUCT(--ISERROR({{Ledger}}$J$2:$J))';
 
-// Monthly and Annual Summary: column TICKED_COL of the tab holds, from row 2, ONE spilled FILTER of the
-// account names ticked for that view (TICKED_ACCOUNTS; %TICK% = Accounts column D In Monthly or
-// E In Annual), or "#none#" when none is ticked. TICKED_NAMES is that list sized exactly to its length,
-// so each summary cell runs one SUMIFS per ticked account and the FILTER runs once per tab.
+// Monthly and Annual Summary helper columns Z:AD (header in row 1, data from row 2).
+// A live Sheet showed that SUMIFS with a multi-cell criteria range does NOT broadcast inside
+// SUMPRODUCT in Google Sheets (two ticked accounts gave 0), so no formula in this template passes a
+// multi-cell range as a SUMIFS/COUNTIFS criterion. Instead each summary tab computes, ONCE:
+// - Z: the account names ticked for that view (TICKED_ACCOUNTS; %TICK% = Accounts column D for
+//   In Monthly, E for In Annual), or "#none#" when none is ticked (matches no ledger row);
+// - AA:AD: the Ledger rows of the tab's period (%FROM% <= date < %TO%) whose account is in Z
+//   (FILTER with ISNUMBER(MATCH(...)), which vectorises in Sheets): date, type, category, base
+//   amount, with an error J counted as 0 (IFERROR). An account name listed twice in Accounts counts
+//   once, because MATCH tests the ledger row's account against the list.
+// Every summary cell is then a plain SUMIFS over AA:AD with single-cell criteria (HELPER_SUM).
 const TICKED_COL = 'Z';
+const HELPER = { DATE: 'AA', TYPE: 'AB', CATEGORY: 'AC', AMOUNT: 'AD' };
+const HELPER_COLUMNS = 30; // A..AD
 const TICKED_ACCOUNTS =
   '=IFNA(FILTER({{Accounts}}$A$2:$A,{{Accounts}}$A$2:$A<>"",{{Accounts}}$%TICK%$2:$%TICK%=TRUE),"#none#")';
 const TICKED_NAMES = '$' + TICKED_COL + '$2:INDEX($' + TICKED_COL + '$2:$' + TICKED_COL +
   ',COUNTA($' + TICKED_COL + '$2:$' + TICKED_COL + '))';
-// Sum of Ledger!J (base currency) over the ticked accounts. %CRITERIA% = more SUMIFS criteria pairs.
-const TICKED_SUM =
-  'SUMPRODUCT(SUMIFS({{Ledger}}$J:$J,{{Ledger}}$H:$H,' + TICKED_NAMES + ',' + J_IS_NUMBER + ',%CRITERIA%))';
+const TICKED_ROWS =
+  '=IFNA(FILTER({ {{Ledger}}$B$2:$B, {{Ledger}}$C$2:$C, {{Ledger}}$G$2:$G,' +
+  ' ARRAYFORMULA(IFERROR({{Ledger}}$J$2:$J*1,0)) },' +
+  ' {{Ledger}}$B$2:$B>=%FROM%, {{Ledger}}$B$2:$B<%TO%,' +
+  ' ISNUMBER(MATCH({{Ledger}}$H$2:$H,' + TICKED_NAMES + ',0))),"")';
+// Shown when the helper spill fails (for example "insert more rows"): totals would be incomplete.
+const HELPER_STATUS =
+  '=IF(ISERROR($' + HELPER.DATE + '$2),"Helper column ' + HELPER.DATE +
+  ' shows an error: totals are incomplete (insert rows if it asks)","")';
+// Sum of base amounts of the helper rows. %CRITERIA% = criteria pairs on the helper columns.
+const HELPER_SUM = 'SUMIFS($' + HELPER.AMOUNT + '$2:$' + HELPER.AMOUNT + ',%CRITERIA%)';
+const H_TYPE = '$' + HELPER.TYPE + '$2:$' + HELPER.TYPE;
+const H_CATEGORY = '$' + HELPER.CATEGORY + '$2:$' + HELPER.CATEGORY;
+const H_DATE = '$' + HELPER.DATE + '$2:$' + HELPER.DATE;
+// Rows kept on the summary tabs so the helper rows can spill (one period's ticked ledger rows).
+const MONTHLY_ROWS = 5000;
+const ANNUAL_ROWS = 20000;
 
 // "Accounts included: n of m" for tick column %TICK%.
 const ACCOUNTS_INCLUDED =
@@ -364,14 +388,14 @@ function makeTransfers() {
 // Monthly Summary
 // Layout: B1 year, B2 month (selectors); B3 from, B4 to (exclusive); B5 accounts included;
 // B6 unresolved rows; totals A8:B14; expense categories A18:D(18+MAX), other row, warning;
-// income categories F18:G(18+MAX), other row, warning. Counts accounts ticked In Monthly (D).
+// income categories F18:G(18+MAX), other row, warning. Counts accounts ticked In Monthly (D)
+// through the helper columns Z:AD (A7 shows a helper error).
 // ---------------------------------------------------------------------------------------------
 
 function makeMonthlySummary() {
   const sh = prepareView(TAB.MONTHLY, [yearSelector('B1'), monthSelector('B2')]);
-  const period = '{{Ledger}}$B:$B,">="&$B$3,{{Ledger}}$B:$B,"<"&$B$4';
-  const sum = function (criteria) { return sub(TICKED_SUM, { CRITERIA: criteria }); };
-  writeTickedAccounts(sh, 'D');
+  const sum = function (criteria) { return sub(HELPER_SUM, { CRITERIA: criteria }); };
+  writeTickedHelper(sh, 'D', '$B$3', '$B$4', MONTHLY_ROWS, 'A7');
   const first = 19;
   const lastExp = first + MAX_EXPENSE_CATEGORIES - 1;
   const lastInc = first + MAX_INCOME_CATEGORIES - 1;
@@ -385,11 +409,11 @@ function makeMonthlySummary() {
   sh.getRange('A8:A14').setValues([['Planned expenses (active categories)'], ['Actual expenses (total)'],
     ['Remaining'], ['Regular (not ' + BUSINESS_CATEGORY + ')'], [BUSINESS_CATEGORY], ['Income'], ['Savings rate']]);
   setF(sh, 'B8', '=SUM(B' + first + ':B' + lastExp + ')');
-  setF(sh, 'B9', '=' + sum('{{Ledger}}$C:$C,"expense",' + period));
+  setF(sh, 'B9', '=' + sum(H_TYPE + ',"expense"'));
   setF(sh, 'B10', '=B8-B9');
   setF(sh, 'B11', '=B9-B12');
-  setF(sh, 'B12', '=' + sum('{{Ledger}}$C:$C,"expense",{{Ledger}}$G:$G,"' + BUSINESS_CATEGORY + '",' + period));
-  setF(sh, 'B13', '=' + sum('{{Ledger}}$C:$C,"income",' + period));
+  setF(sh, 'B12', '=' + sum(H_TYPE + ',"expense",' + H_CATEGORY + ',"' + BUSINESS_CATEGORY + '"'));
+  setF(sh, 'B13', '=' + sum(H_TYPE + ',"income"'));
   setF(sh, 'B14', '=IF(B13=0,"",(B13-B9)/B13)');
 
   sh.getRange('A18:D18').setValues([['Expense category', 'Budgeted', 'Spent', 'Remaining']]);
@@ -397,7 +421,7 @@ function makeMonthlySummary() {
   fillFormulas(sh, first, 2, MAX_EXPENSE_CATEGORIES, 1, '=IF($A{r}="","",SUMIFS({{Budgets}}$D:$D,' +
     '{{Budgets}}$A:$A,$B$1,{{Budgets}}$B:$B,"expense",{{Budgets}}$C:$C,$A{r}))');
   fillFormulas(sh, first, 3, MAX_EXPENSE_CATEGORIES, 1,
-    '=IF($A{r}="","",' + sum('{{Ledger}}$C:$C,"expense",{{Ledger}}$G:$G,$A{r},' + period) + ')');
+    '=IF($A{r}="","",' + sum(H_TYPE + ',"expense",' + H_CATEGORY + ',$A{r}') + ')');
   fillFormulas(sh, first, 4, MAX_EXPENSE_CATEGORIES, 1, '=IF($A{r}="","",B{r}-C{r})');
   sh.getRange('A' + (lastExp + 1)).setValue('Other or inactive categories');
   setF(sh, 'C' + (lastExp + 1), '=B9-SUM(C' + first + ':C' + lastExp + ')');
@@ -406,7 +430,7 @@ function makeMonthlySummary() {
   sh.getRange('F18:G18').setValues([['Income category', 'Received']]);
   setF(sh, 'F' + first, sub(ACTIVE_CATEGORIES, { TYPE: 'income', MAX: MAX_INCOME_CATEGORIES }));
   fillFormulas(sh, first, 7, MAX_INCOME_CATEGORIES, 1,
-    '=IF($F{r}="","",' + sum('{{Ledger}}$C:$C,"income",{{Ledger}}$G:$G,$F{r},' + period) + ')');
+    '=IF($F{r}="","",' + sum(H_TYPE + ',"income",' + H_CATEGORY + ',$F{r}') + ')');
   sh.getRange('F' + (lastInc + 1)).setValue('Other or inactive categories');
   setF(sh, 'G' + (lastInc + 1), '=B13-SUM(G' + first + ':G' + lastInc + ')');
   setF(sh, 'F' + (lastInc + 2), sub(TOO_MANY_CATEGORIES, { TYPE: 'income', MAX: MAX_INCOME_CATEGORIES }));
@@ -423,13 +447,14 @@ function makeMonthlySummary() {
 // Annual Summary
 // Layout: B1 year (selector); B2 from, B3 to (exclusive); B4 accounts included; B5 unresolved;
 // totals A7:B10; per-month totals A12:E24; expense category x month A27:N(27+MAX), other row,
-// warning; income category x month below. Counts accounts ticked In Annual (E).
+// warning; income category x month below. Counts accounts ticked In Annual (E) through the
+// helper columns Z:AD (A6 shows a helper error).
 // ---------------------------------------------------------------------------------------------
 
 function makeAnnualSummary() {
   const sh = prepareView(TAB.ANNUAL, [yearSelector('B1')]);
-  const sum = function (criteria) { return sub(TICKED_SUM, { CRITERIA: criteria }); };
-  writeTickedAccounts(sh, 'E');
+  const sum = function (criteria) { return sub(HELPER_SUM, { CRITERIA: criteria }); };
+  writeTickedHelper(sh, 'E', '$B$2', '$B$3', ANNUAL_ROWS, 'A6');
 
   sh.getRange('A2:A5').setValues([['From'], ['To (exclusive)'], ['Accounts'], ['Unresolved ledger rows (all dates)']]);
   setF(sh, 'B2', '=DATE($B$1,1,1)');
@@ -444,12 +469,12 @@ function makeAnnualSummary() {
   setF(sh, 'B10', '=IF(B7=0,"",B9/B7)');
 
   sh.getRange('A12:E12').setValues([['Month', 'Income', 'Expenses', 'Net savings', 'Savings rate']]);
-  const month = '{{Ledger}}$B:$B,">="&$A{r},{{Ledger}}$B:$B,"<"&EDATE($A{r},1)';
+  const month = H_DATE + ',">="&$A{r},' + H_DATE + ',"<"&EDATE($A{r},1)';
   const monthStarts = [];
   for (let m = 1; m <= 12; m++) monthStarts.push(['=DATE($B$1,' + m + ',1)']);
   sh.getRange('A13:A24').setFormulas(monthStarts);
-  fillFormulas(sh, 13, 2, 12, 1, '=' + sum('{{Ledger}}$C:$C,"income",' + month));
-  fillFormulas(sh, 13, 3, 12, 1, '=' + sum('{{Ledger}}$C:$C,"expense",' + month));
+  fillFormulas(sh, 13, 2, 12, 1, '=' + sum(H_TYPE + ',"income",' + month));
+  fillFormulas(sh, 13, 3, 12, 1, '=' + sum(H_TYPE + ',"expense",' + month));
   fillFormulas(sh, 13, 4, 12, 1, '=B{r}-C{r}');
   fillFormulas(sh, 13, 5, 12, 1, '=IF(B{r}=0,"",(B{r}-C{r})/B{r})');
 
@@ -478,8 +503,8 @@ function annualCategoryBlock(sh, top, type, max, totalCol, sum) {
   for (let m = 1; m <= 12; m++) starts.push('=DATE($B$1,' + m + ',1)');
   sh.getRange(top, 2, 1, 12).setFormulas([starts]).setNumberFormat('mmm');
   setF(sh, 'A' + first, sub(ACTIVE_CATEGORIES, { TYPE: type, MAX: max }));
-  fillFormulas(sh, first, 2, max, 12, '=IF($A{r}="","",' + sum('{{Ledger}}$C:$C,"' + type +
-    '",{{Ledger}}$G:$G,$A{r},{{Ledger}}$B:$B,">="&{c}$' + top + ',{{Ledger}}$B:$B,"<"&EDATE({c}$' + top + ',1)') + ')');
+  fillFormulas(sh, first, 2, max, 12, '=IF($A{r}="","",' + sum(H_TYPE + ',"' + type + '",' +
+    H_CATEGORY + ',$A{r},' + H_DATE + ',">="&{c}$' + top + ',' + H_DATE + ',"<"&EDATE({c}$' + top + ',1)') + ')');
   fillFormulas(sh, first, 14, max, 1, '=IF($A{r}="","",SUM(B{r}:M{r}))');
   sh.getRange('A' + (last + 1)).setValue('Other or inactive categories');
   const other = [];
@@ -765,10 +790,22 @@ function prepareView(name, selectors) {
   return sh;
 }
 
-// Helper column of a summary tab: the account names ticked in Accounts column `tick` (see TICKED_ACCOUNTS).
-function writeTickedAccounts(sh, tick) {
-  sh.getRange(TICKED_COL + '1').setValue('Accounts counted (helper)');
+// Helper columns Z:AD of a summary tab (see TICKED_ROWS): ticked names for Accounts column `tick`,
+// then the ticked ledger rows dated from `from` (inclusive) to `to` (exclusive). `statusCell` shows
+// a message when the helper spill fails. The tab gets at least `rows` rows for the spill.
+function writeTickedHelper(sh, tick, from, to, rows, statusCell) {
+  ensureSize(sh, rows, HELPER_COLUMNS);
+  sh.getRange(TICKED_COL + '1:' + HELPER.AMOUNT + '1').setValues([['Accounts counted (helper)',
+    'date (helper)', 'type (helper)', 'category (helper)', 'base amount (helper)']]);
   setF(sh, TICKED_COL + '2', sub(TICKED_ACCOUNTS, { TICK: tick }));
+  setF(sh, HELPER.DATE + '2', sub(TICKED_ROWS, { FROM: from, TO: to }));
+  setF(sh, statusCell, HELPER_STATUS);
+}
+
+// Grows the tab to at least `rows` rows and `cols` columns (never shrinks it).
+function ensureSize(sh, rows, cols) {
+  if (sh.getMaxRows() < rows) sh.insertRowsAfter(sh.getMaxRows(), rows - sh.getMaxRows());
+  if (sh.getMaxColumns() < cols) sh.insertColumnsAfter(sh.getMaxColumns(), cols - sh.getMaxColumns());
 }
 
 function writeUnresolved(sh, a1) {

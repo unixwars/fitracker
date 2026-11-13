@@ -27,7 +27,10 @@ run `addCharts`, then delete the script again. `addCharts` first removes ALL cha
 
 Speed: spikes S3/S4 must time THIS template (not only the spike formulas) on a ledger of about 10,000 rows:
 edit one `Ledger` amount and time until `Monthly Summary`, `Annual Summary` and `Balances` stop showing
-"Loading...". Pass: under 10 seconds.
+"Loading...". Pass: under 10 seconds. Expected cost: each summary tab runs one `FILTER` over the ledger (with a
+`MATCH` against the ticked names) into its helper columns, then about 60 (`Monthly Summary`) or 560
+(`Annual Summary`) plain `SUMIFS` over that period's rows only; `Balances` runs about 8 full-column `SUMIFS` per
+account row and per month-end cell (40 + 480 cells). If `Balances` is the slow one, that is the known cost.
 
 ## Checklist
 
@@ -46,31 +49,37 @@ cannot default to ticked). Tick them by hand, here and for every real account.
 
 Tick each item:
 
-- [ ] 1. All 13 tabs exist in this order: `Ledger`, `Snapshots`, `Settings`, `Accounts`, `Categories`, `Budgets`,
+- [x] 1. All 13 tabs exist in this order: `Ledger`, `Snapshots`, `Settings`, `Accounts`, `Categories`, `Budgets`,
   `Rates`, `Expenses`, `Income`, `Transfers`, `Monthly Summary`, `Annual Summary`, `Balances`; `Sheet1` is gone;
   column A of `Ledger` and `Snapshots` is hidden; `Settings!B1` is `EUR` and offers only `EUR`, `GBP`, `USD`.
-- [ ] 2. `J2` converts a typed row: `Ledger!J2` shows `10` and `J3` shows `11.70` (10 x 1.17). `J2` is the only
+- [x] 2. `J2` converts a typed row: `Ledger!J2` shows `10` and `J3` shows `11.70` (10 x 1.17). `J2` is the only
   formula in column J (click `J3`: the formula bar shows no formula).
-- [ ] 3. Changing a currency in `Accounts` changes the result: set `Account A (EUR)` currency to `GBP`; `J2`
+- [x] 3. Changing a currency in `Accounts` changes the result: set `Account A (EUR)` currency to `GBP`; `J2`
   becomes `11.70`. Set it back to `EUR`; `J2` is `10` again.
-- [ ] 4. The account ticks change the `Monthly Summary` total: with year 2026 and month 11 selected, "Actual
-  expenses (total)" is `21.70` and "Accounts included: 2 of 2". Untick `In Monthly` of `Account B (GBP)`: the
-  total becomes `10` and the line says "1 of 2". Tick it again.
-- [ ] 5. Editing a view tab shows a warning: type anything in `Expenses!C10` (and in a cell of `Monthly Summary`
+- [ ] 4. The account ticks change the `Monthly Summary` total. Select year 2026 and month 11 and check "Actual
+  expenses (total)", the `Cat 1` "Spent" cell and the "Accounts included" line in each case (`In Monthly` column):
+  - both accounts ticked: `21.70`, `21.70`, "Accounts included: 2 of 2";
+  - only `Account A (EUR)` ticked: `10.00`, `10.00`, "1 of 2";
+  - only `Account B (GBP)` ticked: `11.70`, `11.70`, "1 of 2";
+  - none ticked: `0.00`, `0.00`, "0 of 2", and no `#N/A` or other error anywhere on the tab (cell `A7` is empty).
+
+  Repeat the "both" and "none" cases with the `In Annual` column on `Annual Summary` (year 2026): Expenses
+  `21.70` and `0.00`. Tick everything again afterwards.
+- [x] 5. Editing a view tab shows a warning: type anything in `Expenses!C10` (and in a cell of `Monthly Summary`
   and `Balances`); Sheets shows "You are trying to edit a protected cell or object" with a warning you can
   cancel. Press Cancel. The yellow selector cells (year, month) edit without a warning. Typing in `Ledger!J5`
   also shows the warning.
-- [ ] 6. A text date or amount in `Ledger` is rejected: in `Ledger!B4` type `next tuesday`, then in `Ledger!D4`
+- [x] 6. A text date or amount in `Ledger` is rejected: in `Ledger!B4` type `next tuesday`, then in `Ledger!D4`
   type `ten`, then `-5`; each is refused with "Input must be ...". A type other than `expense`, `income`,
   `transfer` in `C4` is refused too.
-- [ ] 7. The version metadata is present: in the Apps Script editor choose `showSchemaVersion` and Run. The
+- [x] 7. The version metadata is present: in the Apps Script editor choose `showSchemaVersion` and Run. The
   toast in the sheet (and View > Logs / Execution log) shows `fitracker.schemaVersion = 3 (DOCUMENT)`.
   (Data > Named ranges does not show developer metadata; do not look there.)
-- [ ] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`
+- [x] 8. The views show the test rows: `Expenses` (year 2026) lists both rows with currencies `EUR` and `GBP`
   and `base_amount` `10` and `11.70` (not blank: a blank there means `QUERY` typed the column as text because
   of the empty `J` cells; report it); `Balances` lists both accounts with "none" as snapshot date and balances
   `-10` and `-10` (base `-10` and `-11.70`).
-- [ ] 9. A row without an account shows an error: in `Ledger` row 4 type
+- [x] 9. A row without an account shows an error: in `Ledger` row 4 type
   `t0 | 2026-11-09 | expense | 3 | | Test | Cat 1` and leave `account` empty. `J4` shows an error (`#N/A`) and
   "Unresolved ledger rows (all dates)" on `Monthly Summary` shows `1`. Then clear `Ledger` A4:I4: `J4` is
   empty and the count is `0` again.
@@ -84,9 +93,12 @@ Three quick probes of the riskiest formulas (do them with the checklist test dat
 
 1. One bad row does not break the summaries. In `Ledger` row 4 type
    `t3 | 2026-09-15 | expense | 5 | | Test | Cat 1 | Account B (GBP)`. There is no `Rates` row on or before
-   September 2026, so `J4` must show an error (`#N/A`). `Annual Summary` (year 2026) still shows numbers
-   (expenses `21.70`, not an error) and "Unresolved ledger rows" shows `1` on every view. Change `B4` to
-   `2026-10-15`: `J4` shows `5.80` (5 x 1.16) and the count goes back to `0`.
+   September 2026, so `J4` must show an error (`#N/A`). The summary helper columns turn an error `J` into 0
+   (`IFERROR`), so `Annual Summary` (year 2026) still shows numbers (expenses `21.70`, September `0.00`, not an
+   error) and "Unresolved ledger rows" shows `1` on every view. `Balances` "Outflows (base)" of
+   `Account B (GBP)` (year 2026) still shows `11.70`, not an error (that `SUMIFS` skips error rows with the
+   criterion `J < 1E+300`). Change `B4` to `2026-10-15`: `J4` shows `5.80` (5 x 1.16), the count goes back to
+   `0`, and the Annual expenses become `27.50`.
 2. Last snapshot wins on a tie. In `Snapshots` type two rows for `Account A (EUR)` with the same date
    `2026-11-01`: balance `100` then `200` (row below). `Balances` shows `200` as the snapshot balance, age = days
    since 2026-11-01, effect since `-10`, balance `190`.
@@ -104,10 +116,14 @@ the script instead.
   the top of the script and run it again if needed.
 - Per-category tables list active categories only. Spending or income in inactive categories is shown in the
   "Other or inactive categories" row, so totals stay complete.
-- Summaries skip ledger rows whose `J` is an error (unknown account, missing rate, text date or amount) and show
-  the count of such rows ("Unresolved ledger rows"). The entry views show such rows with an empty `base_amount`.
-- `Accounts` is trimmed to 40 data rows to keep the ticked sums fast; insert rows to add more accounts (formulas
-  follow automatically).
+- Summaries count ledger rows whose `J` is an error (unknown account, missing rate, text date or amount) as 0
+  and show the count of such rows ("Unresolved ledger rows"). The entry views show such rows with an empty
+  `base_amount`.
+- The summary helper columns (`Z:AD`) need one sheet row per ticked ledger row of the period: `Monthly Summary`
+  keeps 5000 rows, `Annual Summary` 20000. If a period has more, the helper shows an error asking for more rows
+  and cell `A7` (Monthly) or `A6` (Annual) says the totals are incomplete; insert rows at the bottom of the tab.
+- `Accounts` is trimmed to 40 data rows (empty rows only); insert rows to add more accounts (formulas follow
+  automatically).
 - New `Accounts` rows get unticked checkboxes: tick `In Monthly` and `In Annual` by hand (spec says default on;
   a checkbox cannot default to ticked for rows not yet typed).
 - "Planned expenses" is the sum of the year's monthly budgets of active expense categories. Budgets are not
@@ -129,18 +145,30 @@ the script instead.
   and Remaining.
 - Savings rate = (income - expenses) / income, blank when income is 0.
 - "Accounts included: n of m": n = accounts ticked for that view, m = all named accounts (active or not).
-- Error rows are skipped in `SUMIFS` with the criterion `J < 1E+300`, on the assumption that an error never
-  matches a numeric criterion (to be verified by self-check probe 1), instead of a helper column, because
-  `Ledger` columns are fixed. The month-end "Net worth" row sums with `SUMIF(..., "<1E+300")` for the same reason.
+- Error rows in the summaries: the helper columns hold `IFERROR(J, 0)`, so an unresolved row adds 0 and is
+  counted separately. In `Balances`, the single-criterion `SUMIFS` on `J` (inflows, outflows, transfers into a
+  base-currency account) skip error rows with the criterion `J < 1E+300`, assumed to never match an error
+  (verified by self-check probe 1); the month-end "Net worth" row sums with `SUMIF(..., "<1E+300")`.
 - Ledger `J` returns `""` only for a truly empty row (no date, type, amount or account). Any other row that
   cannot be resolved (no or unknown account, no `Rates` row, a blank rate cell, a date or amount that is not a
   number) shows an error and counts as unresolved, instead of silently converting to 0 or "".
 - The rate lookup is `VLOOKUP(date, Rates, n, TRUE)`: `Rates` rows are first-of-month dates in ascending order,
   so this returns the entry month's row without `EOMONTH`.
-- Ticked accounts: `Monthly Summary` and `Annual Summary` each hold ONE spilled `FILTER` of the ticked account
-  names in column `Z` ("Accounts counted (helper)"); every summary cell passes only that list (sized exactly with
-  `INDEX`) to `SUMIFS`, so it runs one `SUMIFS` per ticked account and the `FILTER` runs once per tab. With no
-  account ticked the list is `#none#`, which matches no ledger row.
+- No multi-cell criteria in `SUMIFS`/`COUNTIFS`. In the live Sheet, `SUMPRODUCT(SUMIFS(..., account column,
+  <range of ticked names>, ...))` returned the right total with ONE ticked account but `0.00` with TWO (while
+  "Accounts included" said "2 of 2"): Google Sheets does not broadcast a multi-cell criteria range there the way
+  Excel does. The template deliberately avoids that shape everywhere.
+- Ticked accounts: `Monthly Summary` and `Annual Summary` each compute their ticked rows ONCE in helper columns:
+  `Z` lists the ticked account names (`FILTER` of `Accounts`, or `#none#` when none is ticked, which matches no
+  row); `AA:AD` hold date, type, category and `IFERROR(base_amount, 0)` of the ledger rows of the selected period
+  whose account is in that list (`FILTER(..., ISNUMBER(MATCH(account, names, 0)))`). Every summary cell is then
+  a plain `SUMIFS` with single-cell criteria over these helper rows, which is also far cheaper than an array
+  `SUMPRODUCT` per cell over the whole ledger. An account name listed twice in `Accounts` counts once (the
+  ledger row's account is matched against the list; it is not summed per `Accounts` row).
+- Scan for other multi-cell criteria or lookup values: none left. `Balances` uses single-cell criteria (the
+  account in its row, a snapshot date, today or a month-end); array lookups (`VLOOKUP` of a column, `MATCH`,
+  `ISERROR` of a column) appear only inside `ARRAYFORMULA`, `FILTER` or `SUMPRODUCT`, where they vectorise
+  (`J2`, the entry-view currency columns, the transfer-in conversion, the unresolved count, the helper rows).
 - Transfers into a non-base account: `FILTER` first keeps only that account's transfer rows in the period, and
   the `Rates` lookup runs on those rows only (not on the whole ledger). Error rows count as 0 there.
 - `Settings!B1` has a list validation (`EUR`, `GBP`, `USD`); only `EUR` is supported as base.
