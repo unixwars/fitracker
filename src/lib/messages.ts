@@ -68,6 +68,7 @@ export const messages = {
   reasons: {
     RowGone: 'The row was removed in the sheet, so this change could not be applied.',
     RowChanged: 'The row now holds a different entry, so this change was not applied.',
+    AccountChanged: 'The account was renamed or changed currency in the sheet; this change was not applied.',
     TabFull: 'The sheet tab is full. Clear some rows or start a new sheet.',
     Missing: 'This saved entry is no longer in the sheet.',
     Other: 'This change could not be applied.',

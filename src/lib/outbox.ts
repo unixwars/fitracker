@@ -1,7 +1,7 @@
 import type { Entry, Kind } from './rows'
 
 export type OpType = 'add' | 'edit' | 'delete'
-export type OpReason = 'RowGone' | 'RowChanged' | 'TabFull' | 'Missing' | 'Other'
+export type OpReason = 'RowGone' | 'RowChanged' | 'AccountChanged' | 'TabFull' | 'Missing' | 'Other'
 export type Op = {
   opId: string
   seq?: number // assigned by the outbox database; defines replay order

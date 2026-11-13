@@ -12,6 +12,7 @@ export class NewerThanApp extends AppError { constructor(public version: number)
 export class UnrecognisedLayout extends AppError { constructor(detail = '') { super('UnrecognisedLayout', detail) } }
 export class RowGone extends AppError { constructor(public id: string) { super('RowGone', `No row with id ${id}`) } }
 export class RowChanged extends AppError { constructor(public id: string) { super('RowChanged', `Row ${id} now holds a different entry`) } }
+export class AccountChanged extends AppError { constructor(public id: string) { super('AccountChanged', `The account of ${id} was renamed or changed currency`) } }
 export class TabFull extends AppError { constructor() { super('TabFull') } }
 export class WrongYear extends AppError { constructor(public found: unknown) { super('WrongYear') } }
 export class FlaggedRows extends AppError {
