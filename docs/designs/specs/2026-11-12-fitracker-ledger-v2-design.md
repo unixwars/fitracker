@@ -1,6 +1,6 @@
 # Fitracker v2: one multi-year ledger
 
-Status: draft rev 3 (after the live template build), awaiting user approval. Date: 2026-11-12.
+Status: draft rev 4 (Picker and `files.copy` template flow), awaiting user approval. Date: 2026-11-12.
 
 Supersedes sections 3 (template findings), 5 (data layer, migrations) and the year switcher in section 7
 of `2026-11-10-fitracker-design.md`. Everything else there (architecture, sync and undo, auth, testing
@@ -151,7 +151,8 @@ from the sheet. Charts are added by a second function after the data gate.
 - The template is a public master Google Sheet built by `template/build-template.gs` and published as "Anyone
   with the link: Viewer". It is handed out as its copy link,
   `https://docs.google.com/spreadsheets/d/1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-jUfcqgaTLp8yY/copy` (the sheet URL
-  ending in `/copy`: Google shows "Make a copy").
+  ending in `/copy`: Google shows "Make a copy"). The app may do the copy itself instead (section 6); this
+  link is also the fallback flow.
 - The bound Apps Script project is removed before sharing; the copy dialog must show no attached script.
 - Copies keep tabs, formulas, validation, protections, charts and the version tag.
 - Charts are added by `addCharts()` on the master.
@@ -232,12 +233,17 @@ full replace, never an append, with a freeze date for the cutover, because FIRE-
 - Month screen: per-entry conversion with the entry month's rate; honours the `In Monthly` ticks.
 - New Accounts screen: balances, "last set N days ago", "Set balance" with the drift display.
 - Needs attention gains "row not understood".
-- Settings gains "Create your sheet from the template": it opens the template's copy link (3.8) in a new tab.
-  No API call is made, so the `drive.file` scope is enough: the user makes the copy themselves, then the app
-  asks them to link the new copy with the Picker. A first-run app with no linked sheet shows this action first.
-- The app does not copy the template through the Drive API: copying a file the app did not create needs a
-  broader Drive scope than `drive.file`, which `AGENTS.md` rules out (to be re-checked against the Drive API
-  docs before the app plan).
+- Settings gains "Create your sheet from the template". Preferred flow: the app opens the Picker with the
+  template's file id (the id inside the copy link in 3.8) preselected (`DocsView.setFileIds`); the user selects
+  it, which grants `drive.file` access to it; the app then calls `files.copy` to create the copy in the
+  signed-in user's Drive and links it. Google's docs list `drive.file` among the scopes that authorize
+  `files.copy`, and `drive.file` covers files the user opens or shares with the app through the Picker. NOT
+  STATED in the docs: copying a Picker-selected file the app did not create, and picking a file shared only as
+  "Anyone with the link" through the Picker with its id preselected. Spike S5 checks both.
+- Fallback if S5 fails: the copy-link flow of 3.8. The app opens the template's `/copy` URL in a new tab, the
+  user makes the copy themselves, then the app asks them to link it with the Picker. No API call is made.
+- The full `drive` scope stays ruled out by `AGENTS.md`.
+  A first-run app with no linked sheet shows this action first.
 - The copy-link URL is a build-time constant read from `VITE_TEMPLATE_COPY_URL` (the app plan lists the name in
   `.env.example`; it is public but configurable per fork).
 
@@ -258,7 +264,7 @@ Each sub-project gets its own plan. A failed gate returns to this spec.
    `Ledger!J` read through the Sheets API, and Bank of England history loaded into `Rates`; S3 view and
    `Balances` month-end formulas fast on a ten-thousand-row ledger, timing the helper-column design of 3.6
    (ticked-account `FILTER` into AA:AD, plain `SUMIFS`), not the old `SUMPRODUCT` shape; S4 the Apps Script build (formulas,
-   validation, protections) behaves as specified.
+   validation, protections) behaves as specified; S5 Picker-then-`files.copy` with only `drive.file`.
 3. Converter report clean on 2024-2026 and `accounts.csv` reviewed.
 4. The template passes its checklist; the user imports the converted tables and the Monthly and Annual views
    match the old sheets within the report's tolerance.
