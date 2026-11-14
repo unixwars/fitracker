@@ -50,7 +50,7 @@
     {#if app.signedIn}
       <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
     {:else}
-      <button class="secondary" onclick={() => app.reconnect()} data-testid="sign-in">{messages.signIn}</button>
+      <button class="secondary" data-no-silent onclick={() => app.reconnect()} data-testid="sign-in">{messages.signIn}</button>
     {/if}
   </div>
 </section>

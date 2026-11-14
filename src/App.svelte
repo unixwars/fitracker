@@ -11,7 +11,14 @@
   let { app }: { app: AppState } = $props()
   const tabs: Tab[] = ['add', 'month', 'activity', 'settings']
 
-  onMount(() => { void app.init() })
+  onMount(() => {
+    void app.init()
+    // The first tap of a session is the moment a browser lets Google's sign-in window open, so a silent sign-in that
+    // could not run at launch is tried again inside it. Buttons that sign in themselves opt out.
+    const firstTap = (e: Event) => { if (!(e.target as Element | null)?.closest?.('[data-no-silent]')) void app.trySilent(true) }
+    document.addEventListener('click', firstTap, { capture: true })
+    return () => document.removeEventListener('click', firstTap, { capture: true })
+  })
 </script>
 
 <div class="shell">
@@ -21,10 +28,10 @@
   </header>
 
   {#if !app.online}<div class="banner" role="status" data-testid="offline">{messages.offline}</div>{/if}
-  {#if app.authExpired && app.online}
+  {#if app.reconnectNeeded && app.online}
     <div class="banner warn" role="alert" data-testid="reconnect">
       <span>{messages.reconnectBanner}</span>
-      <button class="secondary" onclick={() => app.reconnect()}>{messages.reconnect}</button>
+      <button class="secondary" data-no-silent onclick={() => app.reconnect()}>{messages.reconnect}</button>
     </div>
   {/if}
   {#if app.status === 'newer'}<div class="banner warn" role="alert">{messages.newerBanner}</div>{/if}

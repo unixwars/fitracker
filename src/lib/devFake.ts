@@ -25,7 +25,7 @@ export function createFakeEnv(): Env {
     reference: { ...DEFAULT_REFERENCE, budgets: DEFAULT_REFERENCE.budgets.map((b) => ({ ...b, year })) },
   })
   fake.book(FAKE_ID).title = 'Fitracker (demo)'
-  const auth: Auth = { token: () => 'fake', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
+  const auth: Auth = { token: () => 'fake', signIn: async () => undefined, silentSignIn: async () => true, signOut: () => undefined, onExpired: () => undefined, onExpiring: () => undefined }
   // ?unlinked starts on the first-run screen; otherwise the fake sheet is linked unless the device already stored a link.
   const linkedByDefault = !window.location.search.includes('unlinked')
   const storage = {

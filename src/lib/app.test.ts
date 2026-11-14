@@ -15,7 +15,7 @@ const today = todayLocal()
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
   id, kind: 'expense', date: today, money: { minor: 350, currency: 'EUR' }, description: 'Coffee', category: 'Groceries', account: 'Joint', ...o,
 })
-const auth: Auth = { token: () => 'tok', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
+const auth: Auth = { token: () => 'tok', signIn: async () => undefined, silentSignIn: async () => true, signOut: () => undefined, onExpired: () => undefined, onExpiring: () => undefined }
 
 function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null; copy?: () => Promise<string | null>; auth?: Auth } = {}) {
   const fake = createFakeSheets()
@@ -228,7 +228,7 @@ describe('signed-in state (drives the Settings buttons)', () => {
   it('is false without a token, true after signing in, false after signing out or when the token expires', async () => {
     let tok: string | null = null
     let expire = () => {}
-    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, signOut: () => { tok = null }, onExpired: (fn) => { expire = fn } }
+    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, silentSignIn: async () => false, signOut: () => { tok = null }, onExpired: (fn) => { expire = fn }, onExpiring: () => undefined }
     const { app } = setup({ auth: a })
     expect(app.signedIn).toBe(false)
     await app.init()
@@ -274,7 +274,7 @@ describe('fixing unreadable rows in the app and links to Sheets', () => {
   })
   it('does not fetch while signed out, fetches after signing in, and remembers the info on the device', async () => {
     let tok: string | null = null
-    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, signOut: () => { tok = null }, onExpired: () => undefined }
+    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, silentSignIn: async () => false, signOut: () => { tok = null }, onExpired: () => undefined, onExpiring: () => undefined }
     const { app, fake, env } = setup({ auth: a })
     fake.book('S1').title = 'My ledger'
     await app.loadSheetInfo()
@@ -307,5 +307,70 @@ describe('fixing a row that has no usable id', () => {
     await vi.waitFor(() => expect(app.unreadable).toEqual([]))
     expect(app.entries.map((x) => x.id)).toEqual(['fresh'])
     expect(fake.book('S1').get('Ledger!A3')).toBeUndefined()
+  })
+})
+
+describe('staying signed in without a Reconnect tap', () => {
+  const mkAuth = (silent: () => boolean) => {
+    let tok: string | null = null
+    let expiring = () => {}
+    const a: Auth = {
+      token: () => tok, signIn: async () => { tok = 't' },
+      silentSignIn: async () => { if (silent()) { tok = 't'; return true } return false },
+      signOut: () => { tok = null }, onExpired: () => undefined, onExpiring: (fn) => { expiring = fn },
+    }
+    return { a, fireExpiring: () => expiring(), drop: () => { tok = null } }
+  }
+  it('signs in silently when the app starts, syncs, and never shows the Reconnect banner', async () => {
+    const { a } = mkAuth(() => true)
+    const { app, fake } = setup({ auth: a })
+    await app.init()
+    expect(app.signedIn).toBe(true)
+    expect(app.authExpired).toBe(false)
+    expect(app.reconnectNeeded).toBe(false)
+    expect(app.status).toBe('ok')
+    expect(fake.count('batchGet')).toBeGreaterThan(0)
+  })
+  it('stays calm when the silent attempt at start fails: no banner until a tap has been tried', async () => {
+    let allow = false
+    const { a } = mkAuth(() => allow)
+    const { app } = setup({ auth: a })
+    await app.init()
+    expect(app.signedIn).toBe(false)
+    expect(app.authExpired).toBe(true)
+    expect(app.reconnectNeeded).toBe(false) // nothing was tried inside a user tap yet
+    await app.trySilent(true) // the first tap of the session, still refused
+    expect(app.reconnectNeeded).toBe(true)
+    expect(await app.trySilent(true)).toBe(false) // refused once this session: a later tap does not try again
+    allow = true
+    await app.trySilent(false) // returning to the app can
+    expect(app.signedIn).toBe(true)
+    expect(app.reconnectNeeded).toBe(false)
+  })
+  it('refreshes the token shortly before it expires; a failed refresh leaves the user signed in until it really expires', async () => {
+    let allow = true
+    const { a, fireExpiring } = mkAuth(() => allow)
+    const { app } = setup({ auth: a })
+    await app.init()
+    expect(app.signedIn).toBe(true)
+    const spy = vi.spyOn(a, 'silentSignIn')
+    fireExpiring()
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    await new Promise((r) => setTimeout(r, 0)) // let the first refresh finish
+    allow = false
+    fireExpiring()
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(2))
+    expect(app.signedIn).toBe(true)
+    expect(app.reconnectNeeded).toBe(false)
+  })
+  it('an interactive reconnect clears the banner', async () => {
+    const { a } = mkAuth(() => false)
+    const { app } = setup({ auth: a })
+    await app.init()
+    await app.trySilent(true)
+    expect(app.reconnectNeeded).toBe(true)
+    await app.reconnect()
+    expect(app.signedIn).toBe(true)
+    expect(app.reconnectNeeded).toBe(false)
   })
 })

@@ -65,6 +65,9 @@ export class AppState {
   online = $state(true)
   authExpired = $state(false)
   signedIn = $state(false) // a token is held in memory; Settings shows Sign in or Sign out accordingly
+  gestureTried = $state(false) // a silent sign-in inside a tap was refused: only then is the Reconnect banner shown
+  private userSignedOut = false // the person signed out on purpose: never sign in silently behind their back
+  private silentBusy = false
   device = $state<DeviceSettings>({ kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
   syncing = $state(false)
@@ -76,6 +79,7 @@ export class AppState {
   needsAttention = $derived(this.attention.length + this.unreadable.length)
   pendingCount = $derived(pendingCount(this.ops))
   canWrite = $derived(!BLOCKED.includes(this.status))
+  reconnectNeeded = $derived(this.authExpired && !this.signedIn && (this.gestureTried || this.userSignedOut))
   sheetLink = $derived(this.sheetId ? sheetUrl(this.sheetId, this.gids.Ledger) : '')
 
   constructor(env: Env) {
@@ -106,9 +110,14 @@ export class AppState {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => { this.online = true; void this.sync() })
       window.addEventListener('offline', () => { this.online = false })
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void this.sync() })
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return
+        if (this.signedIn) void this.sync()
+        else void this.trySilent(false).then((ok) => { if (!ok) void this.sync() })
+      })
     }
     this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false })
+    this.env.auth.onExpiring(() => void this.trySilent(false, true)) // refresh while the app is open, before the token runs out
     try {
       this.ops = await this.db.all()
       await this.db.prune(PRUNE_AFTER_MS)
@@ -118,7 +127,32 @@ export class AppState {
       return
     }
     await this.loadCache()
-    await this.sync()
+    // A new session has no token (tokens live in memory only): ask Google silently before showing anything.
+    const synced = this.signedIn ? false : await this.trySilent(false)
+    if (!synced) await this.sync()
+  }
+
+  /**
+   * Signs in without a screen when Google allows it (the person consented before and has a Google session). `fromGesture`
+   * is the first tap of a session, the one moment a browser lets the sign-in window open; if that is refused too, the
+   * Reconnect banner appears. `force` refreshes a token that is still valid, shortly before it expires.
+   * Returns true when it signed in and synced.
+   */
+  async trySilent(fromGesture = false, force = false): Promise<boolean> {
+    if (this.userSignedOut || this.silentBusy || (this.signedIn && !force)) return false
+    if (fromGesture && this.gestureTried) return false // refused once this session: stop trying on every tap
+    this.silentBusy = true
+    const ok = await this.env.auth.silentSignIn().finally(() => { this.silentBusy = false })
+    if (!ok) {
+      if (fromGesture && !this.signedIn) this.gestureTried = true
+      return false
+    }
+    const wasSignedIn = this.signedIn
+    this.signedIn = true
+    this.authExpired = false
+    this.gestureTried = false
+    if (!wasSignedIn) await this.sync()
+    return !wasSignedIn
   }
 
   private async loadCache() {
@@ -287,12 +321,15 @@ export class AppState {
 
   async reconnect() {
     await this.env.auth.signIn()
+    this.userSignedOut = false
+    this.gestureTried = false
     this.signedIn = true
     this.authExpired = false
     await this.sync()
   }
   signOut() {
     this.env.auth.signOut()
+    this.userSignedOut = true
     this.signedIn = false
     this.authExpired = true
   }
@@ -315,6 +352,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
+      this.userSignedOut = false
       this.signedIn = true
       const id = await this.env.pick()
       if (id) await this.linkId(id)
@@ -329,6 +367,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
+      this.userSignedOut = false
       this.signedIn = true
       const id = await this.env.copyTemplate()
       if (id) await this.linkId(id)
