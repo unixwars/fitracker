@@ -14,6 +14,20 @@
 
 Not in this plan (later plans): the Accounts screen with snapshots, drift and performance, `balanceAt` (sub-project 3); earlier-year imports. Snapshot read and write, and the snapshot outbox operation, ARE here (Tasks 3, 13, 16, 17) but have no screen yet.
 
+## Review rulings (Opus plan review, 2026-11-13; applied to the tasks below)
+
+These override the task text where they differ.
+
+- **Tasks 6 and 7 merged; Task 15 skipped** (the app computes base amounts from `Rates`; `Ledger!J` is never read). Numbering is unchanged.
+- **Task 16 to 23 are one red block**: the build is allowed to be red inside it; gate with `pnpm check`, lint and the unit tests at Task 23, then Playwright at Task 28.
+- **Task 19 or earlier**: `vitest.config` gets the svelte plugin and jsdom for `app.test.ts`. **Task 28**: fake TTL 0 and a `refresh(page)` e2e helper. **Task 24**: `templateCopyUrl` is in `Env`.
+- **Ids**: deterministic backfill ids; a fresh id is read each add attempt; an unparseable row that has an id keeps it.
+- **Add form**: after save, reset currency and `convertConfirmed`; validate against ALL known accounts and categories. Link and unlink clear the outbox and cached data. Messages are added for `AccountChanged` and the snapshot operations.
+- **Rates**: month-roll freezes the live value at roll time; a missing current rate falls back to the latest earlier numeric row; a base other than EUR is unsupported (no `maintainRates`). No device currency setting.
+- **Refresh interval** is `clamp(15000 + 5 * rows, 15000, 120000)` ms. A `strictTabs` 400 maps to `UnrecognisedLayout`; a newer schema tag allows no reads. No version bump on this branch.
+- **Snapshot undo**: undo of an add deletes by id; undo of a delete re-adds the previous snapshot with its own id.
+- **Spec deviation**: tests use synthetic fixtures, never real data.
+
 ## Open spikes
 
 Spike steps are in `docs/designs/spikes/2026-11-12-ledger-v2-spikes.md`; S5 has a harness page `docs/designs/spikes/s5-picker-copy.html`. Before each fork task read the `**Result:**` line of its spike. Every fork task names the branch it implements by default and carries the other as a marked **Alternative**.
