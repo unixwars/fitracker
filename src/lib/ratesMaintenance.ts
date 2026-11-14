@@ -16,7 +16,7 @@ const CURRENCIES_ON_ROW = ['GBP', 'USD'] as const
  * values, and append the current month's row with the live formulas. Typed values are never overwritten, a live
  * cell that is not a number is not frozen, and an existing current-month row is never appended twice.
  */
-export function planRatesMaintenance(rows: RateCellRow[], today: string, base: Currency): RatesPlan {
+export function planRatesMaintenance(rows: RateCellRow[], today: string, base: Currency, lastUsedRow = 0): RatesPlan {
   const thisMonth = today.slice(0, 7) + '-01'
   if (rows.some((r) => r.month > thisMonth)) return { freeze: null, append: null }
 
@@ -33,7 +33,7 @@ export function planRatesMaintenance(rows: RateCellRow[], today: string, base: C
   }
 
   if (rows.some((r) => r.month === thisMonth)) return { freeze, append: null }
-  const lastRow = rows.reduce((max, r) => Math.max(max, r.row), 1)
+  const lastRow = rows.reduce((max, r) => Math.max(max, r.row), Math.max(1, lastUsedRow)) // text or notes below the months count as used
   return {
     freeze,
     append: { row: lastRow + 1, month: thisMonth, formulas: { GBP: rateFormula('GBP', base), USD: rateFormula('USD', base) } },

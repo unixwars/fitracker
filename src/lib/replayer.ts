@@ -75,7 +75,7 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
     for (let tries = 0; tries <= MAX_RETRIES; tries++) {
       try {
         const patches = await attempt(group)
-        for (const [id, patch] of patches) await db.update(id, patch)
+        for (const [id, patch] of patches) await db.update(id, patch.status === 'done' ? { ...patch, doneAt: Date.now() } : patch)
         return true
       } catch (err) {
         if (err instanceof AuthExpired) {
@@ -109,7 +109,7 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
       const ops = await db.all()
       const since = Date.now() - VERIFY_WINDOW_MS
       const removedLater = (op: Op) => ops.some((o) => o.entryId === op.entryId && o.type === 'delete' && o.status !== 'flagged' && (o.seq ?? 0) > (op.seq ?? 0))
-      const saved = ops.filter((o) => o.status === 'done' && o.type !== 'delete' && o.at >= since && !removedLater(o))
+      const saved = ops.filter((o) => o.status === 'done' && o.type !== 'delete' && (o.doneAt ?? o.at) >= since && !removedLater(o))
       if (!saved.length) return
       const { missingIds } = await store.refresh({ expectIds: [...new Set(saved.map((o) => o.entryId))] })
       for (const op of saved) if (missingIds.includes(op.entryId)) await db.update(op.opId, { status: 'flagged', reason: 'Missing' })

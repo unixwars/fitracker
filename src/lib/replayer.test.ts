@@ -215,4 +215,14 @@ describe('replayer', () => {
     await r.verify()
     expect(refresh).toHaveBeenCalledWith({ expectIds: ['a'] })
   })
+
+  it('verifies an add that was queued long ago but saved just now (review m3a)', async () => {
+    const old = Date.now() - 40 * 86_400_000
+    await db.put({ ...makeOp('add', e('late')), at: old })
+    const r = createReplayer(store, db, { sleep })
+    await r.run()
+    fake.book(ID).clear('Ledger!A2:I2')
+    await r.verify()
+    expect(await statuses()).toEqual({ 'late:add': 'flagged/Missing' })
+  })
 })

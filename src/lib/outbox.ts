@@ -16,6 +16,7 @@ export type Op = {
   status: 'pending' | 'done' | 'flagged'
   reason?: OpReason
   undone?: boolean // set once an Undo op has been queued for it
+  doneAt?: number // when the sheet accepted it; the 7-day verification window counts from here
   attempts?: number // runs that failed for an unknown reason; flagged as Other after a few
   at: number
 }

@@ -22,6 +22,7 @@ type Data = {
   rates: RateRow[]
   unreadable: Unreadable[]
   rows: Map<string, RowRef> // id -> where it sits (Ledger or Snapshots)
+  unreadableIds: Set<string> // ids on rows that exist but do not parse: present, not missing
 }
 
 const VERSION_RECHECK_MS = 5 * 60_000
@@ -64,20 +65,21 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     )
     const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
     const unreadable: Unreadable[] = []
+    const unreadableIds = new Set<string>()
     const entryRows: { row: number; entry: Entry }[] = []
     const snapshotItems: { row: number; snapshot: Snapshot }[] = []
     ;(ledger ?? []).forEach((row, i) => {
       const sheetRow = LEDGER.firstRow + i
       const r = parseLedgerRow(row, reference.accounts)
       if ('skip' in r) return
-      if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text }); return }
+      if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
       entryRows.push({ row: sheetRow, entry: r.value })
     })
     ;(snapshotRows ?? []).forEach((row, i) => {
       const sheetRow = SNAPSHOTS.firstRow + i
       const r = parseSnapshotRow(row, reference.accounts)
       if ('skip' in r) return
-      if ('reason' in r) { unreadable.push({ tab: 'Snapshots', row: sheetRow, reason: r.reason, text: r.text }); return }
+      if ('reason' in r) { unreadable.push({ tab: 'Snapshots', row: sheetRow, reason: r.reason, text: r.text }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
       snapshotItems.push({ row: sheetRow, snapshot: r.value })
     })
 
@@ -98,7 +100,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       if (!claim(snapshot.id)) { unreadable.push({ tab: 'Snapshots', row, reason: 'duplicateId', text: snapshot.note }); continue }
       if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
     }
-    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows }
+    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows, unreadableIds }
   }
 
   // Gives hand-typed rows an id (spec 3.2): one write to column A only (consecutive rows as one block), then a read-back
@@ -106,8 +108,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   // without an id (unusable, retried on the next refresh).
   async function backfillIds(entryRows: { row: number; entry: Entry }[], snapshotItems: { row: number; snapshot: Snapshot }[]): Promise<void> {
     const targets = [
-      ...entryRows.filter((x) => x.entry.id === '').map((x) => ({ tab: 'Ledger' as const, row: x.row, set: (id: string) => { x.entry.id = id }, id: backfillId('Ledger', x.row, [x.entry.date, x.entry.money.minor, x.entry.account ?? '']) })),
-      ...snapshotItems.filter((x) => x.snapshot.id === '').map((x) => ({ tab: 'Snapshots' as const, row: x.row, set: (id: string) => { x.snapshot.id = id }, id: backfillId('Snapshots', x.row, [x.snapshot.date, x.snapshot.balance.minor, x.snapshot.account]) })),
+      ...entryRows.filter((x) => x.entry.id === '').map((x) => ({ tab: 'Ledger' as const, row: x.row, set: (id: string) => { x.entry.id = id }, same: (c: unknown[]) => { const v = ledgerRowValues(x.entry); return c[1] === v[1] && c[3] === v[3] && c[7] === v[7] }, id: backfillId('Ledger', x.row, [x.entry.date, x.entry.money.minor, x.entry.account ?? '']) })),
+      ...snapshotItems.filter((x) => x.snapshot.id === '').map((x) => ({ tab: 'Snapshots' as const, row: x.row, set: (id: string) => { x.snapshot.id = id }, same: (c: unknown[]) => { const v = snapshotRowValues(x.snapshot); return c[1] === v[1] && c[2] === v[2] && c[3] === v[3] }, id: backfillId('Snapshots', x.row, [x.snapshot.date, x.snapshot.balance.minor, x.snapshot.account]) })),
     ]
     if (!targets.length) return
     const blocks: { tab: 'Ledger' | 'Snapshots'; first: number; last: number }[] = []
@@ -117,15 +119,19 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       else blocks.push({ tab: t.tab, first: t.row, last: t.row })
     }
     const range = (b: { tab: string; first: number; last: number }) => (b.first === b.last ? `${b.tab}!A${b.first}` : `${b.tab}!A${b.first}:A${b.last}`)
+    const whole = (b: { tab: string; first: number; last: number }) => `${b.tab}!A${b.first}:${b.tab === 'Ledger' ? 'I' : 'E'}${b.last}`
     await api.valuesBatchUpdate(
       spreadsheetId,
       blocks.map((b) => ({ range: range(b), values: targets.filter((t) => t.tab === b.tab && t.row >= b.first && t.row <= b.last).sort((x, y) => x.row - y.row).map((t) => [t.id]) })),
     )
-    const back = await read(blocks.map(range), 'UNFORMATTED_VALUE')
+    // Read the whole rows back: an id is adopted only if the row still holds the entry it was written for (a sort in
+    // Sheets between the read and the write puts someone else there).
+    const back = await read(blocks.map(whole), 'UNFORMATTED_VALUE')
     blocks.forEach((b, i) => {
       for (const t of targets.filter((x) => x.tab === b.tab && x.row >= b.first && x.row <= b.last)) {
-        const cell = back[i]?.[t.row - b.first]?.[0]
-        t.set(cell === undefined || cell === null ? '' : String(cell).trim())
+        const cells = back[i]?.[t.row - b.first] ?? []
+        const cell = cells[0]
+        t.set(cell === undefined || cell === null || !t.same(cells) ? '' : String(cell).trim())
       }
     })
   }
@@ -272,19 +278,24 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       if (serial === null) return
       rows.push({ row: RATES.firstRow + i, month: serialToDate(serial), GBP: cellAt(fr?.[1], vr[1]), USD: cellAt(fr?.[2], vr[2]) })
     })
-    const plan = planRatesMaintenance(rows, today, data.reference.base)
+    const lastUsedRow = RATES.firstRow + (formulas[0] ?? []).length - 1 // text or notes below the months count as used
+    const plan = planRatesMaintenance(rows, today, data.reference.base, lastUsedRow)
+    // Re-read right before writing: freeze only cells that are still formulas (a person may have typed the monthly
+    // average since), append only if the month is still missing, and after the last non-empty row as it is now.
+    const [fresh] = plan.freeze || plan.append ? await read([RATES.ranges.rows], 'FORMULA') : [[]]
+    const stillFormula = (row: number, col: number) => typeof fresh[row - RATES.firstRow]?.[col] === 'string' && String(fresh[row - RATES.firstRow][col]).startsWith('=')
     const writes: { range: string; values: unknown[][] }[] = []
     if (plan.freeze) {
       const f = plan.freeze
-      if (f.values.GBP !== undefined) writes.push({ range: `Rates!B${f.row}`, values: [[f.values.GBP]] })
-      if (f.values.USD !== undefined) writes.push({ range: `Rates!C${f.row}`, values: [[f.values.USD]] })
+      if (f.values.GBP !== undefined && stillFormula(f.row, 1)) writes.push({ range: `Rates!B${f.row}`, values: [[f.values.GBP]] })
+      if (f.values.USD !== undefined && stillFormula(f.row, 2)) writes.push({ range: `Rates!C${f.row}`, values: [[f.values.USD]] })
     }
     if (plan.append) {
-      const [current] = await read([RATES.ranges.months], 'UNFORMATTED_VALUE')
-      const exists = (current ?? []).some((r) => typeof r?.[0] === 'number' && serialToDate(r[0]) === plan.append!.month)
+      const a = plan.append
+      const exists = fresh.some((r) => typeof r?.[0] === 'number' && serialToDate(r[0]) === a.month)
       if (!exists) {
-        const a = plan.append
-        writes.push({ range: `Rates!A${a.row}:C${a.row}`, values: [[dateToSerial(a.month), a.formulas.GBP, a.formulas.USD]] })
+        const row = RATES.firstRow + fresh.length
+        writes.push({ range: `Rates!A${row}:C${row}`, values: [[dateToSerial(a.month), a.formulas.GBP, a.formulas.USD]] })
       }
     }
     if (writes.length) { await api.valuesBatchUpdate(spreadsheetId, writes, 'USER_ENTERED'); markDirty() }
@@ -304,7 +315,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     async unreadable() { return (await load()).unreadable },
     async refresh(opts: RefreshOpts = {}) {
       const data = await load(opts.force)
-      return { missingIds: (opts.expectIds ?? []).filter((id) => !data.rows.has(id)) }
+      return { missingIds: (opts.expectIds ?? []).filter((id) => !data.rows.has(id) && !data.unreadableIds.has(id)) }
     },
     subscribe(fn) {
       listeners.add(fn)

@@ -47,3 +47,11 @@ describe('planRatesMaintenance', () => {
     expect(planRatesMaintenance([row(8, '2026-12-01', live(1.2), live(0.95))], TODAY, 'EUR')).toEqual({ freeze: null, append: null })
   })
 })
+
+describe('append row (review m4)', () => {
+  it('goes after the last used row even when that row has no month the plan can read', () => {
+    const rows = [{ row: 2, month: '2026-10-01', GBP: { value: 1.1, formula: null }, USD: { value: 0.9, formula: null } }]
+    expect(planRatesMaintenance(rows, '2026-11-05', 'EUR', 9).append?.row).toBe(10)
+    expect(planRatesMaintenance(rows, '2026-11-05', 'EUR').append?.row).toBe(3)
+  })
+})
