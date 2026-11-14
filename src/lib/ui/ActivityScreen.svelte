@@ -35,7 +35,7 @@
 <section class="card" data-testid="attention">
   <h3>{messages.needsAttention}</h3>
   {#each app.attention as op (op.opId)}
-    <div style="margin-bottom: 12px">
+    <div class="attn-blocking" style="margin-bottom: 12px" data-testid="flagged">
       <b>{opName(op)}: {opText(op)}</b>
       <p class="muted">{messages.reasons[op.reason ?? 'Other']}</p>
       <div class="row">
@@ -46,7 +46,7 @@
   {/each}
   {#each app.unreadable as u (u.tab + u.row)}
     {@const sum = rowSummary(u)}
-    <div style="margin-bottom: 12px" data-testid="unreadable">
+    <div class="attn-blocking" style="margin-bottom: 12px" data-testid="unreadable">
       <b>{sum.title}</b>
       {#if sum.detail}<p class="muted" style="margin: 2px 0">{sum.detail}</p>{/if}
       <p class="muted">{messages.unreadableReasons[u.reason]}. {fixable(u) ? messages.fixInApp : messages.fixInSheet}</p>
@@ -64,7 +64,7 @@
     <h3>{messages.needsCategoryTitle}</h3>
     <p class="muted">{messages.needsCategoryHint}</p>
     {#each uncategorised.slice(0, SHOWN) as x (x.id)}
-      <button class="entry" onclick={() => (editing = x)} data-testid="needs-category-entry">
+      <button class="entry attn-soft" onclick={() => (editing = x)} data-testid="needs-category-entry">
         <span>{dateLabel(x.date)} · {x.place || x.description || '—'}</span><b class="amt">{fmt(x.money)}</b>
       </button>
     {/each}

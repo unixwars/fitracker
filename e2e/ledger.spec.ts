@@ -74,6 +74,7 @@ test('unreadable rows are fixed in the app, with or without an id, or deleted; e
   await page.getByTestId('tab-activity').click()
   const rows = page.getByTestId('unreadable')
   await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0)).toHaveClass(/attn-blocking/) // red: not applied, blocks
   await expect(rows.nth(0)).toContainText('Ledger › row 5 › 5.00')
   await expect(rows.nth(1)).toContainText('Ledger › row 6 › "ten"')
   await expect(rows.nth(0).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A5:I5$/)
@@ -121,6 +122,7 @@ test('entries without a category are listed in Activity and leave the list once 
   await refresh(page)
   await page.getByTestId('tab-activity').click()
   await expect(page.getByTestId('needs-category-entry')).toHaveCount(1)
+  await expect(page.getByTestId('needs-category-entry')).toHaveClass(/attn-soft/) // amber: counts, only asks for a look
   await expect(page.getByTestId('badge')).toHaveCount(0) // it counts in the totals, so it does not raise the badge
   await page.getByTestId('needs-category-entry').click()
   await page.getByTestId('categories').selectOption('Bills')
