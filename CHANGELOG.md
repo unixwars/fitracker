@@ -21,7 +21,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - The access token is kept on the device (IndexedDB, with its expiry time) so a reload or relaunch within the hour needs no sign-in; Sign out deletes and revokes it.
 - When the stored token has expired, your first tap of a session asks Google for a new one silently; if the browser refuses, a Reconnect banner appears. The app never opens that window by itself at launch, because browsers block it. Sign out is remembered across reloads.
 - A Google account that cannot open the linked sheet (403) is dropped with a message asking you to reconnect and choose the right account.
-- The dock tabs have icons, and category dropdown options carry an emoji and Recent changes show the category icon. Settings has only Sign out; the Reconnect banner signs in.
+- The dock tabs have icons, and category and account dropdown options carry an emoji and Recent changes show the category icon. Settings has only Sign out; the Reconnect banner signs in.
 - Recent changes show amounts, category rows show an expand icon, and Settings shows Sign in or Sign out and Unlink only while signed in.
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { accountLabel } from '../accountIcon'
   import { categoryLabel } from '../categoryIcon'
   import { tick } from 'svelte'
   import { accountNames, applySuggestion, categoriesFor, chooseAccount, convertedAmount, currencyIssue, switchKind, validate, type Errors, type FormState } from '../addForm'
@@ -187,8 +188,8 @@
     <span>{form.kind === 'transfer' ? messages.fromAccount : messages.account}</span>
     <select value={form.account} onchange={(e) => (form = chooseAccount(form, e.currentTarget.value, lists))} aria-label={form.kind === 'transfer' ? messages.fromAccount : messages.account} data-testid="accounts">
       <option value="">{messages.choose}</option>
-      {#if form.account && !accounts.includes(form.account)}<option value={form.account}>{form.account}</option>{/if}
-      {#each accounts as a (a)}<option value={a}>{a}</option>{/each}
+      {#if form.account && !accounts.includes(form.account)}<option value={form.account}>{accountLabel(form.account)}</option>{/if}
+      {#each accounts as a (a)}<option value={a}>{accountLabel(a)}</option>{/each}
     </select>
   </label>
   {#if errors.account}<p class="err">{messages.errors.account}</p>{/if}
@@ -198,7 +199,7 @@
       <span>{messages.toAccount}</span>
       <select value={form.toAccount} onchange={(e) => (form = { ...form, toAccount: e.currentTarget.value })} aria-label={messages.toAccount} data-testid="to-account">
         <option value="">{messages.choose}</option>
-        {#each accounts as a (a)}<option value={a}>{a}</option>{/each}
+        {#each accounts as a (a)}<option value={a}>{accountLabel(a)}</option>{/each}
       </select>
     </label>
     {#if errors.toAccount}<p class="err">{messages.errors.toAccount}</p>{/if}
