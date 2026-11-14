@@ -73,4 +73,8 @@ test('every dock tab shows an icon and category options carry an emoji', async (
   for (const t of ['add', 'month', 'activity', 'settings']) await expect(page.getByTestId('tab-' + t).locator('svg')).toHaveCount(1)
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toHaveText('🧾 Bills')
+  // Chromium supports customizable selects, so there the options show the monochrome SVG and hide the emoji
+  const shown = await page.getByTestId('categories').locator('option', { hasText: 'Bills' }).evaluate((o) => [getComputedStyle(o.querySelector('.opt-icon')!).display, getComputedStyle(o.querySelector('.opt-emoji')!).display])
+  expect(shown[0]).not.toBe('none')
+  expect(shown[1]).toBe('none')
 })

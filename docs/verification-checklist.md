@@ -12,7 +12,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 
 1. Follow `docs/deploy-your-own.md` steps 1 to 3, including `VITE_TEMPLATE_COPY_URL`, then run `pnpm dev` and open the printed URL.
    *Pass:* the consent screen asks only for access to files the app opens or creates.
-2. Open the Network tab while you use the app. *Pass:* requests go only to `sheets.googleapis.com`, `www.googleapis.com` (the `files.copy` call and the account lookup), `*.googleusercontent.com` (your Google profile picture), `accounts.google.com`, `apis.google.com` and your own host.
+2. Open the Network tab while you use the app. *Pass:* requests go only to `sheets.googleapis.com`, `www.googleapis.com` (the `files.copy` call and the account lookup), `accounts.google.com`, `apis.google.com` and your own host.
 3. Application → Local Storage. *Pass:* it holds only `fitracker.sheet`, `fitracker.device` and (after a Sign out) `fitracker.signedOut`, and no token. IndexedDB `fitracker-auth` holds only the token with its expiry time.
 
 ## C. First run and linking
@@ -20,7 +20,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 4. Open the app in a fresh browser profile. *Pass:* the first screen offers **Create your sheet from the template**.
 5. Tap it and pick the template in the Picker. *Pass:* a copy named `Fitracker` appears in My Drive, has no attached script, and the app opens on the Add form.
    If the copy fails (spike S5 fallback): *Pass:* the template's Make a copy page opens, and **I made my copy: link it** links your copy.
-6. Settings → **Link a different sheet** and **Unlink this sheet**. *Pass:* unlinking warns first and says the sheet is not changed; after unlinking the first-run screen shows; relinking works.
+6. Settings → **Link a different sheet** and **Unlink**. *Pass:* unlinking warns first and says the sheet is not changed; after unlinking the first-run screen shows; relinking works.
 7. Link a v0.1 yearly sheet (a copy). *Pass:* the app says "That sheet is not a fitracker ledger" and the previous link is unchanged.
 8. In Google Sheets delete the `fitracker.schemaVersion` metadata of your copy (Data → Named ranges and metadata, or the template's `showSchemaVersion`), then reload the app. *Pass:* the app re-stamps it with one write and keeps working.
 

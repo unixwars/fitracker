@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountEmoji, accountLabel, BROKERS } from './accountIcon'
+import { ACCOUNT_ICON_PATHS, accountEmoji, accountIcon, BROKERS } from './accountIcon'
 
 describe('accountEmoji', () => {
   it('picks an emoji from keywords in the account name', () => {
@@ -17,9 +17,6 @@ describe('accountEmoji', () => {
   it('falls back to a bank for anything else', () => {
     expect(accountEmoji('Zorp')).toBe('🏦')
   })
-  it('labels with the emoji first', () => {
-    expect(accountLabel('Joint')).toBe('👥 Joint')
-  })
   it('there is no purse: wallets and neobanks are banks', () => {
     for (const n of ['Revolut', 'Wise', 'PayPal', 'Chase', 'Monzo']) expect(accountEmoji(n)).toBe('🏦')
   })
@@ -29,5 +26,11 @@ describe('accountEmoji', () => {
   })
   it('short broker names only match as whole words', () => {
     for (const n of ['Stakeholder', 'Light', 'Igloo', 'Chmc']) expect(accountEmoji(n)).toBe('🏦')
+  })
+  it('every kind has an emoji and a monochrome path, and names map to the same kind', () => {
+    expect(accountIcon('Joint')).toBe('joint')
+    expect(accountIcon('DEGIRO')).toBe('invest')
+    expect(accountIcon('Zorp')).toBe('bank')
+    for (const k of ['cash', 'card', 'savings', 'invest', 'joint', 'bank'] as const) expect(ACCOUNT_ICON_PATHS[k].startsWith('M')).toBe(true)
   })
 })

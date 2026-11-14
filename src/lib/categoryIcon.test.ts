@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoryIcon, categoryLabel, CATEGORY_EMOJI, ICON_PATHS } from './categoryIcon'
+import { categoryIcon, CATEGORY_EMOJI, ICON_PATHS } from './categoryIcon'
 
 describe('categoryIcon', () => {
   it('maps the template categories', () => {
@@ -40,11 +40,7 @@ describe('categoryIcon', () => {
   })
 })
 
-describe('dropdown labels', () => {
-  it('prefix a category with the emoji of its icon, falling back to the generic one', () => {
-    expect(categoryLabel('Groceries')).toBe('🛒 Groceries')
-    expect(categoryLabel('Whatever')).toBe('🏷️ Whatever')
-  })
+describe('dropdown emoji', () => {
   it('has an emoji for every icon', () => {
     expect(Object.keys(CATEGORY_EMOJI).sort()).toEqual(Object.keys(ICON_PATHS).sort())
   })

@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { accountLabel } from '../accountIcon'
-  import { categoryLabel } from '../categoryIcon'
+  import { ACCOUNT_ICON_PATHS, accountEmoji, accountIcon } from '../accountIcon'
+  import { categoryIcon, CATEGORY_EMOJI, ICON_PATHS } from '../categoryIcon'
+  import OptionLabel from './OptionLabel.svelte'
   import { tick } from 'svelte'
   import { accountNames, applySuggestion, categoriesFor, chooseAccount, convertedAmount, currencyIssue, switchKind, validate, type Errors, type FormState } from '../addForm'
   import type { DeviceSettings } from '../config'
@@ -175,10 +176,11 @@
   {#if form.kind !== 'transfer'}
     <label class="field">
       <span>{messages.category}</span>
-      <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} data-testid="categories">
+      <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} class="iconic" data-testid="categories">
+        <button type="button"><selectedcontent></selectedcontent></button>
         <option value="">{messages.choose}</option>
-        {#if form.category && !categories.includes(form.category)}<option value={form.category}>{categoryLabel(form.category)}</option>{/if}
-        {#each categories as c (c)}<option value={c}>{categoryLabel(c)}</option>{/each}
+        {#if form.category && !categories.includes(form.category)}<option value={form.category}><OptionLabel path={ICON_PATHS[categoryIcon(form.category)]} emoji={CATEGORY_EMOJI[categoryIcon(form.category)]} text={form.category} /></option>{/if}
+        {#each categories as c (c)}<option value={c}><OptionLabel path={ICON_PATHS[categoryIcon(c)]} emoji={CATEGORY_EMOJI[categoryIcon(c)]} text={c} /></option>{/each}
       </select>
     </label>
     {#if errors.category}<p class="err">{messages.errors.category}</p>{/if}
@@ -186,10 +188,11 @@
 
   <label class="field">
     <span>{form.kind === 'transfer' ? messages.fromAccount : messages.account}</span>
-    <select value={form.account} onchange={(e) => (form = chooseAccount(form, e.currentTarget.value, lists))} aria-label={form.kind === 'transfer' ? messages.fromAccount : messages.account} data-testid="accounts">
+    <select value={form.account} onchange={(e) => (form = chooseAccount(form, e.currentTarget.value, lists))} aria-label={form.kind === 'transfer' ? messages.fromAccount : messages.account} class="iconic" data-testid="accounts">
+        <button type="button"><selectedcontent></selectedcontent></button>
       <option value="">{messages.choose}</option>
-      {#if form.account && !accounts.includes(form.account)}<option value={form.account}>{accountLabel(form.account)}</option>{/if}
-      {#each accounts as a (a)}<option value={a}>{accountLabel(a)}</option>{/each}
+      {#if form.account && !accounts.includes(form.account)}<option value={form.account}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(form.account)]} emoji={accountEmoji(form.account)} text={form.account} /></option>{/if}
+      {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} text={a} /></option>{/each}
     </select>
   </label>
   {#if errors.account}<p class="err">{messages.errors.account}</p>{/if}
@@ -197,9 +200,10 @@
   {#if form.kind === 'transfer'}
     <label class="field">
       <span>{messages.toAccount}</span>
-      <select value={form.toAccount} onchange={(e) => (form = { ...form, toAccount: e.currentTarget.value })} aria-label={messages.toAccount} data-testid="to-account">
+      <select value={form.toAccount} onchange={(e) => (form = { ...form, toAccount: e.currentTarget.value })} aria-label={messages.toAccount} class="iconic" data-testid="to-account">
+        <button type="button"><selectedcontent></selectedcontent></button>
         <option value="">{messages.choose}</option>
-        {#each accounts as a (a)}<option value={a}>{accountLabel(a)}</option>{/each}
+        {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} text={a} /></option>{/each}
       </select>
     </label>
     {#if errors.toAccount}<p class="err">{messages.errors.toAccount}</p>{/if}

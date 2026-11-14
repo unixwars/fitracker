@@ -42,4 +42,3 @@ export const CATEGORY_EMOJI: Record<CategoryIconName, string> = {
   work: '💼', bills: '🧾', groceries: '🛒', recreation: '🎮', shopping: '🛍️', transport: '🚗',
   travel: '✈️', health: '❤️', pay: '💵', growth: '📈', refund: '↩️', other: '🏷️',
 }
-export const categoryLabel = (name: string) => `${CATEGORY_EMOJI[categoryIcon(name)]} ${name}`

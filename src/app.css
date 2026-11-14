@@ -123,10 +123,20 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .attn-soft { background: color-mix(in srgb, var(--amber) 16%, var(--surface)); border-left: 4px solid var(--amber); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
 .recent .ci { margin-right: 6px; vertical-align: -3px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 12px; }
-.tile { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.tile-label { font-size: 0.8rem; color: var(--muted); }
-.tile-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.who { display: flex; align-items: center; gap: 8px; }
-.who-email { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.avatar { position: relative; flex: none; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 600; font-size: 0.85rem; }
-.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile { margin: 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; min-width: 0; }
+.tile > button { width: 100%; }
+.tile-label { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.tile-main { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Dropdown options: emoji everywhere, monochrome SVG where the browser supports customizable selects. */
+.opt-icon { display: none; }
+@supports (appearance: base-select) {
+  select.iconic, select.iconic::picker(select) { appearance: base-select; }
+  select.iconic::picker(select) { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 4px; }
+  select.iconic option { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; }
+  select.iconic option:checked { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  select.iconic option::checkmark { display: none; }
+  select.iconic selectedcontent { display: flex; align-items: center; gap: 8px; }
+  .opt-emoji { display: none; }
+  .opt-icon { display: inline-block; flex: none; width: 18px; height: 18px; color: var(--muted); }
+}

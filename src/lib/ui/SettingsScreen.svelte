@@ -28,12 +28,8 @@
   {#if app.signedIn}
     <section class="card tile">
       <span class="tile-label">{messages.account}</span>
-      <span class="tile-main who">
-        <span class="avatar" aria-hidden="true">
-          {#if app.accountPhoto}<img src={app.accountPhoto} alt="" referrerpolicy="no-referrer" onerror={(e) => e.currentTarget.remove()} />{/if}
-          {(app.accountEmail || '?').slice(0, 1).toUpperCase()}
-        </span>
-        <span class="who-email">{app.accountEmail}</span>
+      <span class="tile-main">
+        {app.accountEmail}
       </span>
       <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
     </section>

@@ -20,9 +20,9 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - Activity marks rows that were not applied or cannot be read in red and rows that only ask for a look in amber. It lists entries that have no valid category under "Missing a category"; tapping one opens the edit form. When the app has to add rows to a full tab, the new rows get the last row's number formats and data validation.
 - The access token is kept on the device (IndexedDB, with its expiry time) so a reload or relaunch within the hour needs no sign-in; Sign out deletes and revokes it.
 - When the stored token has expired, your first tap of a session asks Google for a new one silently; if the browser refuses, a Reconnect banner appears. The app never opens that window by itself at launch, because browsers block it. Sign out is remembered across reloads.
-- Settings has two tiles: the linked sheet with Unlink, and the signed-in Google account (profile picture and email) with Sign out. The account is looked up from Google each time and never stored.
+- Settings has two tiles: the linked sheet with Unlink, and the signed-in Google account email with Sign out. The account is looked up from Google each time and never stored.
 - A Google account that cannot open the linked sheet (403) is dropped with a message asking you to reconnect and choose the right account.
-- The dock tabs have icons, and category and account dropdown options carry an emoji and Recent changes show the category icon. Settings has only Sign out; the Reconnect banner signs in.
+- The dock tabs have icons, and category and account dropdown options show monochrome icons (Chrome, desktop and Android) or an emoji (other browsers) and Recent changes show the category icon. Settings has only Sign out; the Reconnect banner signs in.
 - Recent changes show amounts, category rows show an expand icon, and Settings shows Sign in or Sign out and Unlink only while signed in.
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.
