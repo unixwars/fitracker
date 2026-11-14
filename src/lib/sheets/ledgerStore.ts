@@ -150,13 +150,13 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   // back from the response's updatedRange and the rows that did not land are retried (at most three attempts).
   async function appendRows<T extends { id: string }>(
     items: T[],
-    spec: { tab: 'Ledger' | 'Snapshots'; ids: string; append: string; values: (t: T) => unknown[]; acceptable: (t: T, accounts: Reference['accounts']) => boolean },
+    spec: { tab: 'Ledger' | 'Snapshots'; ids: string; append: string; lastCol: 'I' | 'E'; values: (t: T) => unknown[]; acceptable: (t: T, accounts: Reference['accounts']) => boolean },
   ): Promise<AddResult[]> {
     await checkVersion()
     const results = new Map<string, AddResult>()
     let pending = items.filter((e, i) => items.findIndex((x) => x.id === e.id) === i)
     for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS && pending.length; attempt++) {
-      const [idCells, accountRows] = await read([spec.ids, REFERENCE.accounts, ...TAB_GUARD])
+      const [idCells, accountRows, , , , , dateCells] = await read([spec.ids, REFERENCE.accounts, ...TAB_GUARD, `${spec.tab}!B2:B`])
       const present = new Set((idCells ?? []).map((r) => str(r?.[0])))
       const accounts = parseReference([], accountRows ?? [], [], []).accounts
       pending = pending.filter((e) => {
@@ -165,8 +165,19 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
         return true
       })
       if (!pending.length) break
-      const { updatedRange } = await api.valuesAppend(spreadsheetId, spec.append, pending.map(spec.values))
+      // Real Sheets appends the first row of an empty table one column to the right (and into column J, over the
+      // formula). So the first row of an empty tab is written explicitly; later rows are appended (live check).
+      const empty = (idCells ?? []).length === 0 && (dateCells ?? []).length === 0
+      let updatedRange: string
+      if (empty) {
+        updatedRange = `${spec.tab}!A2:${spec.lastCol}${1 + pending.length}`
+        await api.valuesBatchUpdate(spreadsheetId, [{ range: updatedRange, values: pending.map(spec.values) }])
+      } else {
+        updatedRange = (await api.valuesAppend(spreadsheetId, spec.append, pending.map(spec.values))).updatedRange
+      }
       const landed = parseRange(updatedRange)
+      const lastColNum = spec.lastCol === 'I' ? 9 : 5
+      if (landed.c1 !== 1 || landed.c2 !== lastColNum) throw new Error(`The rows landed outside columns A to ${spec.lastCol} (${updatedRange}); nothing more was written`)
       const [back] = await read([`${spec.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
       pending = pending.filter((e, i) => {
         if (str(back?.[i]?.[0]) !== e.id) return true
@@ -186,11 +197,11 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   }
 
   const addMany = (entries: Entry[]): Promise<AddResult[]> =>
-    appendRows(entries, { tab: 'Ledger', ids: LEDGER.ranges.ids, append: LEDGER.ranges.append, values: ledgerRowValues, acceptable: accountMatches })
+    appendRows(entries, { tab: 'Ledger', ids: LEDGER.ranges.ids, append: LEDGER.ranges.append, lastCol: 'I', values: ledgerRowValues, acceptable: accountMatches })
 
   async function addSnapshot(s: Snapshot): Promise<AddResult> {
     const [result] = await appendRows([s], {
-      tab: 'Snapshots', ids: SNAPSHOTS.ranges.ids, append: SNAPSHOTS.ranges.append, values: snapshotRowValues,
+      tab: 'Snapshots', ids: SNAPSHOTS.ranges.ids, append: SNAPSHOTS.ranges.append, lastCol: 'E', values: snapshotRowValues,
       acceptable: (x, accounts) => accounts.some((a) => a.name === x.account && a.currency === x.balance.currency),
     })
     return result

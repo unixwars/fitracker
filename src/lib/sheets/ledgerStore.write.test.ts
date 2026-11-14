@@ -44,11 +44,11 @@ describe('addMany (append, spike S1 branch A)', () => {
     expect(fake.book('S1').get('Ledger!E2')).toEqual({ v: "'quoted" })
   })
   it('writes only A to I and never J', async () => {
-    const { fake, store } = setup()
+    const { fake, store } = setup(1) // one row exists, so this one is appended
     await store.addMany([entry('a')])
     expect(fake.calls.filter((c) => c.method === 'valuesAppend').map((c) => c.args[1])).toEqual(['Ledger!A:I'])
     expect(fake.book('S1').get('Ledger!J2')?.f).toMatch(/^=ARRAYFORMULA/)
-    expect(fake.book('S1').get('Ledger!J3')).toBeUndefined()
+    expect(fake.book('S1').get('Ledger!J4')).toBeUndefined()
   })
   it("refuses an entry whose currency differs from its account's (Review Focus 3) and an unknown account", async () => {
     const { fake, store } = setup()
@@ -81,11 +81,11 @@ describe('addMany (append, spike S1 branch A)', () => {
     expect(idsColumn(fake).filter((x) => x === 'a')).toHaveLength(1)
   })
   it('a row that was moved (a sort) is found again and never appended twice', async () => {
-    const { fake, store } = setup()
+    const { fake, store } = setup(1)
     fake.afterNextWrite(() => {
       const b = fake.book('S1')
-      const values = b.read('Ledger!A2:I2', 'UNFORMATTED_VALUE')
-      b.clear('Ledger!A2:I2')
+      const values = b.read('Ledger!A3:I3', 'UNFORMATTED_VALUE')
+      b.clear('Ledger!A3:I3')
       b.write('Ledger!A9:I9', values)
     })
     expect(await store.addMany([entry('a')])).toEqual([{ id: 'a', ok: true }])

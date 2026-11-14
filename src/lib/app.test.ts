@@ -52,15 +52,15 @@ describe('AppState', () => {
   })
 
   it('save queues an add, the replayer writes it once, and displayed shows it without a duplicate', async () => {
-    const { app, fake } = setup({ entries: [] })
+    const { app, fake } = setup({ entries: [e('seed')] })
     await app.init()
     await app.save(e('n1'), {})
-    expect(app.displayed.map((x) => x.id)).toEqual(['n1'])
+    expect(app.displayed.map((x) => x.id)).toEqual(['seed', 'n1'])
     await vi.waitFor(() => expect(app.pendingCount).toBe(0))
     await app.sync()
     expect(fake.count('valuesAppend')).toBe(1)
-    expect(app.entries.map((x) => x.id)).toEqual(['n1'])
-    expect(app.displayed).toHaveLength(1)
+    expect(app.entries.map((x) => x.id)).toEqual(['seed', 'n1'])
+    expect(app.displayed).toHaveLength(2)
   })
 
   it('a sheet tagged newer is read-only: no write reaches it', async () => {

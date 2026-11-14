@@ -15,13 +15,16 @@ function setup(snapshots: Snapshot[] = []) {
 }
 
 describe('snapshot writes', () => {
-  it('addSnapshot appends A to E to Snapshots and reads the id back', async () => {
+  it('addSnapshot writes the first row explicitly and appends A to E after that, reading the id back', async () => {
     const { fake, store } = setup()
     expect(await store.addSnapshot(snap('s1', { note: 'start' }))).toEqual({ id: 's1', ok: true })
+    const first = fake.calls.find((c) => c.method === 'valuesBatchUpdate')!
+    expect((first.args[1] as { range: string; values: unknown[][] }[])[0]).toEqual({ range: 'Snapshots!A2:E2', values: [['s1', 46326, 'Joint', 100.25, 'start']] })
+    expect(await store.addSnapshot(snap('s2'))).toEqual({ id: 's2', ok: true })
     const call = fake.calls.find((c) => c.method === 'valuesAppend')!
     expect(call.args[1]).toBe('Snapshots!A:E')
-    expect(call.args[2]).toEqual([['s1', 46326, 'Joint', 100.25, 'start']])
-    expect(fake.book('S1').get('Snapshots!A2')?.v).toBe('s1')
+    expect(call.args[2]).toEqual([['s2', 46326, 'Joint', 100.25, '']])
+    expect(fake.book('S1').get('Snapshots!A3')?.v).toBe('s2')
   })
   it('an id already present is ok without a second append', async () => {
     const { fake, store } = setup([snap('s1')])
