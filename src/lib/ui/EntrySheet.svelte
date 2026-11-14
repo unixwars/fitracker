@@ -6,20 +6,21 @@
   import EntryForm from './EntryForm.svelte'
 
   // `repair` edits or deletes a row the app could not read (the entry is a draft built from that row).
-  let { app, entry, onclose, repair = false }: { app: AppState; entry: Entry; onclose: () => void; repair?: boolean } = $props()
+  // `repairAt` is set for a row without a usable id: it is found by row number, and the fixed entry gets a new id.
+  let { app, entry, onclose, repair = false, repairAt }: { app: AppState; entry: Entry; onclose: () => void; repair?: boolean; repairAt?: { row: number; raw: unknown[] } } = $props()
 
   // svelte-ignore state_referenced_locally
   let form = $state<FormState>(entryToForm(entry))
   let confirming = $state(false)
 
   async function onsubmit(f: FormState) {
-    const fixed = toEntry(f, entry.id, app.lists, app.rates)
-    if (repair) await app.fixRow(fixed)
+    const fixed = toEntry(f, repairAt ? crypto.randomUUID() : entry.id, app.lists, app.rates)
+    if (repair) await app.fixRow(fixed, repairAt)
     else await app.edit(fixed, entry)
     onclose()
   }
   async function remove() {
-    if (repair) await app.deleteRow(entry)
+    if (repair) await app.deleteRow(entry, repairAt)
     else await app.remove(entry)
     onclose()
   }

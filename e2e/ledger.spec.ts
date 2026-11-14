@@ -63,28 +63,47 @@ test('first run creates the sheet from the template', async ({ page }) => {
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })
 
-test('an unreadable row with an id is fixed in the app; one without an id only offers the link to the row in Sheets', async ({ page }) => {
+test('unreadable rows are fixed in the app, with or without an id, or deleted; each also has a link to its row in Sheets', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
   for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}5`, v)
   for (const [col, v] of [['B', 'xx'], ['C', 'expense'], ['D', 'ten'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}6`, v) // no id
+  for (const [col, v] of [['B', 'yy'], ['C', 'expense'], ['D', 'nine'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}7`, v) // junk, to delete
   await refresh(page)
-  await expect(page.getByTestId('badge')).toHaveText('2')
+  await expect(page.getByTestId('badge')).toHaveText('3')
   await page.getByTestId('tab-activity').click()
   const rows = page.getByTestId('unreadable')
-  await expect(rows).toHaveCount(2)
-  await expect(rows.nth(0).getByTestId('fix-row')).toBeVisible()
-  await expect(rows.nth(1).getByTestId('fix-row')).toHaveCount(0) // no id: fix it in the sheet
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0)).toContainText('Ledger › row 5 › 5.00')
+  await expect(rows.nth(1)).toContainText('Ledger › row 6 › "ten"')
   await expect(rows.nth(0).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A5:I5$/)
   await expect(rows.nth(1).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A6:I6$/)
 
+  // with an id: found by the id, keeps it
   await rows.nth(0).getByTestId('fix-row').click()
   await expect(page.getByTestId('amount')).toHaveValue('5.00') // what could be read is kept
   await expect(page.getByTestId('categories')).toHaveValue('Bills')
   await page.getByTestId('save').click() // the date defaulted to today, so the row is valid now
   await expect.poll(() => cell(page, 'Ledger!B5')).toBe(await todaySerial(page))
+  expect(await cell(page, 'Ledger!A5')).toBe('bad1')
+  await expect(page.getByTestId('unreadable')).toHaveCount(2)
+
+  // without an id: found by its row, overwritten with a new id
+  await page.getByTestId('unreadable').first().getByTestId('fix-row').click()
+  await page.getByTestId('amount').fill('7')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('save').click()
+  await expect.poll(() => cell(page, 'Ledger!D6')).toBe(7)
+  expect(String(await cell(page, 'Ledger!A6'))).toMatch(/^[0-9a-f-]{36}$/)
   await expect(page.getByTestId('unreadable')).toHaveCount(1)
-  await expect(page.getByTestId('badge')).toHaveText('1')
+
+  // a junk row is deleted after a warning
+  await page.getByTestId('unreadable').first().getByTestId('fix-row').click()
+  await page.getByTestId('delete').click()
+  await expect(page.getByText('cannot be undone')).toBeVisible()
+  await page.getByTestId('confirm-delete').click()
+  await expect.poll(() => cell(page, 'Ledger!B7')).toBeNull()
+  await expect(page.getByTestId('unreadable')).toHaveCount(0)
 })
 
 test('Settings links to the sheet in Google Sheets', async ({ page }) => {

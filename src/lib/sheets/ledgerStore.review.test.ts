@@ -19,7 +19,7 @@ describe('duplicate ids (review M2)', () => {
     const { fake, store } = setup([e('a'), e('b')])
     fake.book('S1').write('Ledger!A4:I4', [ledgerRowValues(e('a', { money: { minor: 999, currency: 'EUR' } }))]) // a copied row keeps its id
     expect((await store.list()).map((x) => x.id)).toEqual(['a', 'b'])
-    expect(await store.unreadable()).toEqual([{ tab: 'Ledger', row: 4, reason: 'duplicateId', text: 'd-a' }])
+    expect(await store.unreadable()).toMatchObject([{ tab: 'Ledger', row: 4, reason: 'duplicateId', text: 'd-a' }])
   })
   it('refuses to edit or delete an id that occurs twice and clears nothing', async () => {
     const { fake, store } = setup([e('a'), e('b')])

@@ -74,6 +74,10 @@ describe('repair ops (fixing a row the app could not read)', () => {
     expect(makeRepairOp('edit', e('a'))).toMatchObject({ subject: 'entry', type: 'edit', repair: true, previous: undefined, status: 'pending' })
     expect(makeRepairOp('delete', e('a'))).toMatchObject({ type: 'delete', repair: true, previous: e('a') })
   })
+  it('a repair by row keeps the row and the cells that were shown', () => {
+    const op = makeRepairOp('edit', e('a'), { row: 7, raw: ['', 'xx'] })
+    expect(op.repairAt).toEqual({ row: 7, raw: ['', 'xx'] })
+  })
   it('a pending repair edit shows the fixed entry in the optimistic view', () => {
     expect(applyPending([], withSeq([makeRepairOp('edit', e('a'))])).map((x) => x.id)).toEqual(['a'])
   })

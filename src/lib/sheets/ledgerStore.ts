@@ -65,14 +65,14 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
     const unreadable: Unreadable[] = []
     const unreadableIds = new Set<string>()
-    const entryRows: { row: number; entry: Entry }[] = []
+    const entryRows: { row: number; entry: Entry; raw: unknown[] }[] = []
     const snapshotItems: { row: number; snapshot: Snapshot }[] = []
     ;(ledger ?? []).forEach((row, i) => {
       const sheetRow = LEDGER.firstRow + i
       const r = parseLedgerRow(row, reference.accounts)
       if ('skip' in r) return
       if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text, id: str(row?.[0]) || undefined, raw: row }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
-      entryRows.push({ row: sheetRow, entry: r.value })
+      entryRows.push({ row: sheetRow, entry: r.value, raw: row })
     })
     ;(snapshotRows ?? []).forEach((row, i) => {
       const sheetRow = SNAPSHOTS.firstRow + i
@@ -91,8 +91,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     // is reported as unreadable (the person fixes it in the sheet) and is never listed or edited.
     const seen = new Set<string>()
     const claim = (id: string): boolean => (id === '' ? true : seen.has(id) ? false : (seen.add(id), true))
-    for (const { row, entry } of entryRows) {
-      if (!claim(entry.id)) { unreadable.push({ tab: 'Ledger', row, reason: 'duplicateId', text: entry.description }); continue }
+    for (const { row, entry, raw } of entryRows) {
+      if (!claim(entry.id)) { unreadable.push({ tab: 'Ledger', row, reason: 'duplicateId', text: entry.description, raw }); continue }
       if (entry.id !== '') { entries.push(entry); rows.set(entry.id, { tab: 'Ledger', row }) }
     }
     for (const { row, snapshot } of snapshotItems) {
@@ -110,7 +110,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   // Gives hand-typed rows an id (spec 3.2): one write to column A only (consecutive rows as one block), then a read-back
   // of just the written cells so the store adopts the value the sheet holds. An id that did not stick leaves the row
   // without an id (unusable, retried on the next refresh).
-  async function backfillIds(entryRows: { row: number; entry: Entry }[], snapshotItems: { row: number; snapshot: Snapshot }[]): Promise<void> {
+  async function backfillIds(entryRows: { row: number; entry: Entry; raw?: unknown[] }[], snapshotItems: { row: number; snapshot: Snapshot }[]): Promise<void> {
     const targets = [
       ...entryRows.filter((x) => x.entry.id === '').map((x) => ({ tab: 'Ledger' as const, row: x.row, set: (id: string) => { x.entry.id = id }, same: (c: unknown[]) => { const v = ledgerRowValues(x.entry); return c[1] === v[1] && c[3] === v[3] && c[7] === v[7] }, id: backfillId('Ledger', x.row, [x.entry.date, x.entry.money.minor, x.entry.account ?? '']) })),
       ...snapshotItems.filter((x) => x.snapshot.id === '').map((x) => ({ tab: 'Snapshots' as const, row: x.row, set: (id: string) => { x.snapshot.id = id }, same: (c: unknown[]) => { const v = snapshotRowValues(x.snapshot); return c[1] === v[1] && c[2] === v[2] && c[3] === v[3] }, id: backfillId('Snapshots', x.row, [x.snapshot.date, x.snapshot.balance.minor, x.snapshot.account]) })),
@@ -258,6 +258,36 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return { previous: gone }
   }
 
+  // Cells with trailing blanks removed, so a row compares equal to what the earlier read returned for it.
+  const trimmed = (cells: unknown[]): string => {
+    const out = [...cells]
+    while (out.length && (out[out.length - 1] === '' || out[out.length - 1] === undefined || out[out.length - 1] === null)) out.pop()
+    return JSON.stringify(out)
+  }
+
+  // A row with no usable id can only be found by its number, which shifts (a sort, an insert). So it is re-read right
+  // before the write and must still hold exactly what the person was shown; the window left is one request.
+  async function rowStillHolds(row: number, expectedRaw: unknown[]): Promise<{ accounts: Reference['accounts']; ids: string[] }> {
+    await checkVersion()
+    const [cells, accountRows, idCells] = await read([rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts, LEDGER.ranges.ids, ...TAB_GUARD])
+    if (trimmed(cells?.[0] ?? []) !== trimmed(expectedRaw)) throw new RowChanged(`row ${row}`)
+    return { accounts: parseReference([], accountRows ?? [], [], []).accounts, ids: (idCells ?? []).map((r) => str(r?.[0])) }
+  }
+
+  async function repairRowAt(row: number, expectedRaw: unknown[], entry: Entry): Promise<void> {
+    const { accounts, ids } = await rowStillHolds(row, expectedRaw)
+    if (entry.id === '' || ids.includes(entry.id)) throw new RowChanged(entry.id) // the new id must be new
+    if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
+    await api.valuesBatchUpdate(spreadsheetId, [{ range: rowRange(LEDGER.tab, row, 'I'), values: [ledgerRowValues(entry)] }])
+    markDirty()
+  }
+
+  async function clearRowAt(row: number, expectedRaw: unknown[]): Promise<void> {
+    await rowStillHolds(row, expectedRaw)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
+    markDirty()
+  }
+
   async function deleteSnapshot(id: string): Promise<{ previous: Snapshot }> {
     await checkVersion()
     const [idCells] = await read([SNAPSHOTS.ranges.ids, ...TAB_GUARD])
@@ -344,6 +374,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     addMany,
     edit,
     delete: remove,
+    repairRowAt,
+    clearRowAt,
     addSnapshot,
     deleteSnapshot,
     maintainRates,

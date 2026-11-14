@@ -13,7 +13,8 @@
   const recent = $derived([...app.ops].filter((o) => o.status === 'done').reverse().slice(0, 30))
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
   let fixing = $state<Unreadable | null>(null)
-  const fixable = (u: Unreadable) => u.tab === 'Ledger' && Boolean(u.id) && Array.isArray(u.raw) // by id only; the sheet link covers the rest
+  // Every Ledger row can be fixed here: by its id when it has one, otherwise by its row while it still holds what is shown.
+  const fixable = (u: Unreadable) => u.tab === 'Ledger' && Array.isArray(u.raw)
   // The tab ids for the links come from the device or, once signed in, from one request; re-run when either changes.
   $effect(() => { if (app.unreadable.length && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
   const opName = (op: Op) => (op.subject === 'snapshot' ? messages.snapshotOps[op.type as 'add' | 'delete'] : messages.ops[op.type])
@@ -65,13 +66,13 @@
 <section class="card">
   <h3>{messages.recentChanges}</h3>
   {#each recent as op (op.opId)}
-    <div class="stat">
+    <div class="stat recent">
       <span>{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
-      <b data-testid="recent-amount">{opAmount(op)}</b>
+      <b class="num" data-testid="recent-amount">{opAmount(op)}</b>
       {#if op.undone}<span class="muted">{messages.undone}</span>
       {:else if !op.repair && (op.type !== 'add' || op.entry || op.snapshot)}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
     </div>
   {:else}<p class="muted">{messages.noChanges}</p>{/each}
 </section>
 
-{#if fixing}<EntrySheet {app} entry={repairDraft(fixing.raw ?? [], app.lists, todayLocal())} repair onclose={() => (fixing = null)} />{/if}
+{#if fixing}<EntrySheet {app} entry={repairDraft(fixing.raw ?? [], app.lists, todayLocal())} repair repairAt={fixing.id ? undefined : { row: fixing.row, raw: $state.snapshot(fixing.raw ?? []) }} onclose={() => (fixing = null)} />{/if}

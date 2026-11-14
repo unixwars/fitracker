@@ -233,11 +233,12 @@ export class AppState {
     if (this.canWrite) await this.enqueue(makeOp('delete', entry, entry))
   }
   // Fixing or removing a row the app could not read (found by its id, which occurs once in the book).
-  async fixRow(entry: Entry) {
-    if (this.canWrite) await this.enqueue(makeRepairOp('edit', entry))
+  // `at` is given for a row without a usable id: it is found by row number, and only while it still holds `raw`.
+  async fixRow(entry: Entry, at?: { row: number; raw: unknown[] }) {
+    if (this.canWrite) await this.enqueue(makeRepairOp('edit', entry, at))
   }
-  async deleteRow(entry: Entry) {
-    if (this.canWrite) await this.enqueue(makeRepairOp('delete', entry))
+  async deleteRow(entry: Entry, at?: { row: number; raw: unknown[] }) {
+    if (this.canWrite) await this.enqueue(makeRepairOp('delete', entry, at))
   }
 
   rowUrl(u: Unreadable): string {

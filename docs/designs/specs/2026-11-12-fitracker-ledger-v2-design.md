@@ -83,7 +83,10 @@ Writing:
 - Rows typed by hand without an id get one from the app on refresh. After writing, the app reads the cell
   back and adopts the value the sheet holds, so two devices cannot disagree.
 - A row the app cannot parse (text date or amount, unknown account) gets no id and appears in Needs attention
-  as "row not understood".
+  as "row not understood", with a link that opens the row in Sheets. It can also be fixed or deleted in the app:
+  the form is pre-filled from the cells that were read; a row with a unique id is found by it; a row without
+  one is found by its number, re-read right before the write and refused unless it still holds exactly the
+  cells that were shown, and the fixed row gets a new id.
 
 ### 3.3 Reference tabs
 

@@ -16,6 +16,12 @@ export interface EntryStore {
   /** `repair` fixes or removes a row the app could not read (found by its id, which must occur once). */
   edit(entry: Entry, expectedPrevious?: Entry, opts?: { repair?: boolean }): Promise<{ previous: Entry }>
   delete(id: string, expectedPrevious?: Entry, opts?: { repair?: boolean }): Promise<{ previous: Entry }>
+  /**
+   * Fixes or clears an unreadable Ledger row that has no usable id. The row is found by number, so it is re-read
+   * first and the write is refused (RowChanged) unless it still holds exactly `expectedRaw`, the cells the person saw.
+   */
+  repairRowAt(row: number, expectedRaw: unknown[], entry: Entry): Promise<void>
+  clearRowAt(row: number, expectedRaw: unknown[]): Promise<void>
   addSnapshot(s: Snapshot): Promise<AddResult>
   deleteSnapshot(id: string): Promise<{ previous: Snapshot }>
   /** Spec 3.4: freeze the closed month's live Rates cells and append the current month's row. */

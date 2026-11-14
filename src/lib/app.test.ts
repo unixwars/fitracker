@@ -294,3 +294,18 @@ describe('fixing unreadable rows in the app and links to Sheets', () => {
     expect(fake.count('sheetInfo')).toBe(1)
   })
 })
+
+describe('fixing a row that has no usable id', () => {
+  it('fixRow and deleteRow with the row and the cells shown fix or clear that row', async () => {
+    const { app, fake } = setup({ entries: [] })
+    fake.book('S1').write('Ledger!A2:I3', [['', 'xx', 'expense', 'ten', '', 'junk', 'Groceries', 'Joint'], ['', 'yy', 'expense', 'nine', '', 'junk2', 'Groceries', 'Joint']])
+    await app.init()
+    expect(app.unreadable.map((u) => [u.row, u.id])).toEqual([[2, undefined], [3, undefined]])
+    const [first, second] = app.unreadable
+    await app.fixRow(e('fresh', { description: 'fixed' }), { row: first.row, raw: [...first.raw!] })
+    await app.deleteRow(e('x'), { row: second.row, raw: [...second.raw!] })
+    await vi.waitFor(() => expect(app.unreadable).toEqual([]))
+    expect(app.entries.map((x) => x.id)).toEqual(['fresh'])
+    expect(fake.book('S1').get('Ledger!A3')).toBeUndefined()
+  })
+})

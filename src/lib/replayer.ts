@@ -44,6 +44,12 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
         const { previous } = await store.deleteSnapshot(first.entryId)
         return [[first.opId, { status: 'done', previousSnapshot: previous }]]
       }
+      if (first.repairAt) {
+        // A row without a usable id: found by row number, only while it still holds what the person was shown.
+        if (first.type === 'edit') await store.repairRowAt(first.repairAt.row, first.repairAt.raw, first.entry!)
+        else await store.clearRowAt(first.repairAt.row, first.repairAt.raw)
+        return [[first.opId, { status: 'done' }]]
+      }
       const { previous } = first.type === 'edit'
         ? await store.edit(first.entry!, first.previous, { repair: first.repair })
         : await store.delete(first.entryId, first.previous, { repair: first.repair })

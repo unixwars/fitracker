@@ -16,7 +16,7 @@ for data. Do not add one.
   locale-formatted strings. Never overwrite formula cells, except the `Rates` month-roll (spec 3.4).
 - **One column mapping, one source.** The sheet is one multi-year book (`Ledger`, `Snapshots`,
   reference tabs). Define its layout once in `src/lib/schema.ts`; nothing else hardcodes a column or tab name.
-- **Rows are found by the id column (`Ledger` and `Snapshots` column A), never by row number.** Row numbers shift.
+- **Rows are found by the id column (`Ledger` and `Snapshots` column A), never by row number.** Row numbers shift. The one exception is repairing an unreadable `Ledger` row that has no usable id: the row is re-read right before the write and refused unless it still holds exactly the cells the user was shown.
 - **One data seam.** Screens, the outbox and prediction use the `EntryStore` interface; only the
   Sheets adapter knows about Sheets.
 - **Schema is versioned.** The book carries version 3 as developer metadata (`fitracker.schemaVersion`). The

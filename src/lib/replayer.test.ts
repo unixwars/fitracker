@@ -235,4 +235,21 @@ describe('replayer', () => {
     expect(fake.book(ID).get('Ledger!F2')?.v).toBe('fixed')
     expect(fake.book(ID).get('Ledger!A3')).toBeUndefined()
   })
+
+  it('replays a repair by row: the corrected entry is written over the unreadable row, or the row is cleared', async () => {
+    fake.book(ID).write('Ledger!A2:I3', [['', 'xx', 'expense', 'ten', '', 'junk', 'Groceries', 'Joint'], ['', 'yy', 'expense', 'nine', '', 'junk2', 'Groceries', 'Joint']])
+    const raw = (fake.book(ID).read('Ledger!A2:I3', 'UNFORMATTED_VALUE'))
+    await db.put(makeRepairOp('edit', e('fresh', { description: 'fixed' }), { row: 2, raw: raw[0] }))
+    await db.put(makeRepairOp('delete', e('x'), { row: 3, raw: raw[1] }))
+    await createReplayer(store, db, { sleep }).run()
+    expect(await statuses()).toEqual({ 'fresh:edit': 'done', 'x:delete': 'done' })
+    expect(fake.book(ID).get('Ledger!A2')?.v).toBe('fresh')
+    expect(fake.book(ID).get('Ledger!A3')).toBeUndefined()
+  })
+  it('flags a repair by row as RowChanged when the row is not what was shown', async () => {
+    fake.book(ID).write('Ledger!A2:I2', [['', 'xx', 'expense', 'ten', '', 'junk', 'Groceries', 'Joint']])
+    await db.put(makeRepairOp('edit', e('fresh'), { row: 2, raw: ['', 'zz', 'expense', 'ten'] }))
+    await createReplayer(store, db, { sleep }).run()
+    expect(await statuses()).toEqual({ 'fresh:edit': 'flagged/RowChanged' })
+  })
 })

@@ -58,6 +58,56 @@ describe('repair mode (fix or delete an unreadable row by its id)', () => {
   })
 })
 
+describe('rows without a usable id are fixed by their row, but only while they still hold what the person was shown', () => {
+  const junk = ['', 'xx', 'expense', 'ten', '', 'junk', 'Groceries', 'Joint']
+  const withJunk = () => {
+    const t = setup()
+    t.fake.book('S1').write('Ledger!A4:I4', [junk])
+    t.fake.book('S1').write('Ledger!A5:I5', [ledgerRowValues(e('b'))]) // a copy of b: a duplicate id
+    return t
+  }
+  it('every unreadable Ledger row carries its raw cells, including a duplicate', async () => {
+    const { store } = withJunk()
+    const u = await store.unreadable()
+    expect(u.find((x) => x.row === 4)?.raw).toEqual(junk)
+    expect(u.find((x) => x.row === 5)).toMatchObject({ reason: 'duplicateId', raw: expect.any(Array) })
+  })
+  it('repairRowAt overwrites that row with the corrected entry and a new id; other rows are untouched', async () => {
+    const { fake, store } = withJunk()
+    const raw = (await store.unreadable()).find((x) => x.row === 4)!.raw!
+    await store.repairRowAt(4, raw, e('new1', { description: 'fixed' }))
+    expect(fake.book('S1').get('Ledger!A4')?.v).toBe('new1')
+    expect(fake.book('S1').get('Ledger!F4')?.v).toBe('fixed')
+    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('b')
+    await store.refresh({ force: true })
+    expect((await store.list()).map((x) => x.id)).toContain('new1')
+    expect((await store.unreadable()).some((x) => x.row === 4)).toBe(false)
+  })
+  it('a row that changed since it was shown (a sort, an insert, an edit) is refused and nothing is written', async () => {
+    const { fake, store } = withJunk()
+    const raw = (await store.unreadable()).find((x) => x.row === 4)!.raw!
+    fake.book('S1').set('Ledger!D4', 'eleven') // someone edited it
+    const writes = fake.count('valuesBatchUpdate')
+    await expect(store.repairRowAt(4, raw, e('new1'))).rejects.toMatchObject({ name: 'RowChanged' })
+    await expect(store.clearRowAt(4, raw)).rejects.toMatchObject({ name: 'RowChanged' })
+    expect(fake.count('valuesBatchUpdate')).toBe(writes)
+    expect(fake.count('valuesBatchClear')).toBe(0)
+  })
+  it('refuses a new id that already exists and an entry that does not match its account currency', async () => {
+    const { store } = withJunk()
+    const raw = (await store.unreadable()).find((x) => x.row === 4)!.raw!
+    await expect(store.repairRowAt(4, raw, e('a'))).rejects.toMatchObject({ name: 'RowChanged' })
+    await expect(store.repairRowAt(4, raw, e('new2', { money: { minor: 1, currency: 'GBP' } }))).rejects.toMatchObject({ name: 'AccountChanged' })
+  })
+  it('clearRowAt clears A to I of that row only', async () => {
+    const { fake, store } = withJunk()
+    const raw = (await store.unreadable()).find((x) => x.row === 4)!.raw!
+    await store.clearRowAt(4, raw)
+    expect(fake.book('S1').read('Ledger!A4:I4', 'UNFORMATTED_VALUE').flat().filter((x) => x !== '')).toEqual([])
+    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('b')
+  })
+})
+
 describe('sheetInfo', () => {
   it('the fake returns a title and the numeric id of each tab', async () => {
     const { fake } = setup()

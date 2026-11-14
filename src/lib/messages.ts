@@ -89,7 +89,7 @@ export const messages = {
   noAmount: 'no amount',
   noDate: 'no date',
   fixInApp: 'You can fix it here, or in the sheet; a refresh clears it.',
-  fixInSheet: 'This row has no usable id, so fix it in the sheet; a refresh clears it.',
+  fixInSheet: 'Fix it in the sheet; a refresh clears it.',
   fixRow: 'Fix here',
   openInSheets: 'Open in Sheets',
   openSheet: 'Open the sheet in Google Sheets',

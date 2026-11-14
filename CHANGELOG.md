@@ -16,7 +16,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ### Added
 - Amount entry is unambiguous: a comma becomes a dot as you type, there are no thousands separators, and at most two decimals are kept.
 - Category and account are dropdowns with the remembered choice pre-selected; the description pre-fills from the last purchase at the chosen place.
-- Rows the app cannot read can be fixed or deleted in the app when they have an id; every such row has an **Open in Sheets** link that selects it, and Settings links to the sheet.
+- Rows the app cannot read can be fixed or deleted in the app; a row without a usable id is found by its row number and only changed while it still holds what you were shown. Each such row has an **Open in Sheets** link that selects it, and Settings shows the sheet's name as a link to it.
 - Recent changes show amounts, category rows show an expand icon, and Settings shows Sign in or Sign out and Unlink only while signed in.
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.
