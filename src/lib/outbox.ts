@@ -16,6 +16,7 @@ export type Op = {
   status: 'pending' | 'done' | 'flagged'
   reason?: OpReason
   undone?: boolean // set once an Undo op has been queued for it
+  repair?: boolean // fixes or removes a row the app could not read, found by its id (no undo)
   doneAt?: number // when the sheet accepted it; the 7-day verification window counts from here
   attempts?: number // runs that failed for an unknown reason; flagged as Other after a few
   at: number
@@ -23,6 +24,10 @@ export type Op = {
 
 export function makeOp(type: OpType, entry: Entry, previous?: Entry): Op {
   return { opId: crypto.randomUUID(), subject: 'entry', entryId: entry.id, type, entry, previous, status: 'pending', at: Date.now() }
+}
+
+export function makeRepairOp(type: 'edit' | 'delete', entry: Entry): Op {
+  return { ...makeOp(type, entry, type === 'delete' ? entry : undefined), repair: true }
 }
 
 export function makeSnapshotOp(type: 'add' | 'delete', snapshot: Snapshot): Op {

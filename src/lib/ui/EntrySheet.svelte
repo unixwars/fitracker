@@ -5,18 +5,22 @@
   import type { Entry } from '../rows'
   import EntryForm from './EntryForm.svelte'
 
-  let { app, entry, onclose }: { app: AppState; entry: Entry; onclose: () => void } = $props()
+  // `repair` edits or deletes a row the app could not read (the entry is a draft built from that row).
+  let { app, entry, onclose, repair = false }: { app: AppState; entry: Entry; onclose: () => void; repair?: boolean } = $props()
 
   // svelte-ignore state_referenced_locally
   let form = $state<FormState>(entryToForm(entry))
   let confirming = $state(false)
 
   async function onsubmit(f: FormState) {
-    await app.edit(toEntry(f, entry.id, app.lists, app.rates), entry)
+    const fixed = toEntry(f, entry.id, app.lists, app.rates)
+    if (repair) await app.fixRow(fixed)
+    else await app.edit(fixed, entry)
     onclose()
   }
   async function remove() {
-    await app.remove(entry)
+    if (repair) await app.deleteRow(entry)
+    else await app.remove(entry)
     onclose()
   }
 </script>
@@ -30,7 +34,7 @@
     <EntryForm bind:form lists={app.lists} rates={app.rates} history={[]} device={app.device} submitLabel={messages.saveChanges} {onsubmit} lockKind />
     <div style="margin-top: 16px">
       {#if confirming}
-        <p>{messages.confirmDelete}</p>
+        <p>{repair ? messages.confirmDeleteRow : messages.confirmDelete}</p>
         <div class="row">
           <button class="secondary" onclick={() => (confirming = false)}>{messages.cancel}</button>
           <button class="secondary danger" onclick={remove} data-testid="confirm-delete">{messages.confirmDeleteYes}</button>

@@ -3,10 +3,11 @@ import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
 import { AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
-import { applyPending, makeOp, pendingCount, undo, type Op } from './outbox'
+import { applyPending, makeOp, makeRepairOp, pendingCount, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
+import { rowUrl, sheetUrl } from './sheetLinks'
 import { createLedgerStore } from './sheets/ledgerStore'
 import type { SheetsApi } from './sheets/types'
 import { ensureVersion } from './sheets/version'
@@ -56,6 +57,7 @@ export class AppState {
   rates = $state<RateRow[]>([])
   snapshots = $state<Snapshot[]>([])
   unreadable = $state<Unreadable[]>([])
+  gids = $state<Record<string, number>>({}) // numeric tab ids for links into Google Sheets
   ops = $state<Op[]>([])
   status = $state<Status>('loading')
   online = $state(true)
@@ -72,6 +74,7 @@ export class AppState {
   needsAttention = $derived(this.attention.length + this.unreadable.length)
   pendingCount = $derived(pendingCount(this.ops))
   canWrite = $derived(!BLOCKED.includes(this.status))
+  sheetLink = $derived(this.sheetId ? sheetUrl(this.sheetId, this.gids.Ledger) : '')
 
   constructor(env: Env) {
     this.env = env
@@ -227,6 +230,27 @@ export class AppState {
   async remove(entry: Entry) {
     if (this.canWrite) await this.enqueue(makeOp('delete', entry, entry))
   }
+  // Fixing or removing a row the app could not read (found by its id, which occurs once in the book).
+  async fixRow(entry: Entry) {
+    if (this.canWrite) await this.enqueue(makeRepairOp('edit', entry))
+  }
+  async deleteRow(entry: Entry) {
+    if (this.canWrite) await this.enqueue(makeRepairOp('delete', entry))
+  }
+
+  rowUrl(u: Unreadable): string {
+    return this.sheetId ? rowUrl(this.sheetId, this.gids, u) : ''
+  }
+  // One metadata request per linked sheet; the link falls back to the file until it has arrived.
+  async loadTabIds() {
+    if (!this.sheetId || Object.keys(this.gids).length) return
+    const id = this.sheetId
+    try {
+      const gids = await this.env.api.tabIds(id)
+      if (id === this.sheetId) this.gids = gids
+    } catch { /* links keep opening the file */ }
+  }
+
   async undoOp(op: Op) {
     if (!this.canWrite) return
     await this.db.update(op.opId, { undone: true })
@@ -308,7 +332,7 @@ export class AppState {
       if (err instanceof UnrecognisedLayout) { this.message = messages.linkNotLedger; return }
       if (!(err instanceof NewerThanApp)) throw err // a newer sheet links read-only
     }
-    if (this.sheetId !== id) await this.forgetBook()
+    if (this.sheetId !== id) { await this.forgetBook(); this.gids = {} }
     this.config.linkSheet(id)
     this.sheetId = id
     this.build()
@@ -324,6 +348,7 @@ export class AppState {
     this.sheetId = null
     this.build()
     await this.forgetBook()
+    this.gids = {}
     await this.loadCache()
   }
 }

@@ -64,6 +64,12 @@ describe('createSheetsApi', () => {
 })
 
 describe('createSheetsApi additions', () => {
+  it('tabIds maps tab titles to their numeric sheet ids', async () => {
+    const { calls, fetchImpl } = stub([json({ sheets: [{ properties: { sheetId: 0, title: 'Ledger' } }, { properties: { sheetId: 203680765, title: 'Snapshots' } }] })])
+    expect(await createSheetsApi(() => 'tok', fetchImpl).tabIds('S1')).toEqual({ Ledger: 0, Snapshots: 203680765 })
+    expect(decodeURIComponent(calls[0].url)).toContain('fields=sheets.properties(sheetId,title)')
+  })
+
   it('growTab adds only the missing rows with appendDimension', async () => {
     const meta = () => json({ sheets: [{ properties: { sheetId: 7, title: 'Ledger', gridProperties: { rowCount: 1001 } } }] })
     const grow = stub([meta(), json({})])

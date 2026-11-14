@@ -13,4 +13,5 @@ export type Reference = { base: Currency; accounts: Account[]; categories: Categ
 export type RateRow = { month: string; GBP: number | null; USD: number | null }
 export type Snapshot = { id: string; date: string; account: string; balance: Money; note: string }
 export type UnreadableReason = 'date' | 'amount' | 'type' | 'account' | 'toAccount' | 'duplicateId'
-export type Unreadable = { tab: 'Ledger' | 'Snapshots'; row: number; reason: UnreadableReason; text: string }
+// id is set only for a Ledger row whose id occurs once in the book (so it can be fixed by id); raw is the row as read (A to I).
+export type Unreadable = { tab: 'Ledger' | 'Snapshots'; row: number; reason: UnreadableReason; text: string; id?: string; raw?: unknown[] }

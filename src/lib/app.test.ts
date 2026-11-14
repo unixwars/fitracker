@@ -246,3 +246,27 @@ describe('signed-in state (drives the Settings buttons)', () => {
     expect(setup().app.signedIn).toBe(true)
   })
 })
+
+describe('fixing unreadable rows in the app and links to Sheets', () => {
+  it('fixRow writes the corrected entry and the row leaves Needs attention; deleteRow clears a junk row', async () => {
+    const { app, fake } = setup()
+    fake.book('S1').set('Ledger!B2', 'not a date')
+    fake.book('S1').write('Ledger!A3:I3', [['junk1', 'xx', 'expense', 'ten', '', 'junk', 'Groceries', 'Joint']])
+    await app.init()
+    expect(app.unreadable.map((u) => [u.row, u.id])).toEqual([[2, 'a'], [3, 'junk1']])
+    await app.fixRow(e('a', { description: 'fixed' }))
+    await app.deleteRow(e('junk1'))
+    await vi.waitFor(() => expect(app.unreadable).toEqual([]))
+    expect(fake.book('S1').get('Ledger!F2')?.v).toBe('fixed')
+    expect(fake.book('S1').get('Ledger!A3')).toBeUndefined()
+    expect(app.entries.map((x) => x.id)).toEqual(['a'])
+  })
+  it('rowUrl and the sheet link use the tab ids once they are loaded', async () => {
+    const { app } = setup()
+    await app.init()
+    expect(app.rowUrl({ tab: 'Ledger', row: 7, reason: 'date', text: '' })).toBe('https://docs.google.com/spreadsheets/d/S1/edit')
+    await app.loadTabIds()
+    expect(app.rowUrl({ tab: 'Ledger', row: 7, reason: 'date', text: '' })).toMatch(/\/edit#gid=\d+&range=A7:I7$/)
+    expect(app.sheetLink).toMatch(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/S1\/edit/)
+  })
+})

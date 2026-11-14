@@ -2,11 +2,19 @@
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
   import type { Op } from '../outbox'
+  import { repairDraft } from '../repairDraft'
+  import { todayLocal } from '../rows'
+  import type { Unreadable } from '../types'
+  import EntrySheet from './EntrySheet.svelte'
   import { dateLabel, fmt } from './format'
 
   let { app }: { app: AppState } = $props()
   const recent = $derived([...app.ops].filter((o) => o.status === 'done').reverse().slice(0, 30))
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
+  let fixing = $state<Unreadable | null>(null)
+  const fixable = (u: Unreadable) => u.tab === 'Ledger' && Boolean(u.id) && Array.isArray(u.raw) // by id only; the sheet link covers the rest
+  // The tab ids for the links are fetched once, when there is something to link to.
+  $effect(() => { if (app.unreadable.length) void app.loadTabIds() })
   const opName = (op: Op) => (op.subject === 'snapshot' ? messages.snapshotOps[op.type as 'add' | 'delete'] : messages.ops[op.type])
   const opAmount = (op: Op) => (op.subject === 'snapshot' ? (op.snapshot ? fmt(op.snapshot.balance) : '') : op.entry ? fmt(op.entry.money) : '')
   const opText = (op: Op) =>
@@ -32,7 +40,11 @@
   {#each app.unreadable as u (u.tab + u.row)}
     <div style="margin-bottom: 12px" data-testid="unreadable">
       <b>{u.tab} · {u.text || '—'}</b>
-      <p class="muted">{messages.rowNotUnderstood(u.row, messages.unreadableReasons[u.reason])}</p>
+      <p class="muted">{messages.rowNotUnderstood(u.row, messages.unreadableReasons[u.reason])} {fixable(u) ? messages.fixInApp : messages.fixInSheet}</p>
+      <div class="row">
+        {#if fixable(u)}<button class="secondary" disabled={!app.canWrite} onclick={() => (fixing = u)} data-testid="fix-row">{messages.fixRow}</button>{/if}
+        <a class="linkbtn" href={app.rowUrl(u)} target="_blank" rel="noopener" data-testid="open-row">{messages.openInSheets}</a>
+      </div>
     </div>
   {/each}
   {#if !app.needsAttention}<p class="muted">{messages.nothingToReview}</p>{/if}
@@ -54,7 +66,9 @@
       <span>{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
       <b data-testid="recent-amount">{opAmount(op)}</b>
       {#if op.undone}<span class="muted">{messages.undone}</span>
-      {:else if op.type !== 'add' || op.entry || op.snapshot}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
+      {:else if !op.repair && (op.type !== 'add' || op.entry || op.snapshot)}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
     </div>
   {:else}<p class="muted">{messages.noChanges}</p>{/each}
 </section>
+
+{#if fixing}<EntrySheet {app} entry={repairDraft(fixing.raw ?? [], app.lists, todayLocal())} repair onclose={() => (fixing = null)} />{/if}

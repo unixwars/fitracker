@@ -13,8 +13,9 @@ export interface EntryStore {
   /** Rows the app does not understand (spec 3.2): never listed, never written, shown under Needs attention. */
   unreadable(): Promise<Unreadable[]>
   addMany(entries: Entry[]): Promise<AddResult[]>
-  edit(entry: Entry, expectedPrevious?: Entry): Promise<{ previous: Entry }>
-  delete(id: string, expectedPrevious?: Entry): Promise<{ previous: Entry }>
+  /** `repair` fixes or removes a row the app could not read (found by its id, which must occur once). */
+  edit(entry: Entry, expectedPrevious?: Entry, opts?: { repair?: boolean }): Promise<{ previous: Entry }>
+  delete(id: string, expectedPrevious?: Entry, opts?: { repair?: boolean }): Promise<{ previous: Entry }>
   addSnapshot(s: Snapshot): Promise<AddResult>
   deleteSnapshot(id: string): Promise<{ previous: Snapshot }>
   /** Spec 3.4: freeze the closed month's live Rates cells and append the current month's row. */

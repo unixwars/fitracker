@@ -1,7 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NewerThanApp, RateLimited } from './errors'
-import { makeOp, makeSnapshotOp } from './outbox'
+import { makeOp, makeRepairOp, makeSnapshotOp } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import type { Entry } from './rows'
@@ -224,5 +224,15 @@ describe('replayer', () => {
     fake.book(ID).clear('Ledger!A2:I2')
     await r.verify()
     expect(await statuses()).toEqual({ 'late:add': 'flagged/Missing' })
+  })
+
+  it('replays a repair edit and a repair delete in repair mode, so an unreadable row can be fixed or removed', async () => {
+    fake.book(ID).write('Ledger!A2:I3', [['u1', 'not a date', 'expense', 5, '', 'x', 'Groceries', 'Joint'], ['u2', 'junk', 'expense', 5, '', 'y', 'Groceries', 'Joint']])
+    await db.put(makeRepairOp('edit', e('u1', { description: 'fixed' })))
+    await db.put(makeRepairOp('delete', e('u2')))
+    await createReplayer(store, db, { sleep }).run()
+    expect(await statuses()).toEqual({ 'u1:edit': 'done', 'u2:delete': 'done' })
+    expect(fake.book(ID).get('Ledger!F2')?.v).toBe('fixed')
+    expect(fake.book(ID).get('Ledger!A3')).toBeUndefined()
   })
 })

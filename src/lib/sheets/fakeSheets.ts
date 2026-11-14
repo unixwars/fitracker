@@ -148,6 +148,10 @@ export function createFakeSheets(): FakeSheets {
       }
       fireAfterWrite()
     },
+    async tabIds(id) {
+      enter('tabIds', id)
+      return Object.fromEntries([...book(id).sheets.keys()].map((tab, i) => [tab, 1000 + i]))
+    },
     async growTab(id, tab, rows) {
       enter('growTab', id, tab, rows)
       fake.maxRows = Math.max(fake.maxRows, rows)

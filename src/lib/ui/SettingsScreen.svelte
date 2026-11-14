@@ -13,6 +13,9 @@
 
 <section class="card">
   <p class="muted">{linked ? messages.linked : messages.notLinked}</p>
+  {#if linked}
+    <p><a href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet" onclick={() => app.loadTabIds()}>{messages.openSheet}</a></p>
+  {/if}
   {#if linked && app.signedIn}
     {#if confirmingUnlink}
       <div class="banner" role="alertdialog" style="margin: 8px 0 0" data-testid="unlink-confirm">

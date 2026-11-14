@@ -50,6 +50,10 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     async valuesBatchUpdate(id, data, input = 'RAW') {
       await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: input, data })
     },
+    async tabIds(id) {
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
+      return Object.fromEntries(meta.sheets.map((x) => [x.properties.title, x.properties.sheetId]))
+    },
     // Grows a tab with appendDimension. (values:append is not used: on the real template it lands one column to the right.)
     async growTab(id, tab, rows) {
       const meta = await request<{ sheets: { properties: { sheetId: number; title: string; gridProperties: { rowCount: number } } }[] }>(

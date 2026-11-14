@@ -7,6 +7,8 @@ export interface SheetsApi {
   batchGet(spreadsheetId: string, ranges: string[], render?: RenderOption): Promise<unknown[][][]>
   /** Writes values: RAW (default, text is never a formula) or USER_ENTERED (strings starting with "=" become formulas). */
   valuesBatchUpdate(spreadsheetId: string, data: { range: string; values: unknown[][] }[], input?: 'RAW' | 'USER_ENTERED'): Promise<void>
+  /** Numeric sheet id (the `gid` of Sheets links) of every tab, by title. */
+  tabIds(spreadsheetId: string): Promise<Record<string, number>>
   /** Adds rows at the bottom of a tab so that it has at least `rows` rows (a write past the grid is a 400). */
   growTab(spreadsheetId: string, tab: string, rows: number): Promise<void>
   /** Creates or updates one DOCUMENT developer metadata entry. */

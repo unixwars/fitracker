@@ -53,8 +53,8 @@ describe('ledger store read path', () => {
     b.write('Ledger!A5:I5', [['x3', 46000, 'expense', 5, '', 'c', 'Groceries', 'Nowhere']])
     b.write('Ledger!A6:I6', [['x4', 46000, 'spend', 5, '', 'd', 'Groceries', 'Joint']])
     expect((await store.list()).map((x) => x.id)).toEqual(['good'])
-    expect(await store.unreadable()).toEqual([
-      { tab: 'Ledger', row: 3, reason: 'date', text: 'a' },
+    expect(await store.unreadable()).toMatchObject([
+      { tab: 'Ledger', row: 3, reason: 'date', text: 'a', id: 'x1' },
       { tab: 'Ledger', row: 4, reason: 'amount', text: 'b' },
       { tab: 'Ledger', row: 5, reason: 'account', text: 'c' },
       { tab: 'Ledger', row: 6, reason: 'type', text: 'd' },

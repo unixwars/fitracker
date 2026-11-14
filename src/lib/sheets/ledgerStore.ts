@@ -71,7 +71,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       const sheetRow = LEDGER.firstRow + i
       const r = parseLedgerRow(row, reference.accounts)
       if ('skip' in r) return
-      if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
+      if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text, id: str(row?.[0]) || undefined, raw: row }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
       entryRows.push({ row: sheetRow, entry: r.value })
     })
     ;(snapshotRows ?? []).forEach((row, i) => {
@@ -99,6 +99,11 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       if (!claim(snapshot.id)) { unreadable.push({ tab: 'Snapshots', row, reason: 'duplicateId', text: snapshot.note }); continue }
       if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
     }
+    // Only an id that occurs once can be used to fix a row by its id.
+    const idCount = new Map<string, number>()
+    for (const id of rows.keys()) idCount.set(id, 1)
+    for (const u of unreadable) if (u.id) idCount.set(u.id, (idCount.get(u.id) ?? 0) + 1)
+    for (const u of unreadable) if (u.id && idCount.get(u.id) !== 1) delete u.id
     return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows, unreadableIds }
   }
 
@@ -219,7 +224,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
 
   // Finds a Ledger row by id (spec 3.2): read column A, then read just that row with the account list (so the currency
   // can be checked). Never by row number.
-  async function locate(id: string, expectedPrevious?: Entry): Promise<{ row: number; previous: Entry; accounts: Reference['accounts'] }> {
+  async function locate(id: string, expectedPrevious?: Entry, repair = false): Promise<{ row: number; previous: Entry | null; accounts: Reference['accounts'] }> {
     await checkVersion()
     const [idCells] = await read([LEDGER.ranges.ids, ...TAB_GUARD])
     const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
@@ -230,24 +235,27 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     if (str(cells?.[0]?.[0]) !== id) throw new RowChanged(id) // the rows moved between the two reads
     const accounts = parseReference([], accountRows ?? [], [], []).accounts
     const parsed = parseLedgerRow(cells?.[0] ?? [], accounts)
+    if (repair) return { row, previous: 'value' in parsed ? parsed.value : null, accounts } // fixing a row that cannot be read
     if (!('value' in parsed)) throw new RowChanged(id)
     if (expectedPrevious && !looksSame(parsed.value, expectedPrevious)) throw new RowChanged(id)
     return { row, previous: parsed.value, accounts }
   }
 
-  async function edit(entry: Entry, expectedPrevious?: Entry): Promise<{ previous: Entry }> {
-    const { row, previous, accounts } = await locate(entry.id, expectedPrevious)
+  async function edit(entry: Entry, expectedPrevious?: Entry, opts: { repair?: boolean } = {}): Promise<{ previous: Entry }> {
+    const { row, previous, accounts } = await locate(entry.id, expectedPrevious, opts.repair)
     if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
     await api.valuesBatchUpdate(spreadsheetId, [{ range: rowRange(LEDGER.tab, row, 'I'), values: [ledgerRowValues(entry)] }])
     markDirty()
-    return { previous }
+    return { previous: previous ?? entry }
   }
 
-  async function remove(id: string, expectedPrevious?: Entry): Promise<{ previous: Entry }> {
-    const { row, previous } = await locate(id, expectedPrevious)
+  async function remove(id: string, expectedPrevious?: Entry, opts: { repair?: boolean } = {}): Promise<{ previous: Entry }> {
+    const { row, previous } = await locate(id, expectedPrevious, opts.repair)
+    const gone = previous ?? expectedPrevious
+    if (!gone) throw new RowChanged(id)
     await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
     markDirty()
-    return { previous }
+    return { previous: gone }
   }
 
   async function deleteSnapshot(id: string): Promise<{ previous: Snapshot }> {

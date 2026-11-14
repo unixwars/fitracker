@@ -62,3 +62,33 @@ test('first run creates the sheet from the template', async ({ page }) => {
   await page.getByTestId('create-from-template').click() // one tap links the copy
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })
+
+test('an unreadable row with an id is fixed in the app; one without an id only offers the link to the row in Sheets', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}5`, v)
+  for (const [col, v] of [['B', 'xx'], ['C', 'expense'], ['D', 'ten'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}6`, v) // no id
+  await refresh(page)
+  await expect(page.getByTestId('badge')).toHaveText('2')
+  await page.getByTestId('tab-activity').click()
+  const rows = page.getByTestId('unreadable')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0).getByTestId('fix-row')).toBeVisible()
+  await expect(rows.nth(1).getByTestId('fix-row')).toHaveCount(0) // no id: fix it in the sheet
+  await expect(rows.nth(0).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A5:I5$/)
+  await expect(rows.nth(1).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A6:I6$/)
+
+  await rows.nth(0).getByTestId('fix-row').click()
+  await expect(page.getByTestId('amount')).toHaveValue('5.00') // what could be read is kept
+  await expect(page.getByTestId('categories')).toHaveValue('Bills')
+  await page.getByTestId('save').click() // the date defaulted to today, so the row is valid now
+  await expect.poll(() => cell(page, 'Ledger!B5')).toBe(await todaySerial(page))
+  await expect(page.getByTestId('unreadable')).toHaveCount(1)
+  await expect(page.getByTestId('badge')).toHaveText('1')
+})
+
+test('Settings links to the sheet in Google Sheets', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('open-sheet')).toHaveAttribute('href', /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/edit/)
+})

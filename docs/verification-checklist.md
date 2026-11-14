@@ -33,7 +33,8 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 13. Same entry → Delete → confirm. *Pass:* `A` to `I` of that row are empty and the row stays; Activity shows it with **Undo**; Undo adds it back.
 14. Type a description starting with `=` (for example `=1+1`). *Pass:* the cell shows the text `=1+1`.
 15. In Sheets type a row by hand in `Ledger` (once with an id in `A`, once without). *Pass:* after a refresh both show in the app and the one without an id now has one.
-16. In Sheets type a row with a text date. *Pass:* the Activity tab badge shows 1 and the row is listed as "Row N" not understood; Month totals do not change.
+16. In Sheets type a row with a text date and **no id**. *Pass:* the Activity tab badge shows 1 and the row is listed as "Row N" not understood with an **Open in Sheets** link and no **Fix here**; Month totals do not change. Tap **Open in Sheets**. *Pass:* Google Sheets (browser, or the app on a phone) opens on the `Ledger` tab with that row selected (if the app only opens the tab, note it).
+17. In Sheets type text into the amount of an entry that already has an id. *Pass:* it shows under Needs attention with **Fix here**. Tap it, correct the form, Save. *Pass:* the row is fixed in the sheet and leaves the list. Repeat and use **Delete row**: *Pass:* a warning says it cannot be undone, and the row's `A` to `I` are cleared.
 
 ## E. Rates and months
 

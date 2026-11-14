@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyPending, makeOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
+import { applyPending, makeOp, makeRepairOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
 import type { Entry } from './rows'
 
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
@@ -66,5 +66,15 @@ describe('pendingCount', () => {
   it('counts only pending ops', () => {
     const mk = (status: Op['status']) => ({ ...makeOp('add', e('a')), status })
     expect(pendingCount([mk('pending'), mk('done'), mk('flagged'), mk('pending')])).toBe(2)
+  })
+})
+
+describe('repair ops (fixing a row the app could not read)', () => {
+  it('are edits or deletes marked repair, with no previous values', () => {
+    expect(makeRepairOp('edit', e('a'))).toMatchObject({ subject: 'entry', type: 'edit', repair: true, previous: undefined, status: 'pending' })
+    expect(makeRepairOp('delete', e('a'))).toMatchObject({ type: 'delete', repair: true, previous: e('a') })
+  })
+  it('a pending repair edit shows the fixed entry in the optimistic view', () => {
+    expect(applyPending([], withSeq([makeRepairOp('edit', e('a'))])).map((x) => x.id)).toEqual(['a'])
   })
 })

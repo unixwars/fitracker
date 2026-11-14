@@ -111,3 +111,4 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand .fi { color: #4fc1ff; }
 .logo { width: 28px; height: 28px; border-radius: 8px; background: #0e1418; padding: 3px; }
+.linkbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: inherit; }

@@ -45,8 +45,8 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
         return [[first.opId, { status: 'done', previousSnapshot: previous }]]
       }
       const { previous } = first.type === 'edit'
-        ? await store.edit(first.entry!, first.previous)
-        : await store.delete(first.entryId, first.previous)
+        ? await store.edit(first.entry!, first.previous, { repair: first.repair })
+        : await store.delete(first.entryId, first.previous, { repair: first.repair })
       return [[first.opId, { status: 'done', previous }]]
     } catch (err) {
       if (err instanceof RowGone) return [flag(first, 'RowGone')]
