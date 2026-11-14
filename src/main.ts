@@ -2,7 +2,8 @@ import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
 import { AppState, type Env } from './lib/app.svelte'
-import { createAuth } from './lib/auth'
+import { createAuth, kvTokenStore } from './lib/auth'
+import { createKv } from './lib/kv'
 import { pickSheet } from './lib/picker'
 import { copyTemplate } from './lib/driveCopy'
 import { messages } from './lib/messages'
@@ -14,7 +15,8 @@ async function makeEnv(): Promise<Env> {
     const { createFakeEnv } = await import('./lib/devFake')
     return createFakeEnv()
   }
-  const auth = createAuth(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '')
+  const auth = createAuth(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '', Date.now, kvTokenStore(createKv(indexedDB, 'fitracker-auth')))
+  await auth.restore() // a token still valid from the last visit means no sign-in at all
   return {
     storage: localStorage,
     idb: indexedDB,

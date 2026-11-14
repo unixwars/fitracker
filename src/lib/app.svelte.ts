@@ -64,7 +64,7 @@ export class AppState {
   status = $state<Status>('loading')
   online = $state(true)
   authExpired = $state(false)
-  signedIn = $state(false) // a token is held in memory; Settings shows Sign in or Sign out accordingly
+  signedIn = $state(false) // a valid token is held; Settings shows Sign in or Sign out accordingly
   gestureTried = $state(false) // a silent sign-in inside a tap was refused: only then is the Reconnect banner shown
   private userSignedOut = false // the person signed out on purpose: never sign in silently behind their back
   private silentBusy = false
@@ -127,7 +127,7 @@ export class AppState {
       return
     }
     await this.loadCache()
-    // A new session has no token (tokens live in memory only): ask Google silently before showing anything.
+    // No stored token left (it expired or the user signed out): ask Google silently before showing anything.
     const synced = this.signedIn ? false : await this.trySilent(false)
     if (!synced) await this.sync()
   }

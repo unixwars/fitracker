@@ -1,4 +1,5 @@
-// Google Identity Services token client. The access token lives in memory only.
+// Google Identity Services token client. The token is also kept in IndexedDB with its expiry time (AGENTS.md, Auth rule).
+import type { Kv } from './kv'
 import { loadScript } from './loadScript'
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
@@ -19,7 +20,19 @@ export type Auth = {
   onExpiring(fn: () => void): void
 }
 
-export function createAuth(clientId: string, now: () => number = Date.now): Auth {
+export type StoredToken = { token: string; expiresAt: number }
+export type TokenStore = { load(): Promise<StoredToken | undefined>; save(t: StoredToken): Promise<void>; clear(): Promise<void> }
+
+const STORED_KEY = 'token'
+export function kvTokenStore(kv: Pick<Kv, 'get' | 'set'>): TokenStore {
+  return {
+    load: async () => (await kv.get<StoredToken | null>(STORED_KEY)) ?? undefined,
+    save: (t) => kv.set(STORED_KEY, t),
+    clear: () => kv.set(STORED_KEY, null),
+  }
+}
+
+export function createAuth(clientId: string, now: () => number = Date.now, store?: TokenStore): Auth & { restore(): Promise<void> } {
   let token: string | null = null
   let expiresAt = 0
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -27,13 +40,18 @@ export function createAuth(clientId: string, now: () => number = Date.now): Auth
   let silent: Promise<boolean> | null = null
   const expiredHandlers: (() => void)[] = []
   const expiringHandlers: (() => void)[] = []
+  // Storage is best effort: a failure means one more sign-in later, never a broken one now.
+  const forget = () => { void store?.clear().catch(() => undefined) }
   const expire = () => {
     token = null
+    forget()
     expiredHandlers.forEach((h) => h())
   }
-  const keep = (accessToken: string, expiresIn: number) => {
+  const keep = (accessToken: string, expiresIn: number) => hold(accessToken, now() + expiresIn * 1000 - EARLY_MS, true)
+  const hold = (accessToken: string, until: number, persist: boolean) => {
     token = accessToken
-    expiresAt = now() + expiresIn * 1000 - EARLY_MS
+    expiresAt = until
+    if (persist) void store?.save({ token: accessToken, expiresAt }).catch(() => undefined)
     clearTimeout(timer)
     clearTimeout(refreshTimer)
     timer = setTimeout(() => token && expire(), Math.max(0, expiresAt - now()))
@@ -58,6 +76,13 @@ export function createAuth(clientId: string, now: () => number = Date.now): Auth
   }
 
   return {
+    async restore() {
+      if (!store || token) return
+      const saved = await store.load().catch(() => undefined)
+      if (!saved) return
+      if (now() >= saved.expiresAt) return forget()
+      hold(saved.token, saved.expiresAt, false)
+    },
     token() {
       if (token && now() >= expiresAt) expire()
       return token
@@ -73,6 +98,7 @@ export function createAuth(clientId: string, now: () => number = Date.now): Auth
       token = null
       clearTimeout(timer)
       clearTimeout(refreshTimer)
+      forget()
       if (t) google.accounts.oauth2.revoke(t)
     },
   }

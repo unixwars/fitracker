@@ -18,7 +18,8 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - Category and account are dropdowns with the remembered choice pre-selected; the description pre-fills from the last purchase at the chosen place.
 - Rows the app cannot read can be fixed or deleted in the app; a row without a usable id is found by its row number and only changed while it still holds what you were shown. Each such row has an **Open in Sheets** link that selects it, and Settings shows the sheet's name as a link to it.
 - Activity marks rows that were not applied or cannot be read in red and rows that only ask for a look in amber. It lists entries that have no valid category under "Missing a category"; tapping one opens the edit form. When the app has to add rows to a full tab, the new rows get the last row's number formats and data validation.
-- The app signs in again silently when it opens, when you return to it, on your first tap and shortly before the token expires, so the Reconnect banner appears only when Google refuses.
+- The access token is kept on the device (IndexedDB, with its expiry time) so a reload or relaunch within the hour needs no sign-in; Sign out deletes and revokes it.
+- When no valid token is left, the app signs in again silently when it opens, when you return to it, on your first tap and shortly before the token expires, so the Reconnect banner appears only when Google refuses.
 - Recent changes show amounts, category rows show an expand icon, and Settings shows Sign in or Sign out and Unlink only while signed in.
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.

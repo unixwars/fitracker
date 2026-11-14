@@ -30,9 +30,10 @@ for data. Do not add one.
 - **Fast by default.** Render cached data first, refresh in the background, use one
   `values:batchGet` per screen, respect the ~60 reads/min quota. Watch the bundle
   size; a new dependency needs a reason.
-- **Auth.** Google Identity Services, `drive.file` scope with the Picker. Keep access
-  tokens in memory, never in localStorage. The one linked spreadsheet id (plus device settings) is the only
-  stored config.
+- **Auth.** Google Identity Services, `drive.file` scope with the Picker. The access token may be kept on the
+  device so a reload or relaunch within its hour needs no new sign-in, but only in IndexedDB, together with its
+  expiry time, and never in `localStorage`. Delete it on Sign out (and revoke it) and when it expires; never use
+  an expired one. Stored config is the linked spreadsheet id, device settings and that one token.
 - **Secrets stay out of the repo.** OAuth client ID and anything else go in `.env`;
   list the names in `.env.example`.
 - **Destructive actions warn first** and are undoable where possible.

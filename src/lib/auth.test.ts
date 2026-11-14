@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./loadScript', () => ({ loadScript: async () => undefined }))
-import { createAuth } from './auth'
+import { createAuth, kvTokenStore, type StoredToken, type TokenStore } from './auth'
 
 type Cfg = { client_id: string; scope: string; callback: (r: Record<string, unknown>) => void; error_callback?: (e: { type: string }) => void }
 let configs: Cfg[]
@@ -88,5 +88,69 @@ describe('refresh before expiry', () => {
     vi.advanceTimersByTime(54 * 60_000) // minute 104: the first token's expiry has passed, the new one is not near
     expect(expiring).toHaveBeenCalledTimes(0)
     expect(auth.token()).toBe('tok')
+  })
+})
+
+function memoryStore(initial?: StoredToken): TokenStore & { saved: StoredToken | undefined } {
+  const st = { saved: initial, load: async () => st.saved, save: async (t: StoredToken) => { st.saved = t }, clear: async () => { st.saved = undefined } }
+  return st
+}
+
+describe('token kept on the device', () => {
+  it('saves the token with its expiry time after any sign-in', async () => {
+    const store = memoryStore()
+    const auth = createAuth('cid', Date.now, store)
+    await auth.signIn()
+    expect(store.saved).toEqual({ token: 'tok', expiresAt: Date.now() + 3600_000 - 60_000 })
+  })
+  it('a new session picks up an unexpired stored token without asking Google', async () => {
+    const store = memoryStore({ token: 'old', expiresAt: Date.now() + 10 * 60_000 })
+    const auth = createAuth('cid', Date.now, store)
+    await auth.restore()
+    expect(auth.token()).toBe('old')
+    expect(requests).toEqual([])
+  })
+  it('a restored token still expires on time and is deleted then', async () => {
+    const store = memoryStore({ token: 'old', expiresAt: Date.now() + 10 * 60_000 })
+    const auth = createAuth('cid', Date.now, store)
+    const expired = vi.fn()
+    auth.onExpired(expired)
+    await auth.restore()
+    vi.advanceTimersByTime(10 * 60_000 + 1)
+    expect(expired).toHaveBeenCalledTimes(1)
+    expect(auth.token()).toBeNull()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.saved).toBeUndefined()
+  })
+  it('never uses an expired stored token, and deletes it', async () => {
+    const store = memoryStore({ token: 'old', expiresAt: Date.now() - 1 })
+    const auth = createAuth('cid', Date.now, store)
+    await auth.restore()
+    expect(auth.token()).toBeNull()
+    expect(store.saved).toBeUndefined()
+  })
+  it('Sign out deletes the stored token and revokes it', async () => {
+    const store = memoryStore()
+    const auth = createAuth('cid', Date.now, store)
+    await auth.signIn()
+    auth.signOut()
+    expect(store.saved).toBeUndefined()
+    expect(google.accounts.oauth2.revoke).toHaveBeenCalledWith('tok')
+  })
+  it('a storage failure never breaks sign-in or restore', async () => {
+    const broken: TokenStore = { load: async () => { throw new Error('x') }, save: async () => { throw new Error('x') }, clear: async () => { throw new Error('x') } }
+    const auth = createAuth('cid', Date.now, broken)
+    await auth.restore()
+    await auth.signIn()
+    expect(auth.token()).toBe('tok')
+    auth.signOut()
+  })
+  it('kvTokenStore round-trips through a key-value store and clears with null', async () => {
+    const m = new Map<string, unknown>()
+    const store = kvTokenStore({ get: async (k) => m.get(k) as never, set: async (k, v) => { m.set(k, v) } })
+    await store.save({ token: 't', expiresAt: 5 })
+    expect(await store.load()).toEqual({ token: 't', expiresAt: 5 })
+    await store.clear()
+    expect(await store.load()).toBeUndefined()
   })
 })
