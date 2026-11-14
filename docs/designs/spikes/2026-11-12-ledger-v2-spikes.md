@@ -80,6 +80,8 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 
 **Result:** PASS WITH CAVEAT (2026-11-14, run by `s1-s3-harness.html`, RAW + INSERT_ROWS). A single row landed at `Ledger!A23:I23` and a three-row batch at `A24:I26`, after the last non-empty row and past the cleared row 12; every `updatedRange` held its own ids. Five pairs of simultaneous appends from one client: in two pairs both calls returned the SAME `updatedRange` (A29, A31) and the second write overwrote the first, so concurrent appends can lose a row. The `J` and old-row checks in this run are void (S2 was started while S1 ran). The app handles it: read-back of `updatedRange` after each append with up to 3 retries, one append at a time per device (Web Lock), and the 7-day verify pass flags a row that later disappears. Accepted corner case: two devices appending within about 100 ms.
 
+**Live-check addendum (2026-11-14, supersedes the PASS above for the app):** run against a real copy of the master template (hidden id column, frozen header, protected `J`), `values:append` with `Ledger!A:I` landed the first row at `Ledger!B2:J2` and a later row at `B3:J3`, one column to the right, over the `J2` array formula (`#REF!`). The scratch sheet of this spike did not show it. The app therefore writes rows with `values:batchUpdate` to an explicit free row and does not use `values:append` (see the app-core plan, live-check ruling).
+
 ---
 
 ## S2: rates through the Sheets API
