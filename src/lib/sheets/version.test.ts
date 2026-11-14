@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ApiError, NewerThanApp, UnrecognisedLayout } from '../errors'
 import { META_KEY } from '../schema'
 import { createFakeSheets } from './fakeSheets'
-import { seedLedger, seedV2 } from './fixtures'
+import { seedLedger, seedLegacy } from './fixtures'
 import { ensureVersion } from './version'
 
 const fresh = () => {
@@ -39,15 +39,14 @@ describe('ensureVersion', () => {
   })
   it('a lost tag on a legacy yearly sheet is unrecognised and aborts before any write', async () => {
     const fake = createFakeSheets()
-    seedV2(fake, 'S1', { metadata: false })
+    seedLegacy(fake, 'S1')
     await expect(ensureVersion(fake, 'S1')).rejects.toBeInstanceOf(UnrecognisedLayout)
     expect(fake.count('setMetadata')).toBe(0)
     expect(fake.count('valuesBatchUpdate')).toBe(0)
-    expect(fake.count('applyOps')).toBe(0)
   })
   it('the real API answers 400 for a missing tab: that is also an unrecognised layout', async () => {
     const fake = createFakeSheets()
-    seedV2(fake, 'S1', { metadata: false })
+    seedLegacy(fake, 'S1')
     fake.strictTabs = true
     await expect(ensureVersion(fake, 'S1')).rejects.toBeInstanceOf(UnrecognisedLayout)
     expect(fake.count('setMetadata')).toBe(0)

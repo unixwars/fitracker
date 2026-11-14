@@ -10,7 +10,7 @@ import { todayLocal, type Entry } from './rows'
 import { createLedgerStore } from './sheets/ledgerStore'
 import type { SheetsApi } from './sheets/types'
 import { ensureVersion } from './sheets/version'
-import type { LedgerStore } from './store'
+import type { EntryStore } from './store'
 import { TEMPLATE_COPY_URL } from './templateCopy'
 import { messages } from './messages'
 import type { RateRow, Reference, Snapshot, Unreadable } from './types'
@@ -44,7 +44,7 @@ export class AppState {
   config
   db: OutboxDb
   kv: Kv
-  store: LedgerStore | null = null
+  store: EntryStore | null = null
   replayer: ReturnType<typeof createReplayer> | null = null
 
   tab = $state<Tab>('add')
@@ -168,7 +168,7 @@ export class AppState {
     }
   }
 
-  private async readBook(store: LedgerStore) {
+  private async readBook(store: EntryStore) {
     const [entries, lists, rates, snapshots, unreadable] = [await store.list(), await store.lists(), await store.rates(), await store.snapshots(), await store.unreadable()]
     if (store !== this.store) return // the sheet was unlinked or replaced while this ran
     this.entries = entries
@@ -180,7 +180,7 @@ export class AppState {
   }
 
   // Month-roll of the Rates tab (spec 3.4). Best effort: a failure here must not hide the data that was read.
-  private async rollRates(store: LedgerStore) {
+  private async rollRates(store: EntryStore) {
     try {
       await store.maintainRates(todayLocal())
       this.rates = await store.rates()

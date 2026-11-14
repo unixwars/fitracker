@@ -9,7 +9,7 @@ import { ApiError } from './errors'
 import { ledgerRowValues, todayLocal, type Entry } from './rows'
 import { META_KEY } from './schema'
 import { createFakeSheets, type FakeSheets } from './sheets/fakeSheets'
-import { seedLedger, seedV0 } from './sheets/fixtures'
+import { seedLedger, seedLegacy } from './sheets/fixtures'
 
 const today = todayLocal()
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
@@ -25,7 +25,7 @@ function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null
   const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
   return { fake, env, data, idb, app: new AppState(env) }
 }
-const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesAppend', 'valuesBatchClear', 'setMetadata', 'applyOps'].reduce((n, m) => n + fake.count(m), 0)
+const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesAppend', 'valuesBatchClear', 'setMetadata'].reduce((n, m) => n + fake.count(m), 0)
 
 describe('AppState', () => {
   it('shows the cached book first, then the sheet', async () => {
@@ -75,7 +75,7 @@ describe('AppState', () => {
 
   it('a legacy yearly sheet is unrecognised and nothing is written', async () => {
     const { app, fake } = setup()
-    seedV0(fake, 'LEGACY')
+    seedLegacy(fake, 'LEGACY')
     app.sheetId = 'LEGACY'
     ;(app as unknown as { build(): void }).build()
     await app.init()
@@ -99,7 +99,7 @@ describe('AppState', () => {
 
   it('link refuses a legacy sheet and leaves the current link unchanged', async () => {
     const { app, fake, data } = setup({ pick: 'LEGACY' })
-    seedV0(fake, 'LEGACY')
+    seedLegacy(fake, 'LEGACY')
     await app.init()
     await app.link()
     expect(app.message).toBe(messages.linkNotLedger)
@@ -181,7 +181,7 @@ describe('createFromTemplate', () => {
   })
   it('a copy that is not a ledger sheet is not linked', async () => {
     const { app, fake } = setup({ linked: false, copy: async () => 'LEGACY' })
-    seedV0(fake, 'LEGACY')
+    seedLegacy(fake, 'LEGACY')
     await app.init()
     await app.createFromTemplate()
     expect(app.message).toBe(messages.linkNotLedger)

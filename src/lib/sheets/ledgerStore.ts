@@ -5,7 +5,7 @@ import { RowChanged, RowGone, AccountChanged } from '../errors'
 import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
 import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
-import type { AddResult, LedgerStore, RefreshOpts } from '../store'
+import type { AddResult, EntryStore, RefreshOpts } from '../store'
 import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
 import { parseRange } from './a1'
 import type { SheetsApi } from './types'
@@ -28,7 +28,7 @@ const VERSION_RECHECK_MS = 5 * 60_000
 const MAX_ADD_ATTEMPTS = 3
 const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v)).trim()
 
-export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options: StoreOptions = {}): LedgerStore & { _internals: Internals } {
+export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options: StoreOptions = {}): EntryStore & { _internals: Internals } {
   const now = options.now ?? Date.now
   const newId = options.newId ?? (() => crypto.randomUUID())
   let cache: Data | null = null
@@ -271,7 +271,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     notify()
   }
 
-  const store: LedgerStore = {
+  const store: EntryStore = {
     async list() { return (await load()).entries },
     async lists() { return (await load()).reference },
     async rates() { return (await load()).rates },

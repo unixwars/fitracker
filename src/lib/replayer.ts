@@ -1,7 +1,7 @@
 import { AccountChanged, AuthExpired, RateLimited, RowChanged, RowGone } from './errors'
 import type { Op, OpReason } from './outbox'
 import type { OutboxDb } from './outboxDb'
-import type { LedgerStore } from './store'
+import type { EntryStore } from './store'
 
 export type ReplayerOptions = { locks?: LockManager; sleep?: (ms: number) => Promise<void> }
 type Patch = [opId: string, patch: Partial<Op>]
@@ -10,7 +10,7 @@ const MAX_RETRIES = 5
 const MAX_ATTEMPTS = 3
 const VERIFY_WINDOW_MS = 7 * 24 * 3600 * 1000
 
-export function createReplayer(store: LedgerStore, db: OutboxDb, opts: ReplayerOptions = {}) {
+export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOptions = {}) {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
   const locks = opts.locks ?? (typeof navigator !== 'undefined' ? navigator.locks : undefined)
   const authHandlers: (() => void)[] = []

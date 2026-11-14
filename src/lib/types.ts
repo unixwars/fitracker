@@ -2,16 +2,7 @@ export const CURRENCIES = ['EUR', 'GBP', 'USD'] as const
 export type Currency = (typeof CURRENCIES)[number]
 export type Money = { minor: number; currency: Currency }
 
-// Budgets are minor units in the sheet's base currency, one value per month (Jan..Dec).
-export type Lists = {
-  expenseCategories: string[]
-  incomeCategories: string[]
-  accounts: string[]
-  expenseBudgets: Record<string, number[]>
-  incomeBudgets: Record<string, number[]>
-}
-
-// v3 ledger layout: reference tabs, rates and snapshots (one multi-year sheet).
+// The ledger book: reference tabs, rates and snapshots (one multi-year sheet).
 export type EntryType = 'expense' | 'income'
 export type Account = { name: string; currency: Currency; active: boolean; inMonthly: boolean; inAnnual: boolean }
 export type Category = { name: string; type: EntryType; active: boolean }

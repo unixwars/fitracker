@@ -2,26 +2,13 @@
 // the app relies on: values (literal or formula with a computed value), trimmed reads, atomic ops.
 import { ApiError, AuthExpired, RateLimited } from '../errors'
 import { numToCol, parseRange } from './a1'
-import type { RenderOption, SheetOp, SheetsApi } from './types'
+import type { RenderOption, SheetsApi } from './types'
 
 export type Cell = { v: unknown; f?: string }
 
 export class Book {
   sheets = new Map<string, Map<string, Cell>>()
-  hidden = new Set<string>() // "Tab!A"
-  validations: { range: string; values: string[] }[] = []
-  formats: Record<string, string> = {}
   metadata = new Map<string, string>()
-
-  clone(): Book {
-    const b = new Book()
-    for (const [name, cells] of this.sheets) b.sheets.set(name, new Map([...cells].map(([k, c]) => [k, { ...c }])))
-    b.hidden = new Set(this.hidden)
-    b.validations = this.validations.map((x) => ({ ...x }))
-    b.formats = { ...this.formats }
-    b.metadata = new Map(this.metadata)
-    return b
-  }
 
   tab(name: string): Map<string, Cell> {
     let t = this.sheets.get(name)
@@ -84,7 +71,6 @@ export type FakeSheets = SheetsApi & {
   calls: { method: string; args: unknown[] }[]
   count(method: string): number
   failNext(status: number): void
-  failApplyAfter(opsApplied: number): void
   afterNextWrite(fn: () => void): void
   /** Runs `fn` just before the next write lands (simulates a competing device). */
   beforeNextWrite(fn: () => void): void
@@ -99,7 +85,6 @@ export function createFakeSheets(): FakeSheets {
   const books = new Map<string, Book>()
   const calls: FakeSheets['calls'] = []
   let failStatus: number | null = null
-  let failApply: number | null = null
   let afterWrite: (() => void) | null = null
   let beforeWrite: (() => void) | null = null
 
@@ -134,7 +119,6 @@ export function createFakeSheets(): FakeSheets {
     calls,
     count: (m) => calls.filter((c) => c.method === m).length,
     failNext: (s) => { failStatus = s },
-    failApplyAfter: (n) => { failApply = n },
     afterNextWrite: (fn) => { afterWrite = fn },
     beforeNextWrite: (fn) => { beforeWrite = fn },
     liveRates: { EUR: 1, GBP: 1.17, USD: 0.94 },
@@ -185,17 +169,6 @@ export function createFakeSheets(): FakeSheets {
       enter('setMetadata', id, key, value)
       book(id).metadata.set(key, value)
     },
-    async applyOps(id, ops: SheetOp[]) {
-      enter('applyOps', id, ops)
-      const next = book(id).clone()
-      const limit = failApply
-      failApply = null
-      ops.forEach((op, i) => {
-        if (limit !== null && i >= limit) throw new ApiError(500, 'injected mid-batch failure')
-        applyOp(next, op)
-      })
-      books.set(id, next)
-    },
     async getMetadata(id, key) {
       enter('getMetadata', id, key)
       return book(id).metadata.get(key) ?? null
@@ -209,30 +182,4 @@ function userEntered(v: unknown, live: Record<string, number>): unknown {
   if (typeof v !== 'string' || !v.startsWith('=')) return v
   const m = /^=GOOGLEFINANCE\("CURRENCY:([A-Z]{3})[A-Z]{3}"\)$/.exec(v)
   return { f: v, v: m ? (live[m[1]] ?? '') : '' }
-}
-
-function applyOp(b: Book, op: SheetOp): void {
-  switch (op.t) {
-    case 'copyTab': {
-      if (b.sheets.has(op.to)) throw new ApiError(400, `Tab ${op.to} already exists`)
-      const src = b.sheets.get(op.from)
-      if (!src) throw new ApiError(400, `No tab ${op.from}`)
-      b.sheets.set(op.to, new Map([...src].map(([k, c]) => [k, { ...c }])))
-      break
-    }
-    case 'set': {
-      const r = parseRange(op.range)
-      op.values.forEach((vals, i) => vals.forEach((v, j) => {
-        const ref = `${r.sheet}!${numToCol(r.c1 + j)}${r.r1 + i}`
-        if (typeof v === 'string' && v.startsWith('=')) b.set(ref, { f: v, v: '' })
-        else b.set(ref, v)
-      }))
-      break
-    }
-    case 'clear': b.clear(op.range); break
-    case 'hideColumn': b.hidden.add(`${op.tab}!${op.column}`); break
-    case 'listValidation': b.validations.push({ range: op.range, values: op.values }); break
-    case 'numberFormat': b.formats[op.range] = op.pattern; break
-    case 'metadata': b.metadata.set(op.key, op.value); break
-  }
 }

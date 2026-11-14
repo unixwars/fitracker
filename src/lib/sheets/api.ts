@@ -1,88 +1,7 @@
 import { ApiError, AuthExpired, RateLimited } from '../errors'
-import { parseRange } from './a1'
-import type { RenderOption, SheetOp, SheetsApi } from './types'
+import type { RenderOption, SheetsApi } from './types'
 
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
-
-// Sheets batchUpdate requests are a large open union; they are only built here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Request = any
-
-function grid(range: string, tabs: Map<string, number>) {
-  const r = parseRange(range)
-  const sheetId = tabs.get(r.sheet)
-  if (sheetId === undefined) throw new Error(`Unknown tab ${r.sheet}`)
-  return { sheetId, startRowIndex: r.r1 - 1, ...(r.r2 === Infinity ? {} : { endRowIndex: r.r2 }), startColumnIndex: r.c1 - 1, endColumnIndex: r.c2 }
-}
-
-function cellValue(v: unknown) {
-  if (v === '' || v === null || v === undefined) return {}
-  if (typeof v === 'number') return { numberValue: v }
-  if (typeof v === 'boolean') return { boolValue: v }
-  if (typeof v === 'string' && v.startsWith('=')) return { formulaValue: v }
-  return { stringValue: String(v) }
-}
-
-export function compileOps(ops: SheetOp[], tabs: Map<string, number>, existingMeta: Set<string>): Request[] {
-  return ops.map((op): Request => {
-    switch (op.t) {
-      case 'copyTab': {
-        const sourceSheetId = tabs.get(op.from)
-        if (sourceSheetId === undefined) throw new Error(`Unknown tab ${op.from}`)
-        return { duplicateSheet: { sourceSheetId, newSheetName: op.to } }
-      }
-      case 'set':
-        return {
-          updateCells: {
-            range: grid(op.range, tabs),
-            rows: op.values.map((row) => ({ values: row.map((v) => ({ userEnteredValue: cellValue(v) })) })),
-            fields: 'userEnteredValue',
-          },
-        }
-      case 'clear':
-        return { repeatCell: { range: grid(op.range, tabs), cell: {}, fields: 'userEnteredValue' } }
-      case 'hideColumn': {
-        const { sheetId, startColumnIndex, endColumnIndex } = grid(`${op.tab}!${op.column}1`, tabs)
-        return {
-          updateDimensionProperties: {
-            range: { sheetId, dimension: 'COLUMNS', startIndex: startColumnIndex, endIndex: endColumnIndex },
-            properties: { hiddenByUser: true },
-            fields: 'hiddenByUser',
-          },
-        }
-      }
-      case 'listValidation':
-        return {
-          setDataValidation: {
-            range: grid(op.range, tabs),
-            rule: { condition: { type: 'ONE_OF_LIST', values: op.values.map((v) => ({ userEnteredValue: v })) }, strict: true, showCustomUi: true },
-          },
-        }
-      case 'numberFormat':
-        return {
-          repeatCell: {
-            range: grid(op.range, tabs),
-            cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER', pattern: op.pattern } } },
-            fields: 'userEnteredFormat.numberFormat',
-          },
-        }
-      case 'metadata':
-        return existingMeta.has(op.key)
-          ? {
-              updateDeveloperMetadata: {
-                dataFilters: [{ developerMetadataLookup: { metadataKey: op.key, visibility: 'DOCUMENT', locationType: 'SPREADSHEET' } }],
-                developerMetadata: { metadataValue: op.value },
-                fields: 'metadataValue',
-              },
-            }
-          : {
-              createDeveloperMetadata: {
-                developerMetadata: { metadataKey: op.key, metadataValue: op.value, location: { spreadsheet: true }, visibility: 'DOCUMENT' },
-              },
-            }
-    }
-  })
-}
 
 function retryAfterMs(header: string | null): number {
   if (!header?.trim()) return 2000
@@ -114,12 +33,12 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
   }
 
-  async function applyOps(id: string, ops: SheetOp[]): Promise<void> {
-    const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
-    const tabs = new Map(meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]))
-    const existing = new Set<string>()
-    for (const op of ops) if (op.t === 'metadata' && (await metadataValue(id, op.key)) !== null) existing.add(op.key)
-    await request('POST', `${BASE}/${id}:batchUpdate`, { requests: compileOps(ops, tabs, existing) })
+  // DOCUMENT-level developer metadata: update the entry when the key exists, otherwise create it.
+  async function setMetadata(id: string, key: string, value: string): Promise<void> {
+    const req = (await metadataValue(id, key)) !== null
+      ? { updateDeveloperMetadata: { dataFilters: [lookup(key)], developerMetadata: { metadataValue: value }, fields: 'metadataValue' } }
+      : { createDeveloperMetadata: { developerMetadata: { metadataKey: key, metadataValue: value, location: { spreadsheet: true }, visibility: 'DOCUMENT' } } }
+    await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [req] })
   }
 
   return {
@@ -140,10 +59,7 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })
     },
-    async setMetadata(id, key, value) {
-      await applyOps(id, [{ t: 'metadata', key, value }])
-    },
-    applyOps,
+    setMetadata,
     getMetadata: metadataValue,
   }
 }

@@ -8,7 +8,7 @@ import type { Entry } from './rows'
 import { createFakeSheets, type FakeSheets } from './sheets/fakeSheets'
 import { seedLedger } from './sheets/fixtures'
 import { createLedgerStore } from './sheets/ledgerStore'
-import type { LedgerStore } from './store'
+import type { EntryStore } from './store'
 import type { Snapshot } from './types'
 
 const ID = 'S1'
@@ -19,15 +19,15 @@ const e = (id: string, o: Partial<Entry> = {}): Entry => ({
 
 let fake: FakeSheets
 let db: OutboxDb
-let store: LedgerStore
+let store: EntryStore
 let sleeps: number[]
 const sleep = async (ms: number) => { sleeps.push(ms) }
 
-function spy(inner: LedgerStore) {
+function spy(inner: EntryStore) {
   const calls: string[] = []
   const wrap = <K extends 'addMany' | 'edit' | 'delete'>(k: K) =>
-    (async (...a: Parameters<LedgerStore[K]>) => { calls.push(k); return (inner[k] as (...x: unknown[]) => unknown)(...a) }) as LedgerStore[K]
-  return { store: { ...inner, addMany: wrap('addMany'), edit: wrap('edit'), delete: wrap('delete') } as LedgerStore, calls }
+    (async (...a: Parameters<EntryStore[K]>) => { calls.push(k); return (inner[k] as (...x: unknown[]) => unknown)(...a) }) as EntryStore[K]
+  return { store: { ...inner, addMany: wrap('addMany'), edit: wrap('edit'), delete: wrap('delete') } as EntryStore, calls }
 }
 const statuses = async () => Object.fromEntries((await db.all()).map((o) => [o.entryId + ':' + o.type, o.status + (o.reason ? '/' + o.reason : '')]))
 
@@ -157,7 +157,7 @@ describe('replayer', () => {
   })
 
   it('flags an op that keeps failing for an unknown reason so the queue is not blocked forever', async () => {
-    const broken: LedgerStore = { ...store, edit: async () => { throw new Error('400 tab renamed') } }
+    const broken: EntryStore = { ...store, edit: async () => { throw new Error('400 tab renamed') } }
     await db.put(makeOp('edit', e('x')))
     await db.put(makeOp('add', e('z')))
     const r = createReplayer(broken, db, { sleep })
@@ -170,7 +170,7 @@ describe('replayer', () => {
 
   it('backs off exponentially when rate limited and does not refresh during a run', async () => {
     let n = 0
-    const limited: LedgerStore = { ...store, addMany: async (...a) => { if (n++ < 2) throw new RateLimited(100); return store.addMany(...a) } }
+    const limited: EntryStore = { ...store, addMany: async (...a) => { if (n++ < 2) throw new RateLimited(100); return store.addMany(...a) } }
     const refresh = vi.spyOn(limited, 'refresh')
     await db.put(makeOp('add', e('a')))
     await db.put(makeOp('edit', e('a', { description: 'Tea' })))
@@ -183,7 +183,7 @@ describe('replayer', () => {
     let active = 0
     let maxActive = 0
     const inner = spy(store).store
-    const slow: LedgerStore = {
+    const slow: EntryStore = {
       ...inner,
       addMany: async (...a) => { active++; maxActive = Math.max(maxActive, active); await new Promise((r) => setTimeout(r, 5)); try { return await inner.addMany(...a) } finally { active-- } },
     }

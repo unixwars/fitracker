@@ -1,23 +1,11 @@
-import type { Entry, Kind } from './rows'
-import type { Currency, Lists, RateRow, Reference, Snapshot, Unreadable } from './types'
+import type { Entry } from './rows'
+import type { RateRow, Reference, Snapshot, Unreadable } from './types'
 
-export type AddResult = { id: string; ok: boolean; reason?: 'AccountChanged' | 'TabFull' }
+export type AddResult = { id: string; ok: boolean; reason?: 'AccountChanged' }
 export type RefreshOpts = { force?: boolean; expectIds?: string[] }
 
+// The data seam: one multi-year ledger. Screens, the outbox and prediction use this; only the Sheets adapter knows about Sheets.
 export interface EntryStore {
-  list(year: number): Promise<Entry[]>
-  lists(year: number): Promise<Lists>
-  rates(year: number): Promise<{ base: Currency; rates: Record<Currency, number> }>
-  addMany(year: number, entries: Entry[]): Promise<AddResult[]>
-  edit(year: number, entry: Entry, expectedPrevious?: Entry): Promise<{ previous: Entry }>
-  delete(year: number, kind: Kind, id: string, expectedPrevious?: Entry): Promise<{ previous: Entry }>
-  /** Re-reads the year (at most once per interval unless forced); reports expected ids that are gone. */
-  refresh(year: number, opts?: RefreshOpts): Promise<{ missingIds: string[] }>
-  subscribe(fn: () => void): () => void
-}
-
-// The v3 data seam: one multi-year ledger. Task 27 retires EntryStore above and renames this to EntryStore.
-export interface LedgerStore {
   list(): Promise<Entry[]>
   lists(): Promise<Reference>
   rates(): Promise<RateRow[]>

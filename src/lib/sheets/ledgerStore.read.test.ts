@@ -4,7 +4,7 @@ import type { Entry } from '../rows'
 import { META_KEY } from '../schema'
 import type { Snapshot } from '../types'
 import { createFakeSheets } from './fakeSheets'
-import { seedLedger, seedV2 } from './fixtures'
+import { seedLedger, seedLegacy } from './fixtures'
 import { createLedgerStore } from './ledgerStore'
 
 const e = (id: string, account = 'Joint', extra: Partial<Entry> = {}): Entry => ({
@@ -98,7 +98,7 @@ describe('ledger store read path', () => {
   })
   it('a legacy sheet is unrecognised before any ledger value is read', async () => {
     const fake = createFakeSheets()
-    seedV2(fake, 'S1', { metadata: false })
+    seedLegacy(fake, 'S1')
     const store = createLedgerStore(fake, 'S1')
     await expect(store.list()).rejects.toBeInstanceOf(UnrecognisedLayout)
     expect(fake.calls.some((c) => c.method === 'batchGet' && JSON.stringify(c.args).includes('Ledger!A2:I'))).toBe(false)
