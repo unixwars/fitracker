@@ -38,9 +38,9 @@ describe('suggest', () => {
     // Tesco: 3 recent uses; Taxi One: 1 use but one day newer than Tesco's latest.
     expect(suggest('place', '', history, now)[0].text).toBe('Tesco')
   })
-  it('carries category, account and currency from the latest use', () => {
+  it('carries category and account from the latest use', () => {
     expect(suggest('place', 'Tesco', history, now)[0]).toEqual({
-      text: 'Tesco', category: 'Groceries', account: 'Joint', currency: 'GBP',
+      text: 'Tesco', category: 'Groceries', account: 'Joint',
     })
   })
   it('suggests descriptions and ignores entries without the field', () => {
