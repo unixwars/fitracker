@@ -2,7 +2,7 @@ import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
 import { RowChanged, RowGone, AccountChanged } from '../errors'
-import { ledgerRowValues, parseLedgerRow, parseSnapshotRow, type Entry } from '../rows'
+import { ledgerRowValues, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
 import type { AddResult, LedgerStore, RefreshOpts } from '../store'
 import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
@@ -118,28 +118,29 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     notify()
     return data
   }
-  // Adds entries with values:append (spec 3.2). Every attempt first reads ALL ids, so an entry that is already in the
-  // sheet anywhere (a retry after a lost response, a row moved by a sort) is never appended twice; the append is then
-  // read back from the response's updatedRange and the entries that did not land are retried (at most three attempts).
-  async function addMany(entries: Entry[]): Promise<AddResult[]> {
+  // Appends rows with values:append (spec 3.2). Every attempt first reads ALL ids, so a row that is already in the sheet
+  // anywhere (a retry after a lost response, a row moved by a sort) is never appended twice; the append is then read
+  // back from the response's updatedRange and the rows that did not land are retried (at most three attempts).
+  async function appendRows<T extends { id: string }>(
+    items: T[],
+    spec: { tab: 'Ledger' | 'Snapshots'; ids: string; append: string; values: (t: T) => unknown[]; acceptable: (t: T, accounts: Reference['accounts']) => boolean },
+  ): Promise<AddResult[]> {
     await checkVersion()
     const results = new Map<string, AddResult>()
-    let pending = entries.filter((e, i) => entries.findIndex((x) => x.id === e.id) === i)
+    let pending = items.filter((e, i) => items.findIndex((x) => x.id === e.id) === i)
     for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS && pending.length; attempt++) {
-      const [idCells, accountRows] = await api.batchGet(spreadsheetId, [LEDGER.ranges.ids, REFERENCE.accounts], 'UNFORMATTED_VALUE')
+      const [idCells, accountRows] = await api.batchGet(spreadsheetId, [spec.ids, REFERENCE.accounts], 'UNFORMATTED_VALUE')
       const present = new Set((idCells ?? []).map((r) => str(r?.[0])))
       const accounts = parseReference([], accountRows ?? [], [], []).accounts
       pending = pending.filter((e) => {
         if (present.has(e.id)) { results.set(e.id, { id: e.id, ok: true }); return false }
-        const from = accounts.find((a) => a.name === e.account)
-        const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
-        if (!from || from.currency !== e.money.currency || !toKnown) { results.set(e.id, { id: e.id, ok: false, reason: 'AccountChanged' }); return false }
+        if (!spec.acceptable(e, accounts)) { results.set(e.id, { id: e.id, ok: false, reason: 'AccountChanged' }); return false }
         return true
       })
       if (!pending.length) break
-      const { updatedRange } = await api.valuesAppend(spreadsheetId, LEDGER.ranges.append, pending.map(ledgerRowValues))
+      const { updatedRange } = await api.valuesAppend(spreadsheetId, spec.append, pending.map(spec.values))
       const landed = parseRange(updatedRange)
-      const [back] = await api.batchGet(spreadsheetId, [`${LEDGER.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
+      const [back] = await api.batchGet(spreadsheetId, [`${spec.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
       pending = pending.filter((e, i) => {
         if (str(back?.[i]?.[0]) !== e.id) return true
         results.set(e.id, { id: e.id, ok: true })
@@ -147,8 +148,25 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       })
     }
     markDirty()
-    if (pending.length) throw new Error('Could not place all entries; try again')
-    return entries.map((e) => results.get(e.id)!)
+    if (pending.length) throw new Error('Could not place all rows; try again')
+    return items.map((e) => results.get(e.id)!)
+  }
+
+  const accountMatches = (e: Entry, accounts: Reference['accounts']): boolean => {
+    const from = accounts.find((a) => a.name === e.account)
+    const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
+    return !!from && from.currency === e.money.currency && toKnown
+  }
+
+  const addMany = (entries: Entry[]): Promise<AddResult[]> =>
+    appendRows(entries, { tab: 'Ledger', ids: LEDGER.ranges.ids, append: LEDGER.ranges.append, values: ledgerRowValues, acceptable: accountMatches })
+
+  async function addSnapshot(s: Snapshot): Promise<AddResult> {
+    const [result] = await appendRows([s], {
+      tab: 'Snapshots', ids: SNAPSHOTS.ranges.ids, append: SNAPSHOTS.ranges.append, values: snapshotRowValues,
+      acceptable: (x, accounts) => accounts.some((a) => a.name === x.account && a.currency === x.balance.currency),
+    })
+    return result
   }
 
   // The same entry if at least two of date, amount and place/description agree. Text only counts when both sides have
@@ -176,12 +194,6 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return { row, previous: parsed.value, accounts }
   }
 
-  const accountMatches = (e: Entry, accounts: Reference['accounts']): boolean => {
-    const from = accounts.find((a) => a.name === e.account)
-    const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
-    return !!from && from.currency === e.money.currency && toKnown
-  }
-
   async function edit(entry: Entry, expectedPrevious?: Entry): Promise<{ previous: Entry }> {
     const { row, previous, accounts } = await locate(entry.id, expectedPrevious)
     if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
@@ -195,6 +207,20 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
     markDirty()
     return { previous }
+  }
+
+  async function deleteSnapshot(id: string): Promise<{ previous: Snapshot }> {
+    await checkVersion()
+    const [idCells] = await api.batchGet(spreadsheetId, [SNAPSHOTS.ranges.ids], 'UNFORMATTED_VALUE')
+    const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
+    if (at < 0) throw new RowGone(id)
+    const row = SNAPSHOTS.firstRow + at
+    const [cells, accountRows] = await api.batchGet(spreadsheetId, [rowRange(SNAPSHOTS.tab, row, 'E'), REFERENCE.accounts], 'UNFORMATTED_VALUE')
+    const parsed = parseSnapshotRow(cells?.[0] ?? [], parseReference([], accountRows ?? [], [], []).accounts)
+    if (!('value' in parsed)) throw new RowChanged(id)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(SNAPSHOTS.tab, row, 'E')])
+    markDirty()
+    return { previous: parsed.value }
   }
 
   const markDirty = () => {
@@ -219,8 +245,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     addMany,
     edit,
     delete: remove,
-    addSnapshot: async () => notYet(),
-    deleteSnapshot: async () => notYet(),
+    addSnapshot,
+    deleteSnapshot,
     maintainRates: async () => notYet(),
   }
   return Object.assign(store, { _internals: { api, spreadsheetId, load, markDirty, checkVersion, newId, now } as Internals })
