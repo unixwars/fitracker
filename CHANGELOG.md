@@ -16,7 +16,6 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ### Added
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.
-- Spike harness pages under `docs/designs/spikes/` (the data branch).
 
 ### Removed
 - Yearly sheets, the year switcher and the in-app migrations.
