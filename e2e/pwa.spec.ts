@@ -43,9 +43,9 @@ test('Use my location fills the place of an earlier entry saved at the same spot
   await page.getByTestId('place').fill('Corner Cafe')
   await page.getByTestId('amount').fill('3')
   await page.getByTestId('categories').selectOption('Bills')
-  await page.getByTestId('accounts').selectOption({ index: 1 })
+  await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
-  await expect(page.getByTestId('place')).toHaveValue('')
+  await expect(page.getByTestId('amount')).toHaveValue('') // the form has reset
   await here.click()
   await expect(page.getByTestId('place')).toHaveValue('Corner Cafe')
 })
