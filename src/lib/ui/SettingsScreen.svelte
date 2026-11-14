@@ -7,14 +7,16 @@
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
   const linked = $derived(Boolean(app.sheetId))
+  $effect(() => { if (app.sheetId) void app.loadSheetInfo() }) // the name and tab ids; retried when signed in
 </script>
 
 <h2 style="margin: 4px 0 12px">{messages.settingsTitle}</h2>
 
 <section class="card">
-  <p class="muted">{linked ? messages.linked : messages.notLinked}</p>
   {#if linked}
-    <p><a href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet" onclick={() => app.loadTabIds()}>{messages.openSheet}</a></p>
+    <p class="muted">{messages.linked}: <a href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet">{app.sheetName || messages.openSheet}</a></p>
+  {:else}
+    <p class="muted">{messages.notLinked}</p>
   {/if}
   {#if linked && app.signedIn}
     {#if confirmingUnlink}

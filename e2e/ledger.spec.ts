@@ -90,5 +90,6 @@ test('an unreadable row with an id is fixed in the app; one without an id only o
 test('Settings links to the sheet in Google Sheets', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  await expect(page.getByTestId('open-sheet')).toHaveAttribute('href', /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/edit/)
+  await expect(page.getByTestId('open-sheet')).toHaveText('Fitracker (demo)') // the sheet's name, before opening it
+  await expect(page.getByTestId('open-sheet')).toHaveAttribute('href', /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/edit#gid=\d+/)
 })

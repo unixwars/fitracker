@@ -261,12 +261,36 @@ describe('fixing unreadable rows in the app and links to Sheets', () => {
     expect(fake.book('S1').get('Ledger!A3')).toBeUndefined()
     expect(app.entries.map((x) => x.id)).toEqual(['a'])
   })
-  it('rowUrl and the sheet link use the tab ids once they are loaded', async () => {
-    const { app } = setup()
+  it('rowUrl, the sheet link and the sheet name appear once the sheet info is loaded', async () => {
+    const { app, fake } = setup()
+    fake.book('S1').title = 'My ledger'
     await app.init()
-    expect(app.rowUrl({ tab: 'Ledger', row: 7, reason: 'date', text: '' })).toBe('https://docs.google.com/spreadsheets/d/S1/edit')
-    await app.loadTabIds()
-    expect(app.rowUrl({ tab: 'Ledger', row: 7, reason: 'date', text: '' })).toMatch(/\/edit#gid=\d+&range=A7:I7$/)
-    expect(app.sheetLink).toMatch(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/S1\/edit/)
+    const u = { tab: 'Ledger' as const, row: 7, reason: 'date' as const, text: '' }
+    expect(app.rowUrl(u)).toBe('https://docs.google.com/spreadsheets/d/S1/edit')
+    await app.loadSheetInfo()
+    expect(app.rowUrl(u)).toMatch(/\/edit#gid=\d+&range=A7:I7$/)
+    expect(app.sheetLink).toMatch(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/S1\/edit#gid=\d+/)
+    expect(app.sheetName).toBe('My ledger')
+  })
+  it('does not fetch while signed out, fetches after signing in, and remembers the info on the device', async () => {
+    let tok: string | null = null
+    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, signOut: () => { tok = null }, onExpired: () => undefined }
+    const { app, fake, env } = setup({ auth: a })
+    fake.book('S1').title = 'My ledger'
+    await app.loadSheetInfo()
+    expect(fake.count('sheetInfo')).toBe(0)
+    expect(app.sheetName).toBe('')
+    await app.reconnect()
+    await app.loadSheetInfo()
+    expect(fake.count('sheetInfo')).toBe(1)
+    expect(app.sheetName).toBe('My ledger')
+    await app.loadSheetInfo() // once per session
+    expect(fake.count('sheetInfo')).toBe(1)
+    // a new session that starts signed out still has the name and the tab ids from the device
+    const again = new AppState({ ...env, auth: { ...a, token: () => null } })
+    await again.loadSheetInfo()
+    expect(again.sheetName).toBe('My ledger')
+    expect(again.rowUrl({ tab: 'Ledger', row: 3, reason: 'date', text: '' })).toMatch(/#gid=\d+&range=A3:I3$/)
+    expect(fake.count('sheetInfo')).toBe(1)
   })
 })

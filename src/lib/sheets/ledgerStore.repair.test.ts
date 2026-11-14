@@ -58,11 +58,13 @@ describe('repair mode (fix or delete an unreadable row by its id)', () => {
   })
 })
 
-describe('tabIds', () => {
-  it('the fake and the real API return the numeric id of each tab', async () => {
+describe('sheetInfo', () => {
+  it('the fake returns a title and the numeric id of each tab', async () => {
     const { fake } = setup()
-    const ids = await fake.tabIds('S1')
-    expect(Object.keys(ids)).toEqual(expect.arrayContaining(['Ledger', 'Snapshots', 'Rates']))
-    expect(typeof ids.Ledger).toBe('number')
+    fake.book('S1').title = 'My ledger'
+    const info = await fake.sheetInfo('S1')
+    expect(info.title).toBe('My ledger')
+    expect(Object.keys(info.tabs)).toEqual(expect.arrayContaining(['Ledger', 'Snapshots', 'Rates']))
+    expect(typeof info.tabs.Ledger).toBe('number')
   })
 })

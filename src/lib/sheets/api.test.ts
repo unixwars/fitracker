@@ -64,10 +64,11 @@ describe('createSheetsApi', () => {
 })
 
 describe('createSheetsApi additions', () => {
-  it('tabIds maps tab titles to their numeric sheet ids', async () => {
-    const { calls, fetchImpl } = stub([json({ sheets: [{ properties: { sheetId: 0, title: 'Ledger' } }, { properties: { sheetId: 203680765, title: 'Snapshots' } }] })])
-    expect(await createSheetsApi(() => 'tok', fetchImpl).tabIds('S1')).toEqual({ Ledger: 0, Snapshots: 203680765 })
-    expect(decodeURIComponent(calls[0].url)).toContain('fields=sheets.properties(sheetId,title)')
+  it('sheetInfo returns the spreadsheet title and the numeric id of each tab in one request', async () => {
+    const { calls, fetchImpl } = stub([json({ properties: { title: 'Fitracker (test copy)' }, sheets: [{ properties: { sheetId: 0, title: 'Ledger' } }, { properties: { sheetId: 203680765, title: 'Snapshots' } }] })])
+    expect(await createSheetsApi(() => 'tok', fetchImpl).sheetInfo('S1')).toEqual({ title: 'Fitracker (test copy)', tabs: { Ledger: 0, Snapshots: 203680765 } })
+    expect(calls).toHaveLength(1)
+    expect(decodeURIComponent(calls[0].url)).toContain('fields=properties.title,sheets.properties(sheetId,title)')
   })
 
   it('growTab adds only the missing rows with appendDimension', async () => {

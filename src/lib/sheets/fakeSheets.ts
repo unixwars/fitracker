@@ -9,6 +9,7 @@ export type Cell = { v: unknown; f?: string }
 export class Book {
   sheets = new Map<string, Map<string, Cell>>()
   metadata = new Map<string, string>()
+  title: string | undefined // the spreadsheet's name; defaults to its id
 
   tab(name: string): Map<string, Cell> {
     let t = this.sheets.get(name)
@@ -148,9 +149,9 @@ export function createFakeSheets(): FakeSheets {
       }
       fireAfterWrite()
     },
-    async tabIds(id) {
-      enter('tabIds', id)
-      return Object.fromEntries([...book(id).sheets.keys()].map((tab, i) => [tab, 1000 + i]))
+    async sheetInfo(id) {
+      enter('sheetInfo', id)
+      return { title: book(id).title ?? id, tabs: Object.fromEntries([...book(id).sheets.keys()].map((tab, i) => [tab, 1000 + i])) }
     },
     async growTab(id, tab, rows) {
       enter('growTab', id, tab, rows)

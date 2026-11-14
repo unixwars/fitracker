@@ -58,6 +58,8 @@ export class AppState {
   snapshots = $state<Snapshot[]>([])
   unreadable = $state<Unreadable[]>([])
   gids = $state<Record<string, number>>({}) // numeric tab ids for links into Google Sheets
+  sheetName = $state('') // the linked spreadsheet's name
+  private infoFetched: string | null = null // the sheet whose info was fetched in this session
   ops = $state<Op[]>([])
   status = $state<Status>('loading')
   online = $state(true)
@@ -241,14 +243,24 @@ export class AppState {
   rowUrl(u: Unreadable): string {
     return this.sheetId ? rowUrl(this.sheetId, this.gids, u) : ''
   }
-  // One metadata request per linked sheet; the link falls back to the file until it has arrived.
-  async loadTabIds() {
-    if (!this.sheetId || Object.keys(this.gids).length) return
+  // The sheet's name and tab ids: from the device first (works while signed out), then one request per session once a
+  // token exists. A failed or token-less attempt is not remembered, so it is retried after signing in.
+  async loadSheetInfo() {
     const id = this.sheetId
+    if (!id) return
+    if (!this.sheetName) {
+      const saved = await this.kv.get<{ name: string; gids: Record<string, number> }>(`meta:${id}`)
+      if (saved && id === this.sheetId) { this.sheetName = saved.name; this.gids = saved.gids }
+    }
+    if (!this.signedIn || this.infoFetched === id) return
     try {
-      const gids = await this.env.api.tabIds(id)
-      if (id === this.sheetId) this.gids = gids
-    } catch { /* links keep opening the file */ }
+      const info = await this.env.api.sheetInfo(id)
+      if (id !== this.sheetId) return
+      this.sheetName = info.title
+      this.gids = info.tabs
+      this.infoFetched = id
+      await this.kv.set(`meta:${id}`, { name: info.title, gids: { ...info.tabs } })
+    } catch { /* the links keep opening the file; the next call tries again */ }
   }
 
   async undoOp(op: Op) {
@@ -282,6 +294,12 @@ export class AppState {
     this.env.auth.signOut()
     this.signedIn = false
     this.authExpired = true
+  }
+
+  private resetSheetInfo() {
+    this.gids = {}
+    this.sheetName = ''
+    this.infoFetched = null
   }
 
   // Forgets everything tied to the previously linked sheet: its finished and flagged ops and the cached book.
@@ -332,7 +350,7 @@ export class AppState {
       if (err instanceof UnrecognisedLayout) { this.message = messages.linkNotLedger; return }
       if (!(err instanceof NewerThanApp)) throw err // a newer sheet links read-only
     }
-    if (this.sheetId !== id) { await this.forgetBook(); this.gids = {} }
+    if (this.sheetId !== id) { await this.forgetBook(); this.resetSheetInfo() }
     this.config.linkSheet(id)
     this.sheetId = id
     this.build()
@@ -348,7 +366,7 @@ export class AppState {
     this.sheetId = null
     this.build()
     await this.forgetBook()
-    this.gids = {}
+    this.resetSheetInfo()
     await this.loadCache()
   }
 }

@@ -13,8 +13,8 @@
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
   let fixing = $state<Unreadable | null>(null)
   const fixable = (u: Unreadable) => u.tab === 'Ledger' && Boolean(u.id) && Array.isArray(u.raw) // by id only; the sheet link covers the rest
-  // The tab ids for the links are fetched once, when there is something to link to.
-  $effect(() => { if (app.unreadable.length) void app.loadTabIds() })
+  // The tab ids for the links come from the device or, once signed in, from one request; re-run when either changes.
+  $effect(() => { if (app.unreadable.length && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
   const opName = (op: Op) => (op.subject === 'snapshot' ? messages.snapshotOps[op.type as 'add' | 'delete'] : messages.ops[op.type])
   const opAmount = (op: Op) => (op.subject === 'snapshot' ? (op.snapshot ? fmt(op.snapshot.balance) : '') : op.entry ? fmt(op.entry.money) : '')
   const opText = (op: Op) =>
