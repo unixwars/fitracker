@@ -7,7 +7,8 @@
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
   const linked = $derived(Boolean(app.sheetId))
-  $effect(() => { if (app.sheetId) void app.loadSheetInfo() }) // the name and tab ids; retried when signed in
+  // The name and tab ids: from the device, then once signed in. Reading signedIn here makes the effect re-run on sign-in.
+  $effect(() => { if (app.sheetId && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
 </script>
 
 <h2 style="margin: 4px 0 12px">{messages.settingsTitle}</h2>
