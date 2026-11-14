@@ -80,9 +80,6 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .chip { display: inline-flex; align-items: center; gap: 6px; }
 .cat .name { display: inline-flex; align-items: center; gap: 8px; }
 .ci { flex: none; }
-.select-icon { position: relative; }
-.select-icon > .ci { position: absolute; left: 14px; top: 15px; color: var(--muted); pointer-events: none; }
-.select-icon > select { padding-left: 42px; }
 .chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row > * { flex: 1; }

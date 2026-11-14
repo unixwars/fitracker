@@ -67,10 +67,9 @@ test('Settings has only Sign out (no Sign in; the Reconnect banner signs in) and
   await expect(page.getByTestId('unlink')).toBeVisible()
 })
 
-test('every dock tab and the chosen category show an icon', async ({ page }) => {
+test('every dock tab shows an icon and category options carry an emoji', async ({ page }) => {
   await page.goto('/')
   for (const t of ['add', 'month', 'activity', 'settings']) await expect(page.getByTestId('tab-' + t).locator('svg')).toHaveCount(1)
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
-  await page.getByTestId('categories').selectOption('Bills')
-  await expect(page.getByTestId('category-icon')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toHaveText('🧾 Bills')
 })
