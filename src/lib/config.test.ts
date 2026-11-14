@@ -53,4 +53,12 @@ describe('config', () => {
     expect(m.writes.map((w) => w.split('=')[0])).toEqual(['fitracker.sheet', 'fitracker.device'])
     expect(m.writes.every((w) => !/token|ya29|bearer/i.test(w))).toBe(true)
   })
+  it('remembers a deliberate sign-out across reloads until the person signs in again', () => {
+    const m = memory()
+    expect(createConfig(m.storage).getSignedOut()).toBe(false)
+    createConfig(m.storage).setSignedOut(true)
+    expect(createConfig(m.storage).getSignedOut()).toBe(true)
+    createConfig(m.storage).setSignedOut(false)
+    expect(createConfig(m.storage).getSignedOut()).toBe(false)
+  })
 })

@@ -1,5 +1,5 @@
 // The only data stored on the device: the linked spreadsheet id, plus device-local settings.
-// Access tokens are never stored here.
+// The access token is kept elsewhere (IndexedDB, with its expiry time; see auth.ts), never here.
 import type { KnownPlace } from './places'
 import type { Kind } from './schema'
 
@@ -9,6 +9,7 @@ type KV = Pick<Storage, 'getItem' | 'setItem'>
 
 const SHEET_KEY = 'fitracker.sheet'
 const DEVICE_KEY = 'fitracker.device'
+const SIGNED_OUT_KEY = 'fitracker.signedOut'
 const DEFAULT_DEVICE: DeviceSettings = { kind: 'expense', places: [], lastCategory: {}, theme: 'system' }
 
 function readJson(storage: KV, key: string): unknown {
@@ -31,6 +32,12 @@ export function createConfig(storage: KV) {
     },
     unlinkSheet(): void {
       storage.setItem(SHEET_KEY, '')
+    },
+    getSignedOut(): boolean {
+      return storage.getItem(SIGNED_OUT_KEY) === '1'
+    },
+    setSignedOut(value: boolean): void {
+      storage.setItem(SIGNED_OUT_KEY, value ? '1' : '')
     },
     getDevice(): DeviceSettings {
       const raw = readJson(storage, DEVICE_KEY)

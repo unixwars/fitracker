@@ -313,64 +313,84 @@ describe('fixing a row that has no usable id', () => {
 describe('staying signed in without a Reconnect tap', () => {
   const mkAuth = (silent: () => boolean) => {
     let tok: string | null = null
-    let expiring = () => {}
     const a: Auth = {
       token: () => tok, signIn: async () => { tok = 't' },
       silentSignIn: async () => { if (silent()) { tok = 't'; return true } return false },
-      signOut: () => { tok = null }, onExpired: () => undefined, onExpiring: (fn) => { expiring = fn },
+      signOut: () => { tok = null }, onExpired: () => undefined, onExpiring: () => undefined,
     }
-    return { a, fireExpiring: () => expiring(), drop: () => { tok = null } }
+    return a
   }
-  it('signs in silently when the app starts, syncs, and never shows the Reconnect banner', async () => {
-    const { a } = mkAuth(() => true)
-    const { app, fake } = setup({ auth: a })
+  it('never tries to sign in silently when the app starts or comes back to the foreground (the browser blocks that window outside a tap)', async () => {
+    const a = mkAuth(() => true)
+    const spy = vi.spyOn(a, 'silentSignIn')
+    const { app } = setup({ auth: a })
     await app.init()
+    expect(spy).not.toHaveBeenCalled()
+    expect(app.signedIn).toBe(false)
+    expect(app.authExpired).toBe(true)
+    expect(app.reconnectNeeded).toBe(false) // nothing was tried inside a user tap yet
+  })
+  it('the first tap of a session tries silently; when it works the app syncs with no banner', async () => {
+    const { app, fake } = setup({ auth: mkAuth(() => true) })
+    await app.init()
+    expect(await app.trySilent(true)).toBe(true)
     expect(app.signedIn).toBe(true)
-    expect(app.authExpired).toBe(false)
     expect(app.reconnectNeeded).toBe(false)
     expect(app.status).toBe('ok')
     expect(fake.count('batchGet')).toBeGreaterThan(0)
   })
-  it('stays calm when the silent attempt at start fails: no banner until a tap has been tried', async () => {
-    let allow = false
-    const { a } = mkAuth(() => allow)
-    const { app } = setup({ auth: a })
+  it('a refused first tap shows the banner and later taps do not try again', async () => {
+    const { app } = setup({ auth: mkAuth(() => false) })
     await app.init()
-    expect(app.signedIn).toBe(false)
-    expect(app.authExpired).toBe(true)
-    expect(app.reconnectNeeded).toBe(false) // nothing was tried inside a user tap yet
-    await app.trySilent(true) // the first tap of the session, still refused
+    await app.trySilent(true)
     expect(app.reconnectNeeded).toBe(true)
-    expect(await app.trySilent(true)).toBe(false) // refused once this session: a later tap does not try again
-    allow = true
-    await app.trySilent(false) // returning to the app can
-    expect(app.signedIn).toBe(true)
-    expect(app.reconnectNeeded).toBe(false)
-  })
-  it('refreshes the token shortly before it expires; a failed refresh leaves the user signed in until it really expires', async () => {
-    let allow = true
-    const { a, fireExpiring } = mkAuth(() => allow)
-    const { app } = setup({ auth: a })
-    await app.init()
-    expect(app.signedIn).toBe(true)
-    const spy = vi.spyOn(a, 'silentSignIn')
-    fireExpiring()
-    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
-    await new Promise((r) => setTimeout(r, 0)) // let the first refresh finish
-    allow = false
-    fireExpiring()
-    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(2))
-    expect(app.signedIn).toBe(true)
-    expect(app.reconnectNeeded).toBe(false)
+    expect(await app.trySilent(true)).toBe(false)
   })
   it('an interactive reconnect clears the banner', async () => {
-    const { a } = mkAuth(() => false)
-    const { app } = setup({ auth: a })
+    const { app } = setup({ auth: mkAuth(() => false) })
     await app.init()
     await app.trySilent(true)
     expect(app.reconnectNeeded).toBe(true)
     await app.reconnect()
     expect(app.signedIn).toBe(true)
     expect(app.reconnectNeeded).toBe(false)
+  })
+  it('after Sign out, a reload stays signed out: no silent attempt, the banner shows, and only an explicit sign-in clears it', async () => {
+    const a = mkAuth(() => true)
+    const first = setup({ auth: a })
+    await first.app.init()
+    await first.app.reconnect()
+    first.app.signOut()
+    const spy = vi.spyOn(a, 'silentSignIn')
+    const again = new AppState(first.env) // a reload: same device storage
+    await again.init()
+    expect(await again.trySilent(true)).toBe(false)
+    expect(spy).not.toHaveBeenCalled()
+    expect(again.reconnectNeeded).toBe(true)
+    await again.reconnect()
+    expect(first.data.get('fitracker.signedOut')).toBe('') // the flag is gone
+  })
+})
+
+describe('a token for the wrong Google account', () => {
+  it('a 403 permission error drops the token, explains it, and asks to sign in again instead of retrying', async () => {
+    let tok: string | null = 't'
+    const signOut = vi.fn(() => { tok = null })
+    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, silentSignIn: async () => true, signOut, onExpired: () => undefined, onExpiring: () => undefined }
+    const { app, fake } = setup({ auth: a })
+    fake.batchGet = async () => { throw new ApiError(403, '{"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}') }
+    await app.init()
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(app.signedIn).toBe(false)
+    expect(app.message).toBe(messages.wrongAccount)
+    expect(app.reconnectNeeded).toBe(true)
+  })
+  it('other API errors keep showing their own message and keep the token', async () => {
+    const signOut = vi.fn()
+    const { app, fake } = setup({ auth: { ...auth, signOut } })
+    fake.batchGet = async () => { throw new ApiError(500, 'boom') }
+    await app.init()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(app.status).toBe('error')
   })
 })

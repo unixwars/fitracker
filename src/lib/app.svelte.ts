@@ -1,7 +1,7 @@
 // Application state. Components render this; the rules live in the modules it composes.
 import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
-import { AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
+import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
 import { applyPending, makeOp, makeRepairOp, pendingCount, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
@@ -66,7 +66,7 @@ export class AppState {
   authExpired = $state(false)
   signedIn = $state(false) // a valid token is held; Settings shows Sign in or Sign out accordingly
   gestureTried = $state(false) // a silent sign-in inside a tap was refused: only then is the Reconnect banner shown
-  private userSignedOut = false // the person signed out on purpose: never sign in silently behind their back
+  private userSignedOut = false // the person signed out on purpose (kept across reloads): never sign in silently behind their back
   private silentBusy = false
   device = $state<DeviceSettings>({ kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
@@ -88,6 +88,7 @@ export class AppState {
     this.db = createOutboxDb(env.idb)
     this.kv = createKv(env.idb)
     this.signedIn = Boolean(env.auth.token())
+    this.userSignedOut = this.config.getSignedOut()
     this.sheetId = this.config.getSheetId()
     this.device = this.config.getDevice()
     applyTheme(this.device.theme)
@@ -111,13 +112,10 @@ export class AppState {
       window.addEventListener('online', () => { this.online = true; void this.sync() })
       window.addEventListener('offline', () => { this.online = false })
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return
-        if (this.signedIn) void this.sync()
-        else void this.trySilent(false).then((ok) => { if (!ok) void this.sync() })
+        if (document.visibilityState === 'visible') void this.sync()
       })
     }
     this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false })
-    this.env.auth.onExpiring(() => void this.trySilent(false, true)) // refresh while the app is open, before the token runs out
     try {
       this.ops = await this.db.all()
       await this.db.prune(PRUNE_AFTER_MS)
@@ -127,9 +125,8 @@ export class AppState {
       return
     }
     await this.loadCache()
-    // No stored token left (it expired or the user signed out): ask Google silently before showing anything.
-    const synced = this.signedIn ? false : await this.trySilent(false)
-    if (!synced) await this.sync()
+    // No silent sign-in here: the browser blocks Google's window unless it opens inside a tap (see the first-tap listener).
+    await this.sync()
   }
 
   /**
@@ -234,6 +231,14 @@ export class AppState {
   private handleSyncError(err: unknown) {
     if (err instanceof AuthExpired) this.authExpired = true
     else if (err instanceof NewerThanApp) this.status = 'newer'
+    else if (err instanceof ApiError && err.status === 403 && err.message.includes('PERMISSION_DENIED')) {
+      // Usually a token of another Google account than the one that owns the sheet: drop it and ask for a fresh choice.
+      this.env.auth.signOut()
+      this.setUserSignedOut(true)
+      this.signedIn = false
+      this.authExpired = true
+      this.message = messages.wrongAccount
+    }
     else if (err instanceof UnrecognisedLayout) {
       this.status = 'unrecognised'
       this.message = err.message
@@ -321,7 +326,7 @@ export class AppState {
 
   async reconnect() {
     await this.env.auth.signIn()
-    this.userSignedOut = false
+    this.setUserSignedOut(false)
     this.gestureTried = false
     this.signedIn = true
     this.authExpired = false
@@ -329,9 +334,14 @@ export class AppState {
   }
   signOut() {
     this.env.auth.signOut()
-    this.userSignedOut = true
+    this.setUserSignedOut(true)
     this.signedIn = false
     this.authExpired = true
+  }
+
+  private setUserSignedOut(value: boolean) {
+    this.userSignedOut = value
+    this.config.setSignedOut(value)
   }
 
   private resetSheetInfo() {
@@ -352,7 +362,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
-      this.userSignedOut = false
+      this.setUserSignedOut(false)
       this.signedIn = true
       const id = await this.env.pick()
       if (id) await this.linkId(id)
@@ -367,7 +377,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
-      this.userSignedOut = false
+      this.setUserSignedOut(false)
       this.signedIn = true
       const id = await this.env.copyTemplate()
       if (id) await this.linkId(id)

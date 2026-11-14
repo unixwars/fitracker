@@ -6,6 +6,7 @@ export const messages = {
   offline: 'Offline: changes are saved and will sync',
   reconnectBanner: 'Signed out. Tap to reconnect and sync your changes.',
   reconnect: 'Reconnect',
+  wrongAccount: "This Google account can't open the linked sheet. Tap Reconnect and choose the account that has it.",
   newerBanner: 'This sheet uses a newer version than this app. Update the app; the sheet is read-only here.',
   openSettings: 'Open settings',
   firstRunTitle: 'Set up your sheet',
