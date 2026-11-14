@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spikes S1 to S3 (THROWAWAY)</title>
+<style>
+  body { font: 14px system-ui, sans-serif; max-width: 720px; margin: 1rem auto; padding: 0 1rem; }
+  label { display: block; margin: .4rem 0; }
+  input { width: 100%; box-sizing: border-box; padding: .3rem; }
+  button { margin: .5rem .5rem 0 0; padding: .4rem .7rem; }
+  pre { background: #eee; padding: .6rem; white-space: pre-wrap; min-height: 8rem; }
+  .warn { background: #fee; padding: .5rem; }
+</style>
+</head>
+<body>
+<p class="warn"><b>THROWAWAY.</b> Scratch sheet only, synthetic data. Typed values are never stored. S1 and S2 write to the sheet you pick; S3 creates its own new spreadsheet.</p>
+<label>OAuth client ID <input id="clientId" autocomplete="off"></label>
+<label>API key <input id="apiKey" autocomplete="off"></label>
+<label>Google Cloud project number <input id="projectNumber" autocomplete="off"></label>
+<button id="signIn">1. Sign in</button>
+<button id="pick">2. Pick the scratch sheet</button>
+<button id="s1">S1 append</button>
+<button id="s2">S2 rates</button>
+<button id="s2b">S2 re-check</button>
+<button id="s3">S3 speed (new sheet)</button>
+<pre id="log"></pre>
+<script>
+const SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const API = 'https://sheets.googleapis.com/v4/spreadsheets'
+const $ = (id) => document.getElementById(id)
+const out = $('log')
+let token = null, sheet = null
+const log = (m) => { out.textContent += (typeof m === 'string' ? m : JSON.stringify(m)) + '\n' }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const load = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s) })
+const ready = (async () => {
+  await load('https://accounts.google.com/gsi/client'); await load('https://apis.google.com/js/api.js')
+  await new Promise((r) => gapi.load('picker', r)); log('Libraries loaded.')
+})().catch((e) => log('Load error: ' + e.message))
+
+async function call(method, url, body, tries = 0) {
+  const r = await fetch(url, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined })
+  const t = await r.text()
+  if (r.status === 429 && tries < 4) { log('(429 read quota, waiting 20 s)'); await sleep(20000); return call(method, url, body, tries + 1) }
+  if (!r.ok) throw new Error(method + ' ' + url.slice(0, 90) + ' -> ' + r.status + ' ' + t.slice(0, 300))
+  return t ? JSON.parse(t) : {}
+}
+const enc = encodeURIComponent
+const get = async (id, ranges, render = 'UNFORMATTED_VALUE') =>
+  (await call('GET', `${API}/${id}/values:batchGet?${ranges.map((r) => 'ranges=' + enc(r)).join('&')}&valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`)).valueRanges.map((v) => v.values || [])
+const put = (id, range, values, input = 'USER_ENTERED') => call('PUT', `${API}/${id}/values/${enc(range)}?valueInputOption=${input}`, { values })
+const append = async (id, range, values) =>
+  (await call('POST', `${API}/${id}/values/${enc(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { values })).updates.updatedRange
+const rowsOf = (a1) => { const m = /!?[A-Z]+(\d+)(?::[A-Z]+(\d+))?$/.exec(a1); return [Number(m[1]), Number(m[2] || m[1])] }
+const need = () => { if (!token) { log('Sign in first.'); return false } return true }
+const needSheet = () => { if (!need()) return false; if (!sheet) { log('Pick the scratch sheet first.'); return false } return true }
+const guard = (fn) => async () => { try { await fn() } catch (e) { log('ERROR: ' + e.message) } }
+
+$('signIn').onclick = async () => {
+  await ready
+  google.accounts.oauth2.initTokenClient({
+    client_id: $('clientId').value.trim(), scope: SCOPE,
+    callback: (r) => { if (r.error) return log('Sign-in error: ' + r.error); token = r.access_token; log('Signed in. Scope: ' + r.scope) },
+    error_callback: (e) => log('Sign-in error: ' + e.type),
+  }).requestAccessToken()
+}
+$('pick').onclick = async () => {
+  await ready
+  if (!need()) return
+  const p = new google.picker.PickerBuilder()
+  p.addView(new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS))
+  p.setOAuthToken(token); p.setDeveloperKey($('apiKey').value.trim()); p.setAppId($('projectNumber').value.trim())
+  p.setCallback((r) => { if (r.action === google.picker.Action.PICKED) { sheet = r.docs[0].id; log('Picked: ' + r.docs[0].name + ' (' + sheet + ')') } })
+  p.build().setVisible(true)
+}
+
+// ---------- S1 ----------
+$('s1').onclick = guard(async () => {
+  if (!needSheet()) return
+  log('--- S1: append RAW + INSERT_ROWS on Ledger!A:I')
+  const before = (await get(sheet, ['Ledger!A1:J'], 'UNFORMATTED_VALUE'))[0]
+  const last = before.reduce((n, r, i) => (r.slice(0, 9).some((c) => c !== '' && c !== undefined) ? i + 1 : n), 0)
+  log('Last non-empty row before: ' + last + ' (expected 22)')
+  const calls = []
+  const one = (id, d, a, acct) => [id, d, 'expense', a, 'Shop Z', id, 'Food', acct, '']
+  calls.push(['single', await append(sheet, 'Ledger!A:I', [one('api01', 46331, 12.5, 'Account B (GBP)')]), ['api01']])
+  calls.push(['three', await append(sheet, 'Ledger!A:I', [one('api02', 46332, 1, 'Account A (EUR)'), ['api03', 46332, 'income', 2, '', 'Batch b', 'Salary', 'Account B (GBP)', ''], ['api04', 46333, 'transfer', 3, '', 'Batch c', '', 'Account A (EUR)', 'Account B (GBP)']]), ['api02', 'api03', 'api04']])
+  for (let k = 1; k <= 5; k++) {
+    const [ra, rb] = await Promise.all([append(sheet, 'Ledger!A:I', [one('tabA' + k, 46334, 7, 'Account A (EUR)')]), append(sheet, 'Ledger!A:I', [one('tabB' + k, 46334, 8, 'Account A (EUR)')])])
+    calls.push(['concurrent A' + k, ra, ['tabA' + k]]); calls.push(['concurrent B' + k, rb, ['tabB' + k]])
+  }
+  const now = (await get(sheet, ['Ledger!A1:J'], 'UNFORMATTED_VALUE'))[0]
+  let ok = true
+  for (const [name, range, ids] of calls) {
+    const [r1, r2] = rowsOf(range)
+    const held = []; for (let r = r1; r <= r2; r++) held.push(now[r - 1]?.[0])
+    const good = JSON.stringify(held) === JSON.stringify(ids)
+    ok = ok && good
+    log(`${name}: updatedRange ${range}, rows hold ${JSON.stringify(held)} ${good ? 'OK' : 'MISMATCH (expected ' + JSON.stringify(ids) + ')'}`)
+  }
+  const rows = calls.flatMap(([, range]) => { const [a, b] = rowsOf(range); return Array.from({ length: b - a + 1 }, (_, i) => a + i) })
+  const unique = new Set(rows).size === rows.length
+  const below = rows.every((r) => r > last)
+  const gap = (now[11] || []).slice(0, 9).every((c) => c === '' || c === undefined)
+  const jnum = rows.every((r) => typeof now[r - 1]?.[9] === 'number')
+  const oldIntact = ['r01', 'r11', 'r13', 'r20', 'hand1'].every((id) => now.some((r) => r[0] === id))
+  log({ noSharedRows: unique, allBelowLastRow: below, clearedRow12StillEmpty: gap, jNumericOnAppended: jnum, oldRowsPresent: oldIntact })
+  log('S1 RESULT: ' + (ok && unique && below && gap && jnum && oldIntact ? 'PASS' : 'FAIL'))
+})
+
+// ---------- S2 ----------
+async function s2read() {
+  const [cur, j, hist] = await get(sheet, ['Rates!A1:C', 'Ledger!J2:J', 'Rates!E2:F40'])
+  return { cur, j, hist }
+}
+function s2report({ cur, j, hist }) {
+  const live = cur[cur.length - 1] || []
+  const numeric = typeof live[1] === 'number' && typeof live[2] === 'number'
+  log('Current-month row (last row of Rates): ' + JSON.stringify(live) + ' numeric=' + numeric)
+  const jn = j.filter((r) => r[0] !== '' && r[0] !== undefined)
+  log('Ledger!J numeric for all non-empty: ' + jn.every((r) => typeof r[0] === 'number') + ' (' + jn.length + ' values)')
+  log('History formula Rates!E2:F40 returned: ' + JSON.stringify(hist.slice(0, 3)) + (hist.length ? '' : ' (nothing)'))
+  return numeric && jn.every((r) => typeof r[0] === 'number')
+}
+$('s2').onclick = guard(async () => {
+  if (!needSheet()) return
+  log('--- S2: rates through the API')
+  const serial = (y, m) => Math.round(Date.UTC(y, m - 1, 1) / 86400000) + 25569
+  const hist = []; for (let i = 0; i < 36; i++) { const m = 9 + i; hist.push([serial(2023 + Math.floor((m - 1) / 12), ((m - 1) % 12) + 1), 2, 3]) }
+  await call('POST', `${API}/${sheet}/values:batchClear`, { ranges: ['Rates!A2:C', 'Rates!E1:F40'] })
+  await put(sheet, 'Rates!A2:C' + (1 + hist.length + 3), [...hist, [serial(2026, 9), 1.15, 0.92], [serial(2026, 10), 1.16, 0.93], [serial(2026, 11), '=GOOGLEFINANCE("CURRENCY:GBPEUR")', '=GOOGLEFINANCE("CURRENCY:USDEUR")']])
+  await put(sheet, 'Rates!E1:E2', [['history'], ['=GOOGLEFINANCE("CURRENCY:GBPEUR","price",DATE(2026,9,1),DATE(2026,10,1),"DAILY")']])
+  await append(sheet, 'Ledger!A:I', [['old-gbp', 45366, 'expense', 10, '', 'History GBP', 'Food', 'Account B (GBP)', ''], ['old-usd', 45366, 'expense', 10, '', 'History USD', 'Food', 'Account C (USD)', '']])
+  log('Written: 36 history rows (GBP 2, USD 3), live formulas on the current month, two 2024-03-15 entries (expect J = 20 and 30).')
+  for (let i = 0; i < 9; i++) { await sleep(10000); const r = await s2read(); const l = r.cur[r.cur.length - 1] || []; if (typeof l[1] === 'number' && typeof l[2] === 'number') break }
+  const r = await s2read()
+  const ok = s2report(r)
+  const old = r.j.slice(-2).map((x) => x[0])
+  log('2024-03-15 rows J = ' + JSON.stringify(old) + ' (expect [20,30])')
+  log('S2 RESULT: ' + (ok && old[0] === 20 && old[1] === 30 ? 'PASS' : 'FAIL') + ' (re-check in a few minutes with the S2 re-check button)')
+})
+$('s2b').onclick = guard(async () => { if (!needSheet()) return; log('--- S2 re-check'); s2report(await s2read()) })
+
+// ---------- S3 ----------
+$('s3').onclick = guard(async () => {
+  if (!need()) return
+  const reuse = (prompt('Existing S3 sheet id to reuse (leave blank to create a new one)') || '').trim()
+  const colName = (n) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s }
+  let id = reuse
+  if (!reuse) {
+  log('--- S3: creating a new spreadsheet with 10,000 ledger rows')
+  const tabs = ['Ledger', 'Accounts', 'Rates', 'Snapshots', 'Summary', 'BalancesTest']
+  const created = await call('POST', API, { properties: { title: 'S3 speed spike (scratch)', locale: 'en_GB' }, sheets: tabs.map((title) => ({ properties: { title, gridProperties: { rowCount: title === 'Ledger' ? 10100 : 200, columnCount: 40 } } })) })
+  id = created.spreadsheetId
+  log('Created ' + created.spreadsheetUrl)
+  const serial = (y, m) => Math.round(Date.UTC(y, m - 1, 1) / 86400000) + 25569
+  const accts = [['name', 'currency', 'active', 'In Monthly']]
+  for (let i = 1; i <= 15; i++) accts.push([`Account ${i} (EUR)`, 'EUR', true, i <= 12])
+  await put(id, 'Accounts!A1:D16', accts)
+  const rates = [['month', 'GBP', 'USD']]; for (let i = 0; i < 40; i++) { const m = 9 + i; rates.push([serial(2023 + Math.floor((m - 1) / 12), ((m - 1) % 12) + 1), 1.15, 0.92]) }
+  await put(id, 'Rates!A1:C41', rates)
+  await put(id, 'Ledger!A1:J1', [['id', 'date', 'type', 'amount', 'place', 'description', 'category', 'account', 'to-account', 'base amount']])
+  const base = Math.round(Date.UTC(2024, 0, 1) / 86400000) + 25569
+  for (let start = 0; start < 10000; start += 2500) {
+    const rows = []
+    for (let k = start; k < start + 2500; k++) { const n = k + 2; rows.push(['r' + n, base + ((n * 7) % 1065), 'expense', (n % 50) + 1, 'Shop X', 'Item', 'Cat ' + ((n % 15) + 1), `Account ${(n % 15) + 1} (EUR)`, '']) }
+    await put(id, `Ledger!A${start + 2}:I${start + 2501}`, rows, 'RAW')
+  }
+  await put(id, 'Ledger!J2', [['=ARRAYFORMULA(IF(H2:H="","",D2:D*IF(VLOOKUP(H2:H,Accounts!A2:B,2,FALSE)="EUR",1,IF(VLOOKUP(H2:H,Accounts!A2:B,2,FALSE)="GBP",VLOOKUP(EOMONTH(B2:B,-1)+1,Rates!A2:C,2,TRUE),VLOOKUP(EOMONTH(B2:B,-1)+1,Rates!A2:C,3,TRUE)))))']])
+  await put(id, 'Snapshots!A1:E16', [['id', 'date', 'account', 'balance', 'note'], ...Array.from({ length: 15 }, (_, i) => ['s' + i, base + 30, `Account ${i + 1} (EUR)`, 1000, ''])])
+  const sumHead = ['', ...Array.from({ length: 12 }, (_, m) => serial(2026, m + 1))]
+  const sum = [sumHead]
+  for (let r = 2; r <= 16; r++) sum.push([`Cat ${r - 1}`, ...Array.from({ length: 12 }, (_, c) => { const col = String.fromCharCode(66 + c); return `=SUMPRODUCT(SUMIFS(Ledger!$J:$J,Ledger!$G:$G,$A${r},Ledger!$C:$C,"expense",Ledger!$B:$B,">="&${col}$1,Ledger!$B:$B,"<"&EDATE(${col}$1,1),Ledger!$H:$H,Accounts!$A$2:$A$16)*(Accounts!$D$2:$D$16=TRUE))` })])
+  await put(id, 'Summary!A1:M16', sum)
+  const head = ['', serial(2024, 1) + 30]; for (let c = 2; c <= 36; c++) head.push(`=EOMONTH(${colName(c - 1)}1,1)`)
+  const bal = [head]
+  const f = (c, r) => `=LET(d,MAXIFS(Snapshots!$B:$B,Snapshots!$C:$C,$A${r},Snapshots!$B:$B,"<="&${c}$1),base,SUMIFS(Snapshots!$D:$D,Snapshots!$C:$C,$A${r},Snapshots!$B:$B,d),base+SUMIFS(Ledger!$D:$D,Ledger!$C:$C,"income",Ledger!$H:$H,$A${r},Ledger!$B:$B,">"&d,Ledger!$B:$B,"<="&${c}$1)-SUMIFS(Ledger!$D:$D,Ledger!$C:$C,"expense",Ledger!$H:$H,$A${r},Ledger!$B:$B,">"&d,Ledger!$B:$B,"<="&${c}$1)-SUMIFS(Ledger!$D:$D,Ledger!$C:$C,"transfer",Ledger!$H:$H,$A${r},Ledger!$B:$B,">"&d,Ledger!$B:$B,"<="&${c}$1)+SUMIFS(Ledger!$D:$D,Ledger!$C:$C,"transfer",Ledger!$I:$I,$A${r},Ledger!$B:$B,">"&d,Ledger!$B:$B,"<="&${c}$1))`
+  for (let r = 2; r <= 16; r++) bal.push([`Account ${r - 1} (EUR)`, ...Array.from({ length: 36 }, (_, c) => f(colName(c + 1), r))])
+  await put(id, 'BalancesTest!A1:' + colName(36) + '16', bal)
+  } else log('--- S3: reusing ' + reuse + ' (data already written)')
+  const read = async () => { const [s, b] = await get(id, ['Summary!B2:M16', 'BalancesTest!B2:' + colName(36) + '16']); return { s, b } }
+  const flat = (x) => x.flat(2)
+  const done = (x) => flat(x).every((v) => typeof v === 'number')
+  const total = (x) => flat(x).reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0)
+  let t0 = performance.now(), cur
+  do { await sleep(2500); cur = await read() } while ((!done(cur.s) || !done(cur.b)) && performance.now() - t0 < 120000)
+  log('Initial calculation settled after ' + Math.round((performance.now() - t0) / 1000) + ' s; errors present: ' + !(done(cur.s) && done(cur.b)))
+  // Edit a row that feeds both views: dated in 2026, after the first snapshot, on a ticked account (1 to 12).
+  let n = 2
+  while (!(((n * 7) % 1065) >= 760 && ((n * 7) % 1065) <= 1000 && (n % 15) + 1 <= 12)) n++
+  log('Editing Ledger row ' + n + ' (date serial ' + (Math.round(Date.UTC(2024, 0, 1) / 86400000) + 25569 + ((n * 7) % 1065)) + ', Account ' + ((n % 15) + 1) + ')')
+  const times = []
+  for (let i = 1; i <= 3; i++) {
+    const beforeS = total(cur.s), beforeB = total(cur.b)
+    await put(id, 'Ledger!D' + n, [[1000 * i]], 'RAW')
+    const start = performance.now()
+    do { await sleep(2500); cur = await read() } while (!(done(cur.s) && done(cur.b) && total(cur.s) !== beforeS && total(cur.b) !== beforeB) && performance.now() - start < 120000)
+    times.push(Math.round((performance.now() - start) / 100) / 10)
+    log(`Edit ${i}: recalculated after ${times[i - 1]} s (2.5 s polling granularity)`)
+  }
+  log('S3 RESULT: ' + (times.every((t) => t < 10) && done(cur.s) && done(cur.b) ? 'PASS' : 'FAIL') + ' timings ' + JSON.stringify(times) + '; 10,000 rows; this is speed only, no transfer conversion')
+})
+</script>
+</body>
+</html>
