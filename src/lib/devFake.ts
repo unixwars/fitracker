@@ -22,5 +22,5 @@ export function createFakeEnv(): Env {
     setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
   }
   ;(window as unknown as { __fake: unknown }).__fake = fake
-  return { storage, idb: indexedDB, api: fake, auth, pick: async () => FAKE_ID, fake: true }
+  return { storage, idb: indexedDB, api: fake, auth, pick: async () => FAKE_ID, copyTemplate: async () => FAKE_ID, fake: true }
 }

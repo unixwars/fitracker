@@ -5,6 +5,7 @@ import { AppState, type Env } from './app.svelte'
 import type { Auth } from './auth'
 import { messages } from './messages'
 import { makeOp } from './outbox'
+import { ApiError } from './errors'
 import { ledgerRowValues, todayLocal, type Entry } from './rows'
 import { META_KEY } from './schema'
 import { createFakeSheets, type FakeSheets } from './sheets/fakeSheets'
@@ -16,12 +17,12 @@ const e = (id: string, o: Partial<Entry> = {}): Entry => ({
 })
 const auth: Auth = { token: () => 'tok', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
 
-function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null } = {}) {
+function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null; copy?: () => Promise<string | null> } = {}) {
   const fake = createFakeSheets()
   seedLedger(fake, 'S1', { today, entries: opts.entries ?? [e('a')] })
   const data = new Map<string, string>(opts.linked === false ? [] : [['fitracker.sheet', 'S1']])
   const idb = new IDBFactory()
-  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth, pick: async () => opts.pick ?? 'S1' }
+  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
   return { fake, env, data, idb, app: new AppState(env) }
 }
 const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesAppend', 'valuesBatchClear', 'setMetadata', 'applyOps'].reduce((n, m) => n + fake.count(m), 0)
@@ -149,5 +150,41 @@ describe('AppState', () => {
     newer.fake.book('S1').metadata.set(META_KEY, '4')
     await newer.app.init()
     expect(newer.fake.count('valuesBatchUpdate')).toBe(0)
+  })
+})
+
+describe('createFromTemplate', () => {
+  it('links the copy and syncs', async () => {
+    const { app, fake, data } = setup({ linked: false, copy: async () => 'COPY' })
+    seedLedger(fake, 'COPY', { today, entries: [e('c1')] })
+    await app.init()
+    await app.createFromTemplate()
+    expect(app.sheetId).toBe('COPY')
+    expect(data.get('fitracker.sheet')).toBe('COPY')
+    expect(app.status).toBe('ok')
+    expect(app.entries.map((x) => x.id)).toEqual(['c1'])
+  })
+  it('a cancelled Picker leaves the state untouched', async () => {
+    const { app } = setup({ linked: false, copy: async () => null })
+    await app.init()
+    await app.createFromTemplate()
+    expect(app.sheetId).toBeNull()
+    expect(app.status).toBe('unlinked')
+    expect(app.message).toBe('')
+  })
+  it('a failed copy sets copyFailed and stays unlinked', async () => {
+    const { app } = setup({ linked: false, copy: async () => { throw new ApiError(403, 'File not found') } })
+    await app.init()
+    await app.createFromTemplate()
+    expect(app.message).toBe(messages.copyFailed)
+    expect(app.status).toBe('unlinked')
+  })
+  it('a copy that is not a ledger sheet is not linked', async () => {
+    const { app, fake } = setup({ linked: false, copy: async () => 'LEGACY' })
+    seedV0(fake, 'LEGACY')
+    await app.init()
+    await app.createFromTemplate()
+    expect(app.message).toBe(messages.linkNotLedger)
+    expect(app.sheetId).toBeNull()
   })
 })

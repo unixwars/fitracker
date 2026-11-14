@@ -11,6 +11,7 @@ import { createLedgerStore } from './sheets/ledgerStore'
 import type { SheetsApi } from './sheets/types'
 import { ensureVersion } from './sheets/version'
 import type { LedgerStore } from './store'
+import { TEMPLATE_COPY_URL } from './templateCopy'
 import { messages } from './messages'
 import type { RateRow, Reference, Snapshot, Unreadable } from './types'
 
@@ -22,6 +23,7 @@ export type Env = {
   api: SheetsApi
   auth: Auth
   pick: () => Promise<string | null>
+  copyTemplate: () => Promise<string | null> // null when the user cancels
   fake?: boolean
 }
 type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[] }
@@ -60,6 +62,7 @@ export class AppState {
   device = $state<DeviceSettings>({ kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
   syncing = $state(false)
+  templateCopyUrl = TEMPLATE_COPY_URL
   private again = false // a change arrived while a sync was running
 
   displayed = $derived(applyPending(this.entries, this.ops))
@@ -257,34 +260,54 @@ export class AppState {
 
   async link() {
     this.message = ''
-    const waiting = pendingCount(this.ops)
-    if (waiting) { this.message = messages.relinkBlocked(waiting); return }
+    if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
       const id = await this.env.pick()
-      if (!id) return
-      try {
-        await ensureVersion(this.env.api, id)
-      } catch (err) {
-        if (err instanceof UnrecognisedLayout) { this.message = messages.linkNotLedger; return }
-        if (!(err instanceof NewerThanApp)) throw err // a newer sheet links read-only
-      }
-      if (this.sheetId !== id) await this.forgetBook()
-      this.config.linkSheet(id)
-      this.sheetId = id
-      this.build()
-      await this.loadCache()
-      await this.sync()
+      if (id) await this.linkId(id)
     } catch {
       this.message = messages.linkFailed
     }
   }
 
+  // Makes the user's own copy of the template (Picker with the template preselected, then Drive files.copy) and links it.
+  async createFromTemplate() {
+    this.message = ''
+    try {
+      if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
+      const id = await this.env.copyTemplate()
+      if (id) await this.linkId(id)
+    } catch {
+      this.message = messages.copyFailed
+    }
+  }
+
+  private blockedByPending(): boolean {
+    const waiting = pendingCount(this.ops)
+    if (waiting) this.message = messages.relinkBlocked(waiting)
+    return waiting > 0
+  }
+
+  // Verifies the sheet is a ledger before linking it: a legacy yearly sheet leaves the current link unchanged.
+  private async linkId(id: string) {
+    try {
+      await ensureVersion(this.env.api, id)
+    } catch (err) {
+      if (err instanceof UnrecognisedLayout) { this.message = messages.linkNotLedger; return }
+      if (!(err instanceof NewerThanApp)) throw err // a newer sheet links read-only
+    }
+    if (this.sheetId !== id) await this.forgetBook()
+    this.config.linkSheet(id)
+    this.sheetId = id
+    this.build()
+    await this.loadCache()
+    await this.sync()
+  }
+
   // Forgets this device's link to the sheet. The sheet itself is never touched.
   async unlink() {
     this.message = ''
-    const waiting = pendingCount(this.ops)
-    if (waiting) { this.message = messages.relinkBlocked(waiting); return }
+    if (this.blockedByPending()) return
     this.config.unlinkSheet()
     this.sheetId = null
     this.build()

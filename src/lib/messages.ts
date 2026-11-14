@@ -80,6 +80,8 @@ export const messages = {
   ops: { add: 'Added', edit: 'Edited', delete: 'Deleted' },
   snapshotOps: { add: 'Added a balance', delete: 'Deleted a balance' },
   unrecognisedBanner: 'This sheet is not a fitracker ledger, so the app will not read or write it. Link the ledger sheet in Settings.',
+  copyFailed: 'Could not create your sheet from the template. Try again, or open the template and make a copy yourself.',
+  templateCopyName: 'Fitracker',
   linkNotLedger: 'That sheet is not a fitracker ledger, so the link was not changed.',
   rowNotUnderstood: (row: number, reason: string) => `Row ${row}: ${reason}. Fix it in the sheet; it clears on the next refresh.`,
   unreadableReasons: {
