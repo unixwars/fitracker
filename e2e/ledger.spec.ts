@@ -51,7 +51,7 @@ test('a hand-typed row that is not understood shows under Needs attention', asyn
   await refresh(page)
   await expect(page.getByTestId('badge')).toHaveText('1')
   await page.getByTestId('tab-activity').click()
-  await expect(page.getByTestId('unreadable')).toContainText('Row 5')
+  await expect(page.getByTestId('unreadable')).toContainText('row 5')
   await page.getByTestId('tab-month').click()
   await expect(page.getByTestId('expenses-actual')).toHaveText(before!)
 })

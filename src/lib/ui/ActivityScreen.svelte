@@ -3,6 +3,7 @@
   import { messages } from '../messages'
   import type { Op } from '../outbox'
   import { repairDraft } from '../repairDraft'
+  import { rowSummary } from '../unreadableSummary'
   import { todayLocal } from '../rows'
   import type { Unreadable } from '../types'
   import EntrySheet from './EntrySheet.svelte'
@@ -38,9 +39,11 @@
     </div>
   {/each}
   {#each app.unreadable as u (u.tab + u.row)}
+    {@const sum = rowSummary(u)}
     <div style="margin-bottom: 12px" data-testid="unreadable">
-      <b>{u.tab} · {u.text || '—'}</b>
-      <p class="muted">{messages.rowNotUnderstood(u.row, messages.unreadableReasons[u.reason])} {fixable(u) ? messages.fixInApp : messages.fixInSheet}</p>
+      <b>{sum.title}</b>
+      {#if sum.detail}<p class="muted" style="margin: 2px 0">{sum.detail}</p>{/if}
+      <p class="muted">{messages.unreadableReasons[u.reason]}. {fixable(u) ? messages.fixInApp : messages.fixInSheet}</p>
       <div class="row">
         {#if fixable(u)}<button class="secondary" disabled={!app.canWrite} onclick={() => (fixing = u)} data-testid="fix-row">{messages.fixRow}</button>{/if}
         <a class="linkbtn" href={app.rowUrl(u)} target="_blank" rel="noopener" data-testid="open-row">{messages.openInSheets}</a>
