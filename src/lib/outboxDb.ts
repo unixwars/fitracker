@@ -14,8 +14,12 @@ export function createOutboxDb(idb: IDBFactory = indexedDB, name = 'fitracker-ou
   let opened: Promise<IDBDatabase> | undefined
   const open = () =>
     (opened ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const req = idb.open(name, 1)
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'opId' })
+      const req = idb.open(name, 2)
+      // Version 1 ops belong to the dropped yearly layout; they are discarded.
+      req.onupgradeneeded = () => {
+        if (req.result.objectStoreNames.contains(STORE)) req.result.deleteObjectStore(STORE)
+        req.result.createObjectStore(STORE, { keyPath: 'opId' })
+      }
       req.onsuccess = () => resolve(req.result)
       req.onerror = () => reject(req.error)
     }))

@@ -1,0 +1,394 @@
+import { backfillId } from '../ids'
+import { refreshInterval } from '../refresh'
+import { parseRates, parseReference } from '../reference'
+import { AccountChanged, ApiError, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
+import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
+import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
+import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
+import type { AddResult, EntryStore, RefreshOpts } from '../store'
+import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
+import type { SheetsApi } from './types'
+import { ensureVersion } from './version'
+
+export type StoreOptions = { now?: () => number; newId?: () => string; ttlMs?: number }
+
+type RowRef = { tab: 'Ledger' | 'Snapshots'; row: number }
+type Data = {
+  fetchedAt: number
+  entries: Entry[]
+  snapshots: Snapshot[]
+  reference: Reference
+  rates: RateRow[]
+  unreadable: Unreadable[]
+  rows: Map<string, RowRef> // id -> where it sits (Ledger or Snapshots)
+  unreadableIds: Set<string> // ids on rows that exist but do not parse: present, not missing
+}
+
+const VERSION_RECHECK_MS = 5 * 60_000
+const MAX_ADD_ATTEMPTS = 3
+// One cell of every other tab, added to the read before a write: a renamed or removed tab is a 400 there, so an
+// unrecognised layout aborts before any write (spec 4) at no extra request.
+const TAB_GUARD = [LEDGER.ranges.header, SNAPSHOTS.ranges.header, REFERENCE.base, RATES.ranges.months] as const
+const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v)).trim()
+
+export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options: StoreOptions = {}): EntryStore & { _internals: Internals } {
+  const now = options.now ?? Date.now
+  const newId = options.newId ?? (() => crypto.randomUUID())
+  let cache: Data | null = null
+  let stale = false
+  let inflight: Promise<Data> | null = null
+  let verifiedAt: number | null = null
+  const listeners = new Set<() => void>()
+  const notify = () => listeners.forEach((fn) => fn())
+
+  async function checkVersion(): Promise<void> {
+    if (verifiedAt !== null && now() - verifiedAt < VERSION_RECHECK_MS) return
+    await ensureVersion(api, spreadsheetId)
+    verifiedAt = now()
+  }
+
+  // A 400 on a tagged book means a tab was renamed or removed: that is an unrecognised layout, so writes stop (spec 4).
+  async function read(ranges: string[], render: 'UNFORMATTED_VALUE' | 'FORMULA' = 'UNFORMATTED_VALUE'): Promise<unknown[][][]> {
+    try {
+      return await api.batchGet(spreadsheetId, ranges, render)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) throw new UnrecognisedLayout('A tab of the ledger is missing or renamed')
+      throw err
+    }
+  }
+
+  async function fetchBook(): Promise<Data> {
+    await checkVersion()
+    const [ledger, base, accounts, categories, budgets, rates, snapshotRows] = await read(
+      [LEDGER.ranges.rows, REFERENCE.base, REFERENCE.accounts, REFERENCE.categories, REFERENCE.budgets, RATES.ranges.rows, SNAPSHOTS.ranges.rows],
+    )
+    const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
+    const unreadable: Unreadable[] = []
+    const unreadableIds = new Set<string>()
+    const entryRows: { row: number; entry: Entry; raw: unknown[] }[] = []
+    const snapshotItems: { row: number; snapshot: Snapshot }[] = []
+    ;(ledger ?? []).forEach((row, i) => {
+      const sheetRow = LEDGER.firstRow + i
+      const r = parseLedgerRow(row, reference.accounts)
+      if ('skip' in r) return
+      if ('reason' in r) { unreadable.push({ tab: 'Ledger', row: sheetRow, reason: r.reason, text: r.text, id: str(row?.[0]) || undefined, raw: row }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
+      entryRows.push({ row: sheetRow, entry: r.value, raw: row })
+    })
+    ;(snapshotRows ?? []).forEach((row, i) => {
+      const sheetRow = SNAPSHOTS.firstRow + i
+      const r = parseSnapshotRow(row, reference.accounts)
+      if ('skip' in r) return
+      if ('reason' in r) { unreadable.push({ tab: 'Snapshots', row: sheetRow, reason: r.reason, text: r.text }); if (str(row?.[0])) unreadableIds.add(str(row[0])); return }
+      snapshotItems.push({ row: sheetRow, snapshot: r.value })
+    })
+
+    await backfillIds(entryRows, snapshotItems)
+
+    const entries: Entry[] = []
+    const snapshots: Snapshot[] = []
+    const rows = new Map<string, RowRef>()
+    // An id belongs to one row. A row copied in Sheets brings its id along: the first row keeps it, every later row
+    // is reported as unreadable (the person fixes it in the sheet) and is never listed or edited.
+    const seen = new Set<string>()
+    const claim = (id: string): boolean => (id === '' ? true : seen.has(id) ? false : (seen.add(id), true))
+    for (const { row, entry, raw } of entryRows) {
+      if (!claim(entry.id)) { unreadable.push({ tab: 'Ledger', row, reason: 'duplicateId', text: entry.description, raw }); continue }
+      if (entry.id !== '') { entries.push(entry); rows.set(entry.id, { tab: 'Ledger', row }) }
+    }
+    for (const { row, snapshot } of snapshotItems) {
+      if (!claim(snapshot.id)) { unreadable.push({ tab: 'Snapshots', row, reason: 'duplicateId', text: snapshot.note }); continue }
+      if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
+    }
+    // Only an id that occurs once can be used to fix a row by its id.
+    const idCount = new Map<string, number>()
+    for (const id of rows.keys()) idCount.set(id, 1)
+    for (const u of unreadable) if (u.id) idCount.set(u.id, (idCount.get(u.id) ?? 0) + 1)
+    for (const u of unreadable) if (u.id && idCount.get(u.id) !== 1) delete u.id
+    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows, unreadableIds }
+  }
+
+  // Gives hand-typed rows an id (spec 3.2): one write to column A only (consecutive rows as one block), then a read-back
+  // of just the written cells so the store adopts the value the sheet holds. An id that did not stick leaves the row
+  // without an id (unusable, retried on the next refresh).
+  async function backfillIds(entryRows: { row: number; entry: Entry; raw?: unknown[] }[], snapshotItems: { row: number; snapshot: Snapshot }[]): Promise<void> {
+    const targets = [
+      ...entryRows.filter((x) => x.entry.id === '').map((x) => ({ tab: 'Ledger' as const, row: x.row, set: (id: string) => { x.entry.id = id }, same: (c: unknown[]) => { const v = ledgerRowValues(x.entry); return c[1] === v[1] && c[3] === v[3] && c[7] === v[7] }, id: backfillId('Ledger', x.row, [x.entry.date, x.entry.money.minor, x.entry.account ?? '']) })),
+      ...snapshotItems.filter((x) => x.snapshot.id === '').map((x) => ({ tab: 'Snapshots' as const, row: x.row, set: (id: string) => { x.snapshot.id = id }, same: (c: unknown[]) => { const v = snapshotRowValues(x.snapshot); return c[1] === v[1] && c[2] === v[2] && c[3] === v[3] }, id: backfillId('Snapshots', x.row, [x.snapshot.date, x.snapshot.balance.minor, x.snapshot.account]) })),
+    ]
+    if (!targets.length) return
+    const blocks: { tab: 'Ledger' | 'Snapshots'; first: number; last: number }[] = []
+    for (const t of [...targets].sort((a, b) => (a.tab === b.tab ? a.row - b.row : a.tab.localeCompare(b.tab)))) {
+      const open = blocks[blocks.length - 1]
+      if (open && open.tab === t.tab && open.last + 1 === t.row) open.last = t.row
+      else blocks.push({ tab: t.tab, first: t.row, last: t.row })
+    }
+    const range = (b: { tab: string; first: number; last: number }) => (b.first === b.last ? `${b.tab}!A${b.first}` : `${b.tab}!A${b.first}:A${b.last}`)
+    const whole = (b: { tab: string; first: number; last: number }) => `${b.tab}!A${b.first}:${b.tab === 'Ledger' ? 'I' : 'E'}${b.last}`
+    await api.valuesBatchUpdate(
+      spreadsheetId,
+      blocks.map((b) => ({ range: range(b), values: targets.filter((t) => t.tab === b.tab && t.row >= b.first && t.row <= b.last).sort((x, y) => x.row - y.row).map((t) => [t.id]) })),
+    )
+    // Read the whole rows back: an id is adopted only if the row still holds the entry it was written for (a sort in
+    // Sheets between the read and the write puts someone else there).
+    const back = await read(blocks.map(whole), 'UNFORMATTED_VALUE')
+    blocks.forEach((b, i) => {
+      for (const t of targets.filter((x) => x.tab === b.tab && x.row >= b.first && x.row <= b.last)) {
+        const cells = back[i]?.[t.row - b.first] ?? []
+        const cell = cells[0]
+        t.set(cell === undefined || cell === null || !t.same(cells) ? '' : String(cell).trim())
+      }
+    })
+  }
+
+  async function load(force = false): Promise<Data> {
+    if (cache && !force && !stale && now() - cache.fetchedAt < (options.ttlMs ?? refreshInterval(cache.entries.length))) return cache
+    if (!inflight) inflight = fetchBook().finally(() => { inflight = null })
+    const data = await inflight
+    cache = data
+    stale = false
+    notify()
+    return data
+  }
+  // Adds rows below the last used row (spec 3.2, as amended by the live check: no values:append). Every attempt first reads ALL ids, so a row that is already in the sheet
+  // anywhere (a retry after a lost response, a row moved by a sort) is never appended twice; the append is then read
+  // back from the response's updatedRange and the rows that did not land are retried (at most three attempts).
+  async function appendRows<T extends { id: string }>(
+    items: T[],
+    spec: { tab: 'Ledger' | 'Snapshots'; firstRow: number; ids: string; probe: string[]; lastCol: 'I' | 'E'; values: (t: T) => unknown[]; acceptable: (t: T, accounts: Reference['accounts']) => boolean },
+  ): Promise<AddResult[]> {
+    await checkVersion()
+    const results = new Map<string, AddResult>()
+    let pending = items.filter((e, i) => items.findIndex((x) => x.id === e.id) === i)
+    for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS && pending.length; attempt++) {
+      const [idCells, accountRows, , , , , ...probes] = await read([spec.ids, REFERENCE.accounts, ...TAB_GUARD, ...spec.probe])
+      const present = new Set((idCells ?? []).map((r) => str(r?.[0])))
+      const accounts = parseReference([], accountRows ?? [], [], []).accounts
+      pending = pending.filter((e) => {
+        if (present.has(e.id)) { results.set(e.id, { id: e.id, ok: true }); return false }
+        if (!spec.acceptable(e, accounts)) { results.set(e.id, { id: e.id, ok: false, reason: 'AccountChanged' }); return false }
+        return true
+      })
+      if (!pending.length) break
+      // Rows are written to an explicit free row, never with values:append: on the real template an append lands one
+      // column to the right and over the J formula (live check). The free row is below the last row that holds
+      // anything in A, B, D or the description, so a hand-typed row without an id is never overwritten.
+      const used = Math.max((idCells ?? []).length, ...probes.map((p) => (p ?? []).length))
+      const first = spec.firstRow + used
+      const range = `${spec.tab}!A${first}:${spec.lastCol}${first + pending.length - 1}`
+      const values = pending.map(spec.values)
+      try {
+        await api.valuesBatchUpdate(spreadsheetId, [{ range, values }])
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 400 && /grid limits/i.test(err.message))) throw err
+        await api.growTab(spreadsheetId, spec.tab, first + pending.length + 500) // the tab is full: add rows, once
+        await api.valuesBatchUpdate(spreadsheetId, [{ range, values }])
+      }
+      const landed = { r1: first, r2: first + pending.length - 1 }
+      const [back] = await read([`${spec.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
+      pending = pending.filter((e, i) => {
+        if (str(back?.[i]?.[0]) !== e.id) return true
+        results.set(e.id, { id: e.id, ok: true })
+        return false
+      })
+    }
+    markDirty()
+    if (pending.length) throw new Error('Could not place all rows; try again')
+    return items.map((e) => results.get(e.id)!)
+  }
+
+  const accountMatches = (e: Entry, accounts: Reference['accounts']): boolean => {
+    const from = accounts.find((a) => a.name === e.account)
+    const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
+    return !!from && from.currency === e.money.currency && toKnown
+  }
+
+  const addMany = (entries: Entry[]): Promise<AddResult[]> =>
+    appendRows(entries, { tab: 'Ledger', firstRow: LEDGER.firstRow, ids: LEDGER.ranges.ids, probe: ['Ledger!B2:B', 'Ledger!D2:D', 'Ledger!F2:F'], lastCol: 'I', values: ledgerRowValues, acceptable: accountMatches })
+
+  async function addSnapshot(s: Snapshot): Promise<AddResult> {
+    const [result] = await appendRows([s], {
+      tab: 'Snapshots', firstRow: SNAPSHOTS.firstRow, ids: SNAPSHOTS.ranges.ids, probe: ['Snapshots!B2:B', 'Snapshots!D2:D', 'Snapshots!E2:E'], lastCol: 'E', values: snapshotRowValues,
+      acceptable: (x, accounts) => accounts.some((a) => a.name === x.account && a.currency === x.balance.currency),
+    })
+    return result
+  }
+
+  // The same entry if at least two of date, amount and place/description agree. Text only counts when both sides have
+  // some, so two blank descriptions never vouch for each other.
+  const looksSame = (a: Entry, b: Entry) => {
+    const text = (e: Entry) => (e.place || e.description || '').trim().toLowerCase()
+    let matches = (a.date === b.date ? 1 : 0) + (a.money.minor === b.money.minor && a.money.currency === b.money.currency ? 1 : 0)
+    if (text(a) && text(b) && text(a) === text(b)) matches++
+    return matches >= 2
+  }
+
+  // Finds a Ledger row by id (spec 3.2): read column A, then read just that row with the account list (so the currency
+  // can be checked). Never by row number.
+  async function locate(id: string, expectedPrevious?: Entry, repair = false): Promise<{ row: number; previous: Entry | null; accounts: Reference['accounts'] }> {
+    await checkVersion()
+    const [idCells] = await read([LEDGER.ranges.ids, ...TAB_GUARD])
+    const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
+    if (at < 0) throw new RowGone(id)
+    if ((idCells ?? []).filter((r) => str(r?.[0]) === id).length > 1) throw new RowChanged(id) // a copied row: ambiguous
+    const row = LEDGER.firstRow + at
+    const [cells, accountRows] = await read([rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts])
+    if (str(cells?.[0]?.[0]) !== id) throw new RowChanged(id) // the rows moved between the two reads
+    const accounts = parseReference([], accountRows ?? [], [], []).accounts
+    const parsed = parseLedgerRow(cells?.[0] ?? [], accounts)
+    if (repair) return { row, previous: 'value' in parsed ? parsed.value : null, accounts } // fixing a row that cannot be read
+    if (!('value' in parsed)) throw new RowChanged(id)
+    if (expectedPrevious && !looksSame(parsed.value, expectedPrevious)) throw new RowChanged(id)
+    return { row, previous: parsed.value, accounts }
+  }
+
+  async function edit(entry: Entry, expectedPrevious?: Entry, opts: { repair?: boolean } = {}): Promise<{ previous: Entry }> {
+    const { row, previous, accounts } = await locate(entry.id, expectedPrevious, opts.repair)
+    if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
+    await api.valuesBatchUpdate(spreadsheetId, [{ range: rowRange(LEDGER.tab, row, 'I'), values: [ledgerRowValues(entry)] }])
+    markDirty()
+    return { previous: previous ?? entry }
+  }
+
+  async function remove(id: string, expectedPrevious?: Entry, opts: { repair?: boolean } = {}): Promise<{ previous: Entry }> {
+    const { row, previous } = await locate(id, expectedPrevious, opts.repair)
+    const gone = previous ?? expectedPrevious
+    if (!gone) throw new RowChanged(id)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
+    markDirty()
+    return { previous: gone }
+  }
+
+  // Cells with trailing blanks removed, so a row compares equal to what the earlier read returned for it.
+  const trimmed = (cells: unknown[]): string => {
+    const out = [...cells]
+    while (out.length && (out[out.length - 1] === '' || out[out.length - 1] === undefined || out[out.length - 1] === null)) out.pop()
+    return JSON.stringify(out)
+  }
+
+  // A row with no usable id can only be found by its number, which shifts (a sort, an insert). So it is re-read right
+  // before the write and must still hold exactly what the person was shown; the window left is one request.
+  async function rowStillHolds(row: number, expectedRaw: unknown[]): Promise<{ accounts: Reference['accounts']; ids: string[] }> {
+    await checkVersion()
+    const [cells, accountRows, idCells] = await read([rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts, LEDGER.ranges.ids, ...TAB_GUARD])
+    if (trimmed(cells?.[0] ?? []) !== trimmed(expectedRaw)) throw new RowChanged(`row ${row}`)
+    return { accounts: parseReference([], accountRows ?? [], [], []).accounts, ids: (idCells ?? []).map((r) => str(r?.[0])) }
+  }
+
+  async function repairRowAt(row: number, expectedRaw: unknown[], entry: Entry): Promise<void> {
+    const { accounts, ids } = await rowStillHolds(row, expectedRaw)
+    if (entry.id === '' || ids.includes(entry.id)) throw new RowChanged(entry.id) // the new id must be new
+    if (!accountMatches(entry, accounts)) throw new AccountChanged(entry.id)
+    await api.valuesBatchUpdate(spreadsheetId, [{ range: rowRange(LEDGER.tab, row, 'I'), values: [ledgerRowValues(entry)] }])
+    markDirty()
+  }
+
+  async function clearRowAt(row: number, expectedRaw: unknown[]): Promise<void> {
+    await rowStillHolds(row, expectedRaw)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(LEDGER.tab, row, 'I')])
+    markDirty()
+  }
+
+  async function deleteSnapshot(id: string): Promise<{ previous: Snapshot }> {
+    await checkVersion()
+    const [idCells] = await read([SNAPSHOTS.ranges.ids, ...TAB_GUARD])
+    const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
+    if (at < 0) throw new RowGone(id)
+    if ((idCells ?? []).filter((r) => str(r?.[0]) === id).length > 1) throw new RowChanged(id)
+    const row = SNAPSHOTS.firstRow + at
+    const [cells, accountRows] = await read([rowRange(SNAPSHOTS.tab, row, 'E'), REFERENCE.accounts])
+    if (str(cells?.[0]?.[0]) !== id) throw new RowChanged(id)
+    const parsed = parseSnapshotRow(cells?.[0] ?? [], parseReference([], accountRows ?? [], [], []).accounts)
+    if (!('value' in parsed)) throw new RowChanged(id)
+    await api.valuesBatchClear(spreadsheetId, [rowRange(SNAPSHOTS.tab, row, 'E')])
+    markDirty()
+    return { previous: parsed.value }
+  }
+
+  // Month-roll (spec 3.4): freeze the closed month's live rate cells as values and append the new month's live row.
+  // Skipped for a non-EUR base; runs at most once per month per store; the months are re-read just before writing so a
+  // second device that got there first is not duplicated.
+  let ratesHandled: string | null = null
+  async function maintainRates(today: string): Promise<void> {
+    const month = today.slice(0, 7)
+    if (ratesHandled === month) return
+    await checkVersion()
+    const data = await load()
+    if (data.reference.base !== 'EUR') { ratesHandled = month; return }
+    if (data.rates.some((r) => r.month === month + '-01')) { ratesHandled = month; return }
+    const [formulas, values] = await Promise.all([
+      read([RATES.ranges.rows], 'FORMULA'),
+      read([RATES.ranges.rows], 'UNFORMATTED_VALUE'),
+    ])
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+    const cellAt = (f: unknown, v: unknown): RateCell => ({ value: num(v), formula: typeof f === 'string' && f.startsWith('=') ? f : null })
+    const rows: RateCellRow[] = []
+    ;(formulas[0] ?? []).forEach((fr, i) => {
+      const vr = values[0]?.[i] ?? []
+      const serial = num(vr[0])
+      if (serial === null) return
+      rows.push({ row: RATES.firstRow + i, month: serialToDate(serial), GBP: cellAt(fr?.[1], vr[1]), USD: cellAt(fr?.[2], vr[2]) })
+    })
+    const lastUsedRow = RATES.firstRow + (formulas[0] ?? []).length - 1 // text or notes below the months count as used
+    const plan = planRatesMaintenance(rows, today, data.reference.base, lastUsedRow)
+    // Re-read right before writing: freeze only cells that are still formulas (a person may have typed the monthly
+    // average since), append only if the month is still missing, and after the last non-empty row as it is now.
+    const [fresh] = plan.freeze || plan.append ? await read([RATES.ranges.rows], 'FORMULA') : [[]]
+    const stillFormula = (row: number, col: number) => typeof fresh[row - RATES.firstRow]?.[col] === 'string' && String(fresh[row - RATES.firstRow][col]).startsWith('=')
+    const writes: { range: string; values: unknown[][] }[] = []
+    if (plan.freeze) {
+      const f = plan.freeze
+      if (f.values.GBP !== undefined && stillFormula(f.row, 1)) writes.push({ range: `Rates!B${f.row}`, values: [[f.values.GBP]] })
+      if (f.values.USD !== undefined && stillFormula(f.row, 2)) writes.push({ range: `Rates!C${f.row}`, values: [[f.values.USD]] })
+    }
+    if (plan.append) {
+      const a = plan.append
+      const exists = fresh.some((r) => typeof r?.[0] === 'number' && serialToDate(r[0]) === a.month)
+      if (!exists) {
+        const row = RATES.firstRow + fresh.length
+        writes.push({ range: `Rates!A${row}:C${row}`, values: [[dateToSerial(a.month), a.formulas.GBP, a.formulas.USD]] })
+      }
+    }
+    if (writes.length) { await api.valuesBatchUpdate(spreadsheetId, writes, 'USER_ENTERED'); markDirty() }
+    ratesHandled = month
+  }
+
+  const markDirty = () => {
+    stale = true
+    notify()
+  }
+
+  const store: EntryStore = {
+    async list() { return (await load()).entries },
+    async lists() { return (await load()).reference },
+    async rates() { return (await load()).rates },
+    async snapshots() { return (await load()).snapshots },
+    async unreadable() { return (await load()).unreadable },
+    async refresh(opts: RefreshOpts = {}) {
+      const data = await load(opts.force)
+      return { missingIds: (opts.expectIds ?? []).filter((id) => !data.rows.has(id) && !data.unreadableIds.has(id)) }
+    },
+    subscribe(fn) {
+      listeners.add(fn)
+      return () => listeners.delete(fn)
+    },
+    addMany,
+    edit,
+    delete: remove,
+    repairRowAt,
+    clearRowAt,
+    addSnapshot,
+    deleteSnapshot,
+    maintainRates,
+  }
+  return Object.assign(store, { _internals: { api, spreadsheetId, load, markDirty, checkVersion, newId, now } as Internals })
+}
+
+export type Internals = {
+  api: SheetsApi
+  spreadsheetId: string
+  load: (force?: boolean) => Promise<Data>
+  markDirty: () => void
+  checkVersion: () => Promise<void>
+  newId: () => string
+  now: () => number
+}

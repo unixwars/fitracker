@@ -2,15 +2,23 @@
 
 Rare situations the app accepts; each can be fixed by a person in the sheet.
 
-- Two people saving in the same second can pick the same row; the read-back moves the later entry to the next free row, and anything rarer shows under Needs attention.
+- Two people saving in the same second normally get different rows; the read-back after each write confirms the row, and anything rarer shows under Needs attention.
 - Editing the same entry on two devices: the later sync wins; the overwritten values are kept for Undo on the device that overwrote them.
-- A row whose date is typed as text, or whose amount is not a number, is ignored by the app until fixed in the sheet.
-- The sheet's own summaries convert foreign currencies at the live rate, so past totals move with exchange rates.
+- A row the app cannot parse (text date, amount that is not a positive number, unknown type or account) is listed under Needs attention as "row not understood" and ignored until fixed. Every `Ledger` row of that kind can be fixed or deleted in the app: a row with an id is found by its id; a row without a usable id (none, or one that occurs twice) is found by its row number, re-read right before the write and refused if it no longer holds exactly what was shown (a sort or an edit in between), and a fixed row gets a new id. Each row also has an **Open in Sheets** link that selects it. Snapshots rows are link-only for now.
+- New `Accounts` rows start unticked and inactive until the boxes are ticked.
+- The month-roll freezes the closed month at the live rate read when the app first opens in the new month, not the month's average.
+- Two devices that roll the same month at the same moment may both write the same `Rates` row; the values are identical in practice.
+- A changed account currency flags queued entries for that account as `AccountChanged`.
+- An entry added the same day as a snapshot for its account is excluded from that snapshot's balance until the next snapshot.
 - Place and description suggestions and GPS place memory are per device, not shared between people.
-- The access token lasts about an hour; after it expires a "Reconnect" tap may be needed, especially in an installed iOS app.
+- The access token lasts about an hour and is kept on the device (IndexedDB, with its expiry time) until it expires or you tap Sign out, so reloads and relaunches within the hour need no sign-in. After that, your first tap of a session asks Google for a new one silently. That works when you have consented before and still have a Google session in the browser. It can be refused (Safari and iOS tracking prevention, blocked third-party cookies or pop-ups, a private window, a Google session that ended); then a "Reconnect" banner appears and one tap on it signs in. The app never tries at launch, because browsers block that window outside a tap. Entries made meanwhile are kept on the device and sync afterwards. Sign out is remembered across reloads: the app does not sign in again until you tap Sign in. A token from a Google account that cannot open the sheet is dropped with a message; Reconnect lets you choose the right account.
 - Rows sorted in Sheets keep their ids in column A; if an id ends up on a different entry the app refuses to edit it and flags it.
-- Template quirks left as they are: Expenses `H14` has a category dropdown on an account column, and Transfers `E10:G10` have date validation instead of account dropdowns.
-- Rollover budgets (Setup "Use Rollover") are shown by the sheet only, not by the app.
-- Entries with a negative amount typed in the sheet are shown but cannot be edited in the app (the form only accepts positive amounts).
 - Ids for rows typed directly in Sheets are written to the row numbers of the read that found them; sorting the sheet in the few milliseconds in between could attach an id to the wrong row, which the wrong-row check then flags on the next edit.
-- An entry must be dated inside the selected year; to record one in another year, switch the year in Settings first.
+- Two devices adding an entry in the same ~100 ms can pick the same free row; the later write overwrites the earlier. The read-back after each write retries the loser, and the 7-day check flags a row that vanished as "no longer in the sheet".
+- If the browser blocks third-party cookies (Safari, strict Chrome or Firefox settings, a fresh incognito window), the Google Picker fails with the misleading message "The API developer key is invalid"; allow third-party cookies for the site and retry (spike S5).
+- A Ledger row copied in Sheets brings its hidden id: the first row keeps the id, the copy is listed under Needs attention as "row not understood" until its id (column A) is cleared or the row deleted.
+- Sorting or inserting rows in Sheets in the fraction of a second between the app's last read and its write can still land an edit on the wrong row; edits and deletes re-check the id and the entry's content just before writing, which narrows the window to one request.
+- An edit rewrites columns A to I of its row as plain values, so a formula typed by hand in one of those cells becomes its value when that entry is edited in the app.
+- Rows below the first 1000 of `Ledger` or `Snapshots` have no date format or validation when an import (not the app) added them, so a date shows as a serial number such as `46340` until the format is copied down (see the import runbook, step C0). The value itself is correct.
+- Entries without a valid category are counted under Uncategorised on the Month screen and listed under Activity, Missing a category; they do not raise the Activity badge.
+- Id backfill for a hand-typed row writes the id by row number, so a sort in Sheets in the same fraction of a second can overwrite another entry's id. The app adopts the new id only if the row still holds the entry it was written for; the entry that lost its id gets a new one on the next refresh, and its queued changes (if any) are flagged "row removed".

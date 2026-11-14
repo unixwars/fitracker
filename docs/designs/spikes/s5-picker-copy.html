@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>S5 spike: Picker then files.copy (THROWAWAY)</title>
+<style>
+  body { font: 14px system-ui, sans-serif; max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
+  label { display: block; margin: .4rem 0; }
+  input { width: 100%; box-sizing: border-box; padding: .3rem; }
+  button { margin: .5rem .5rem 0 0; padding: .4rem .7rem; }
+  pre { background: #eee; padding: .6rem; white-space: pre-wrap; min-height: 6rem; }
+  .warn { background: #fee; padding: .5rem; }
+</style>
+</head>
+<body>
+<!-- THROWAWAY spike S5. Not part of the app. Delete after the spike is recorded. Nothing is stored or persisted. -->
+<p class="warn"><b>THROWAWAY SPIKE S5.</b> Not part of the app. Values typed here are never stored.
+Afterwards, delete the "S5 spike copy" file from your Drive.</p>
+<label>OAuth client ID <input id="clientId" autocomplete="off"></label>
+<label>API key <input id="apiKey" autocomplete="off"></label>
+<label>Google Cloud project number <input id="projectNumber" autocomplete="off"></label>
+<label>Template file id <input id="templateId" autocomplete="off"></label>
+<button id="signIn">Sign in</button>
+<button id="pickTemplate">Pick template</button>
+<button id="pickRecent">Pick from Shared with me / Recent</button>
+<pre id="log"></pre>
+<script>
+const SCOPE = 'https://www.googleapis.com/auth/drive.file' // the only scope requested
+const $ = (id) => document.getElementById(id)
+const logEl = $('log')
+let token = null // in memory only, never logged
+
+function log(msg) { logEl.textContent += msg + '\n' }
+
+function load(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = src
+    s.onload = resolve
+    s.onerror = () => reject(new Error('Could not load ' + src))
+    document.head.appendChild(s)
+  })
+}
+
+const ready = (async () => {
+  await load('https://accounts.google.com/gsi/client')
+  await load('https://apis.google.com/js/api.js')
+  await new Promise((resolve) => gapi.load('picker', resolve))
+  log('Libraries loaded.')
+})().catch((e) => log('Load error: ' + e.message))
+
+$('signIn').onclick = async () => {
+  await ready
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: $('clientId').value.trim(),
+    scope: SCOPE,
+    callback: (r) => {
+      if (r.error) return log('Sign-in error: ' + r.error + ' ' + (r.error_description || ''))
+      token = r.access_token
+      log('Signed in. Granted scope: ' + r.scope)
+    },
+    error_callback: (e) => log('Sign-in error: ' + e.type),
+  })
+  client.requestAccessToken()
+}
+
+async function copyFile(id) {
+  log('Copying ' + id + ' ...')
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '/copy', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'S5 spike copy' }),
+    })
+    const text = await res.text()
+    log('files.copy HTTP status: ' + res.status)
+    if (res.ok) {
+      const j = JSON.parse(text)
+      log('New file id: ' + j.id + '\nNew file name: ' + j.name)
+    } else {
+      log('Error body: ' + text)
+    }
+  } catch (e) {
+    log('Fetch failed: ' + e.message)
+  }
+}
+
+async function openPicker(withIds) {
+  await ready
+  if (!token) return log('Sign in first.')
+  const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+  if (withIds) {
+    // DocsView.setFileIds(string): comma-separated file ids to show. Behaviour for files shared only as
+    // "Anyone with the link" under drive.file is exactly what this spike tests.
+    view.setFileIds($('templateId').value.trim())
+  } else {
+    view.setIncludeFolders(false)
+  }
+  new google.picker.PickerBuilder()
+    .addView(view)
+    .setOAuthToken(token)
+    .setDeveloperKey($('apiKey').value.trim())
+    .setAppId($('projectNumber').value.trim())
+    .setCallback((r) => {
+      if (r.action === google.picker.Action.PICKED) {
+        const d = r.docs && r.docs[0]
+        log('Picked: ' + (d ? d.name + ' (' + d.id + ')' : 'nothing'))
+        if (d) copyFile(d.id)
+      } else if (r.action === google.picker.Action.CANCEL) {
+        log('Picker cancelled.')
+      }
+    })
+    .build()
+    .setVisible(true)
+}
+
+$('pickTemplate').onclick = () => openPicker(true)
+$('pickRecent').onclick = () => openPicker(false)
+</script>
+</body>
+</html>

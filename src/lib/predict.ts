@@ -1,12 +1,12 @@
 import type { Entry } from './rows'
-import type { Currency, Money } from './types'
+import type { Money } from './types'
 
-export type Suggestion = { text: string; category?: string; account?: string; currency?: Currency }
+export type Suggestion = { text: string; category?: string; account?: string; description?: string }
 
 const HALF_LIFE_DAYS = 90
 const DAY = 86_400_000
 
-// Ranks the user's own past values by frequency, decayed by age. An empty prefix lists the top ones. Category, account and currency come from the latest entry using that text.
+// Ranks the user's own past values by frequency, decayed by age. An empty prefix lists the top ones. Category and account come from the latest entry using that text.
 export function suggest(field: 'place' | 'description', prefix: string, history: Entry[], now: Date = new Date(), limit = 5): Suggestion[] {
   const p = prefix.trim().toLowerCase()
   const groups = new Map<string, { latest: Entry; score: number }>()
@@ -28,7 +28,7 @@ export function suggest(field: 'place' | 'description', prefix: string, history:
     const s: Suggestion = { text: latest[field]!.trim() }
     if (latest.category) s.category = latest.category
     if (latest.account) s.account = latest.account
-    s.currency = latest.money.currency
+    if (field === 'place' && latest.description.trim()) s.description = latest.description.trim() // what you bought there last time
     return s
   })
 }

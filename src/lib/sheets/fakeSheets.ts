@@ -2,26 +2,14 @@
 // the app relies on: values (literal or formula with a computed value), trimmed reads, atomic ops.
 import { ApiError, AuthExpired, RateLimited } from '../errors'
 import { numToCol, parseRange } from './a1'
-import type { RenderOption, SheetOp, SheetsApi } from './types'
+import type { RenderOption, SheetsApi } from './types'
 
 export type Cell = { v: unknown; f?: string }
 
 export class Book {
   sheets = new Map<string, Map<string, Cell>>()
-  hidden = new Set<string>() // "Tab!A"
-  validations: { range: string; values: string[] }[] = []
-  formats: Record<string, string> = {}
   metadata = new Map<string, string>()
-
-  clone(): Book {
-    const b = new Book()
-    for (const [name, cells] of this.sheets) b.sheets.set(name, new Map([...cells].map(([k, c]) => [k, { ...c }])))
-    b.hidden = new Set(this.hidden)
-    b.validations = this.validations.map((x) => ({ ...x }))
-    b.formats = { ...this.formats }
-    b.metadata = new Map(this.metadata)
-    return b
-  }
+  title: string | undefined // the spreadsheet's name; defaults to its id
 
   tab(name: string): Map<string, Cell> {
     let t = this.sheets.get(name)
@@ -84,17 +72,24 @@ export type FakeSheets = SheetsApi & {
   calls: { method: string; args: unknown[] }[]
   count(method: string): number
   failNext(status: number): void
-  failApplyAfter(opsApplied: number): void
   afterNextWrite(fn: () => void): void
+  /** Runs `fn` just before the next write lands (simulates a competing device). */
+  beforeNextWrite(fn: () => void): void
+  /** Values `=GOOGLEFINANCE("CURRENCY:XXXYYY")` takes when written with USER_ENTERED, by XXX. */
+  liveRates: Record<string, number>
+  /** When true, reading a range on a tab that does not exist is a 400, like the real API. */
+  strictTabs: boolean
   injectWrite(id: string, range: string, values: unknown[][]): void
+  /** Rows every tab has; a write past it is a 400 "exceeds grid limits" like the real API (default: unlimited). */
+  maxRows: number
 }
 
 export function createFakeSheets(): FakeSheets {
   const books = new Map<string, Book>()
   const calls: FakeSheets['calls'] = []
   let failStatus: number | null = null
-  let failApply: number | null = null
   let afterWrite: (() => void) | null = null
+  let beforeWrite: (() => void) | null = null
 
   const book = (id: string): Book => {
     let b = books.get(id)
@@ -111,75 +106,78 @@ export function createFakeSheets(): FakeSheets {
       throw new ApiError(s, 'injected failure')
     }
   }
+  const fireBeforeWrite = () => {
+    const fn = beforeWrite
+    beforeWrite = null
+    fn?.()
+  }
   const fireAfterWrite = () => {
     const fn = afterWrite
     afterWrite = null
     fn?.()
   }
 
-  return {
+  const fake: FakeSheets = {
     book,
     calls,
     count: (m) => calls.filter((c) => c.method === m).length,
     failNext: (s) => { failStatus = s },
-    failApplyAfter: (n) => { failApply = n },
     afterNextWrite: (fn) => { afterWrite = fn },
+    beforeNextWrite: (fn) => { beforeWrite = fn },
+    liveRates: { EUR: 1, GBP: 1.17, USD: 0.94 },
+    strictTabs: false,
+    maxRows: Infinity,
     injectWrite: (id, range, values) => book(id).write(range, values),
 
     async batchGet(id, ranges, render = 'UNFORMATTED_VALUE') {
       enter('batchGet', id, ranges, render)
+      if (fake.strictTabs) {
+        for (const r of ranges) {
+          const tab = parseRange(r).sheet
+          if (!book(id).sheets.has(tab)) throw new ApiError(400, `Unable to parse range: ${r}`)
+        }
+      }
       return ranges.map((r) => book(id).read(r, render))
     },
-    async valuesBatchUpdate(id, data) {
-      enter('valuesBatchUpdate', id, data)
-      for (const d of data) book(id).write(d.range, d.values)
+    async valuesBatchUpdate(id, data, input = 'RAW') {
+      enter('valuesBatchUpdate', id, data, input)
+      for (const d of data) if (parseRange(d.range).r2 > fake.maxRows) throw new ApiError(400, `Range (${d.range}) exceeds grid limits.`)
+      fireBeforeWrite()
+      for (const d of data) {
+        const values = input === 'USER_ENTERED' ? d.values.map((row) => row.map((v) => userEntered(v, fake.liveRates))) : d.values
+        book(id).write(d.range, values)
+      }
       fireAfterWrite()
+    },
+    async sheetInfo(id) {
+      enter('sheetInfo', id)
+      return { title: book(id).title ?? id, tabs: Object.fromEntries([...book(id).sheets.keys()].map((tab, i) => [tab, 1000 + i])) }
+    },
+    async growTab(id, tab, rows) {
+      enter('growTab', id, tab, rows)
+      fake.maxRows = Math.max(fake.maxRows, rows)
     },
     async valuesBatchClear(id, ranges) {
       enter('valuesBatchClear', id, ranges)
+      fireBeforeWrite()
       for (const r of ranges) book(id).clear(r)
       fireAfterWrite()
     },
-    async applyOps(id, ops: SheetOp[]) {
-      enter('applyOps', id, ops)
-      const next = book(id).clone()
-      const limit = failApply
-      failApply = null
-      ops.forEach((op, i) => {
-        if (limit !== null && i >= limit) throw new ApiError(500, 'injected mid-batch failure')
-        applyOp(next, op)
-      })
-      books.set(id, next)
+    async setMetadata(id, key, value) {
+      enter('setMetadata', id, key, value)
+      book(id).metadata.set(key, value)
     },
     async getMetadata(id, key) {
       enter('getMetadata', id, key)
       return book(id).metadata.get(key) ?? null
     },
   }
+  return fake
 }
 
-function applyOp(b: Book, op: SheetOp): void {
-  switch (op.t) {
-    case 'copyTab': {
-      if (b.sheets.has(op.to)) throw new ApiError(400, `Tab ${op.to} already exists`)
-      const src = b.sheets.get(op.from)
-      if (!src) throw new ApiError(400, `No tab ${op.from}`)
-      b.sheets.set(op.to, new Map([...src].map(([k, c]) => [k, { ...c }])))
-      break
-    }
-    case 'set': {
-      const r = parseRange(op.range)
-      op.values.forEach((vals, i) => vals.forEach((v, j) => {
-        const ref = `${r.sheet}!${numToCol(r.c1 + j)}${r.r1 + i}`
-        if (typeof v === 'string' && v.startsWith('=')) b.set(ref, { f: v, v: '' })
-        else b.set(ref, v)
-      }))
-      break
-    }
-    case 'clear': b.clear(op.range); break
-    case 'hideColumn': b.hidden.add(`${op.tab}!${op.column}`); break
-    case 'listValidation': b.validations.push({ range: op.range, values: op.values }); break
-    case 'numberFormat': b.formats[op.range] = op.pattern; break
-    case 'metadata': b.metadata.set(op.key, op.value); break
-  }
+// USER_ENTERED: a GOOGLEFINANCE current-rate formula becomes a formula cell whose value is the live rate.
+function userEntered(v: unknown, live: Record<string, number>): unknown {
+  if (typeof v !== 'string' || !v.startsWith('=')) return v
+  const m = /^=GOOGLEFINANCE\("CURRENCY:([A-Z]{3})[A-Z]{3}"\)$/.exec(v)
+  return { f: v, v: m ? (live[m[1]] ?? '') : '' }
 }

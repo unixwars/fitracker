@@ -6,58 +6,53 @@ Do them in order; stop and report at the first failure. Use a **copy** of any re
 
 ## A. The template in Google Sheets
 
-1. Upload `assets/FIRE-TEMPLATE.xlsx` to Google Drive, open with Google Sheets, **File → Save as Google Sheets**.
-   *Pass:* the `Setup`, `Expenses`, `Income`, `Transfers`, `Monthly Summary`, `Annual Summary` tabs and the two charts are present.
-2. On `Expenses`, type `10` in `D10`, `GBP` in `I10` (the cell has a dropdown with EUR, GBP, USD), a date in `B10`.
-   *Pass:* `C10` shows a number (10 × the GBP→base rate), `C11` and below stay empty, typing in `D11` fills `C11`
-   automatically with no formula there. Column A is hidden.
-3. In `Setup`, check `U8` = `EUR` and `U16:U18` = `1` and two numbers (no `#N/A`).
-   *Pass:* GBP and USD rates are numbers. If they show `#N/A`, tell me the exact text of `U17`.
-4. Enter an expense with category and date this month. *Pass:* `Monthly Summary` (pick the month) shows it under that category.
+Superseded: the template is a Google Sheet (see `docs/template.md`) with its own checklist in `template/README.md`.
 
 ## B. Google Cloud and sign-in
 
-5. Follow `docs/deploy-your-own.md` steps 1-2, then run `pnpm dev` and open the printed URL.
-   *Pass:* Settings → **Sign in with Google** opens Google's consent screen asking only for access to files the app opens.
-6. Settings → pick the year of your sheet → **Link the … sheet** → choose the sheet in the Picker.
-   *Pass:* it says Linked. Choosing a sheet whose `Setup!C8` year differs shows "That sheet is for …".
-6b. Settings → **Unlink this year** → confirm; then **Link the … sheet** again, or pick a different sheet.
-   *Pass:* it warns first and says the sheet is not changed; after unlinking it shows Not linked; relinking works; "Another year" opens a year such as 2012.
-7. Open the app's Network tab: *Pass:* no request goes anywhere except `sheets.googleapis.com`, `accounts.google.com`, `apis.google.com`, your own host; and Application → Local Storage contains no token (only `fitracker.sheets` and `fitracker.device`).
+1. Follow `docs/deploy-your-own.md` steps 1 to 3, including `VITE_TEMPLATE_COPY_URL`, then run `pnpm dev` and open the printed URL.
+   *Pass:* the consent screen asks only for access to files the app opens or creates.
+2. Open the Network tab while you use the app. *Pass:* requests go only to `sheets.googleapis.com`, `www.googleapis.com` (the `files.copy` call and the account lookup), `accounts.google.com`, `apis.google.com` and your own host.
+3. Application → Local Storage. *Pass:* it holds only `fitracker.sheet`, `fitracker.device` and (after a Sign out) `fitracker.signedOut`, and no token. IndexedDB `fitracker-auth` holds only the token with its expiry time.
 
-## C. Live entry
+## C. First run and linking
 
-8. Add tab: type `12,50`, pick a place/category/account, Save. *Pass within ~15 s:* the row appears in the sheet, date is a real date,
-   `D` = 12.5, currency column set, `A` has an id (unhide column A to look), `C` is computed, Month tab shows it.
-9. Add a GBP entry (currency dropdown). *Pass:* `I` = `GBP`, `D` is the amount as typed, `C` = converted.
-10. Month tab → tap the category → tap an entry → change the amount → Save changes. *Pass:* the same row changes, no new row.
-11. Same entry → Delete → confirm. *Pass:* A, B, D..I of that row are empty, `C` array formula still works for new rows, Activity shows it with **Undo**; Undo puts it back in the first free row.
-12. Typed description beginning with `=` (e.g. `=1+1`). *Pass:* the cell shows the text `=1+1`, not `2`.
+4. Open the app in a fresh browser profile. *Pass:* the first screen offers **Create your sheet from the template**.
+5. Tap it and pick the template in the Picker. *Pass:* a copy named `Fitracker` appears in My Drive, has no attached script, and the app opens on the Add form.
+   If the copy fails (spike S5 fallback): *Pass:* the template's Make a copy page opens, and **I made my copy: link it** links your copy.
+6. Settings → **Link a different sheet** and **Unlink**. *Pass:* unlinking warns first and says the sheet is not changed; after unlinking the first-run screen shows; relinking works.
+7. Link a v0.1 yearly sheet (a copy). *Pass:* the app says "That sheet is not a fitracker ledger" and the previous link is unchanged.
+8. In Google Sheets delete the `fitracker.schemaVersion` metadata of your copy (Data → Named ranges and metadata, or the template's `showSchemaVersion`), then reload the app. *Pass:* the app re-stamps it with one write and keeps working.
 
-## D. Offline and PWA (on a phone)
+## D. Live entry
 
-13. Open the deployed HTTPS site, **Add to Home Screen / Install**. *Pass:* launches fullscreen with the invader icon.
-14. Airplane mode, add two entries. *Pass:* offline banner, "2 waiting to sync". Turn airplane mode off. *Pass:* both appear in the sheet exactly once.
-15. Leave the installed app closed for over an hour, open it, add an entry. *Pass:* a "Signed out … Reconnect" banner appears; tap it, sign in, the entry syncs.
-16. Place field → **Use my location**: first time asks permission. After saving two entries with GPS on at the same spot, a third tap suggests that place.
+9. Add tab: type `12,50`, pick place, category and account (EUR), Save. *Pass within about 15 s:* a row appears in `Ledger` below the last row, `A` holds an id, `B` is a date, `D` is 12.5, column `J` still computes, and the Month tab shows it.
+10. Add an entry on a GBP account. *Pass:* the amount is stored as typed, in the account's currency.
+11. On a EUR account choose currency GBP and type `10`. *Pass:* a warning shows the converted amount; Save is refused until **Convert and keep**; the stored amount equals the GBP amount at that entry month's `Rates` row, and the description has no added note.
+12. Month tab → category → entry → change the amount → Save changes. *Pass:* the same row changes; no new row.
+13. Same entry → Delete → confirm. *Pass:* `A` to `I` of that row are empty and the row stays; Activity shows it with **Undo**; Undo adds it back.
+14. Type a description starting with `=` (for example `=1+1`). *Pass:* the cell shows the text `=1+1`.
+15. In Sheets type a row by hand in `Ledger` (once with an id in `A`, once without). *Pass:* after a refresh both show in the app and the one without an id now has one.
+16. In Sheets type a row with a text date and **no id**. *Pass:* the Activity tab badge shows 1 and the row is listed as `Ledger › row N › amount` with the cells that were read, an **Open in Sheets** link and **Fix here**; Month totals do not change. Tap **Open in Sheets**. *Pass:* Google Sheets (browser, or the app on a phone) opens on the `Ledger` tab with that row selected (if the app only opens the tab, note it).
+17. Tap **Fix here** on that row. *Pass:* the form is pre-filled with what could be read; after you correct and Save, the row in the sheet is overwritten with the fixed entry and an id, and it leaves the list. Make another junk row and use **Delete** in the form: *Pass:* a warning says it cannot be undone, and the row's `A` to `I` are cleared. Then type text into the amount of an entry that already has an id and fix it the same way: *Pass:* it keeps its id. Finally make a junk row, sort the `Ledger` in Sheets, then tap **Fix here** and Save: *Pass:* the app refuses ("no longer holds what was shown") and changes nothing.
 
-17a. Settings → Appearance: switch System / Light / Dark. *Pass:* the whole app changes immediately and stays after reloading; with System, it follows the phone's dark mode. The invader logo shows in the header on both themes.
+## E. Rates and months
 
-## E. Two people
+18. Open the app on the first day of a new month (or set the clock). *Pass:* last month's `Rates` row now holds numbers instead of formulas, and one new row for the current month holds `GOOGLEFINANCE` formulas.
+19. Open the app on two devices at the same moment. *Pass:* only one new `Rates` row exists.
 
-17. Share the sheet with your partner; they link it on their phone (their own sign-in and Picker).
-18. Both press Save within a second on different entries. *Pass:* both entries exist, on different rows.
-19. Partner deletes a row in Sheets; before the app refreshes, you edit that entry in the app. *Pass:* a red badge on Activity, the item says the row was removed, **Add as new row** recreates it.
-20. Sort the Expenses data range in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
+## F. Offline, PWA and two people
 
-## F. Migrating an older sheet (use a COPY of a past year)
-
-21. Link the copy. *Pass:* a banner says it needs a one-time update; Settings shows the steps.
-22. Before running: note the totals on `Annual Summary` and a few entries. Run **Update the sheet** (base currency EUR).
-    *Pass:* backup tabs `Expenses (backup v0)`, `(backup v1)` etc. exist; headers are `Amount` / `Currency`; every old € row has Currency EUR and its amount unchanged; old £ rows have GBP; `Annual Summary` totals match the ones noted (GBP rows differ only by the live rate); Settings shows version 2.
-23. If it stops with "Fix these rows": open the listed rows, replace the custom formula or text in `C`/`D` with a plain number, run again. *Pass:* nothing in the sheet changed on the first attempt.
-24. Add and edit an entry on the migrated copy. *Pass:* same as items 8-10.
+20. Open the deployed HTTPS site and **Add to Home Screen / Install**. *Pass:* it launches fullscreen with the invader icon.
+21. Airplane mode, add two entries. *Pass:* offline banner and "2 waiting to sync". Turn airplane mode off. *Pass:* both appear in `Ledger` exactly once.
+22. Sign in once, then close and reopen the installed app (and a desktop browser tab, not private). *Pass:* it opens already signed in (Settings shows **Sign out**), with no banner and no Google window, and entries sync straight away (the stored token was reused). After **Sign out**, DevTools → Application → IndexedDB → `fitracker-auth` holds no token. Leave the app closed for over an hour, open it and tap anywhere. *Pass:* a Google window flashes and the app signs in by itself (and syncs), or the banner appears and one tap on **Reconnect** syncs. At launch no window is opened and no pop-up-blocked icon appears. Private window or blocked third-party cookies: *Pass:* the banner appears after the first tap and the app stays usable offline. After **Sign out**, reload. *Pass:* the app stays signed out until you tap **Sign in**.
+23. Place field → **Use my location**. *Pass:* the first time it asks permission; after two entries saved at one spot with GPS on, a third tap suggests that place.
+24. Settings → Appearance: System, Light, Dark. *Pass:* the whole app changes immediately and stays after reloading; System follows the phone.
+25. Share the sheet with your partner, who links it on their phone. Both press Save within a second on different entries. *Pass:* both exist, on different rows.
+26. The partner deletes a row in Sheets; before the app refreshes, you edit that entry. *Pass:* a badge on Activity says the row was removed; **Add as new row** recreates it.
+27. Sort `Ledger` in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
+28. Untick `In Monthly` for one account in `Accounts`, then refresh the app. *Pass:* the Month totals drop that account's entries and the screen says "2 of 3 accounts included" (for three accounts).
 
 ## Could be automated if you give me credentials
 
-Items 5-12, 14 and 18-22 could run as a Playwright test against a dedicated throwaway Google account and a copy of the sheet. That needs a test Google account, an OAuth client for it, and a copy of a sheet; say if you want it.
+Items 1 to 17 and 21 to 28 could run as a Playwright test against a throwaway Google account and a copy of the template. That needs a test Google account, an OAuth client for it and the template copy link; say if you want it.

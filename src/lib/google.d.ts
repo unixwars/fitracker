@@ -27,7 +27,7 @@ declare const google: {
   picker: {
     Action: { PICKED: string; CANCEL: string }
     ViewId: { SPREADSHEETS: string }
-    DocsView: new (viewId: string) => { setMode(m: unknown): unknown }
+    DocsView: new (viewId: string) => { setMode(m: unknown): unknown; setFileIds(ids: string): unknown }
     PickerBuilder: new () => PickerBuilder
   }
 }

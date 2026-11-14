@@ -13,8 +13,7 @@ export function dateLabel(date: string): string {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
-export function shiftMonth(month: string, delta: number, year: number): string {
-  const idx = Number(month.slice(5, 7)) - 1 + delta
-  const clamped = Math.min(11, Math.max(0, idx))
-  return `${year}-${String(clamped + 1).padStart(2, '0')}`
+export function shiftMonth(month: string, delta: number): string {
+  const idx = Number(month.slice(0, 4)) * 12 + (Number(month.slice(5, 7)) - 1) + delta
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`
 }

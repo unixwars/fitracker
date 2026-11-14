@@ -1,0 +1,132 @@
+import { expect, test } from '@playwright/test'
+import { cell, refresh, setCell, todaySerial } from './helpers'
+
+test('a foreign amount warns, converts after confirming and stores the converted amount', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint') // EUR account
+  await page.getByTestId('currency').selectOption('GBP')
+  await page.getByTestId('amount').fill('10')
+  await page.getByTestId('description').fill('Taxi')
+  await expect(page.getByTestId('currency-warning')).toBeVisible()
+
+  await page.getByTestId('save').click() // refused until the conversion is confirmed
+  expect(await cell(page, 'Ledger!A5')).toBeNull()
+  await page.getByTestId('convert-confirm').click()
+  await page.getByTestId('save').click()
+
+  await expect.poll(() => cell(page, 'Ledger!A5')).not.toBeNull()
+  expect(await cell(page, 'Ledger!D5')).toBe(11.7) // GBP 10 at the seeded current rate 1.17
+  expect(await cell(page, 'Ledger!F5')).toBe('Taxi')
+  expect(await cell(page, 'Ledger!H5')).toBe('Joint')
+})
+
+test('unticking an account in Accounts removes its entries from the Month totals', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
+  const serial = await todaySerial(page)
+  for (const [col, v] of [['A', 'tick1'], ['B', serial], ['C', 'expense'], ['D', 7], ['F', 'Tick test'], ['G', 'Bills'], ['H', 'M-Cash']] as const) {
+    await setCell(page, `Ledger!${col}5`, v)
+  }
+  await refresh(page)
+  await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('accounts-included')).toHaveText('3 of 3 accounts included')
+  const before = await page.getByTestId('expenses-actual').textContent()
+
+  await setCell(page, 'Accounts!D3', false) // M-Cash: In Monthly
+  await refresh(page)
+  await expect(page.getByTestId('accounts-included')).toHaveText('2 of 3 accounts included')
+  await expect(page.getByTestId('expenses-actual')).not.toHaveText(before!)
+})
+
+test('a hand-typed row that is not understood shows under Needs attention', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
+  await page.getByTestId('tab-month').click()
+  const before = await page.getByTestId('expenses-actual').textContent()
+  for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) {
+    await setCell(page, `Ledger!${col}5`, v)
+  }
+  await refresh(page)
+  await expect(page.getByTestId('badge')).toHaveText('1')
+  await page.getByTestId('tab-activity').click()
+  await expect(page.getByTestId('unreadable')).toContainText('row 5')
+  await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('expenses-actual')).toHaveText(before!)
+})
+
+test('first run creates the sheet from the template', async ({ page }) => {
+  await page.goto('/?unlinked')
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await page.getByTestId('create-from-template').click() // one tap links the copy
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
+})
+
+test('unreadable rows are fixed in the app, with or without an id, or deleted; each also has a link to its row in Sheets', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}5`, v)
+  for (const [col, v] of [['B', 'xx'], ['C', 'expense'], ['D', 'ten'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}6`, v) // no id
+  for (const [col, v] of [['B', 'yy'], ['C', 'expense'], ['D', 'nine'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}7`, v) // junk, to delete
+  await refresh(page)
+  await expect(page.getByTestId('badge')).toHaveText('3')
+  await page.getByTestId('tab-activity').click()
+  const rows = page.getByTestId('unreadable')
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0)).toHaveClass(/attn-blocking/) // red: not applied, blocks
+  await expect(rows.nth(0)).toContainText('Ledger › row 5 › 5.00')
+  await expect(rows.nth(1)).toContainText('Ledger › row 6 › "ten"')
+  await expect(rows.nth(0).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A5:I5$/)
+  await expect(rows.nth(1).getByTestId('open-row')).toHaveAttribute('href', /#gid=\d+&range=A6:I6$/)
+
+  // with an id: found by the id, keeps it
+  await rows.nth(0).getByTestId('fix-row').click()
+  await expect(page.getByTestId('amount')).toHaveValue('5.00') // what could be read is kept
+  await expect(page.getByTestId('categories')).toHaveValue('Bills')
+  await page.getByTestId('save').click() // the date defaulted to today, so the row is valid now
+  await expect.poll(() => cell(page, 'Ledger!B5')).toBe(await todaySerial(page))
+  expect(await cell(page, 'Ledger!A5')).toBe('bad1')
+  await expect(page.getByTestId('unreadable')).toHaveCount(2)
+
+  // without an id: found by its row, overwritten with a new id
+  await page.getByTestId('unreadable').first().getByTestId('fix-row').click()
+  await page.getByTestId('amount').fill('7')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('save').click()
+  await expect.poll(() => cell(page, 'Ledger!D6')).toBe(7)
+  expect(String(await cell(page, 'Ledger!A6'))).toMatch(/^[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('unreadable')).toHaveCount(1)
+
+  // a junk row is deleted after a warning
+  await page.getByTestId('unreadable').first().getByTestId('fix-row').click()
+  await page.getByTestId('delete').click()
+  await expect(page.getByText('cannot be undone')).toBeVisible()
+  await page.getByTestId('confirm-delete').click()
+  await expect.poll(() => cell(page, 'Ledger!B7')).toBeNull()
+  await expect(page.getByTestId('unreadable')).toHaveCount(0)
+})
+
+test('Settings links to the sheet in Google Sheets', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('open-sheet')).toHaveText('Fitracker (demo)') // the sheet's name, before opening it
+  await expect(page.getByTestId('open-sheet')).toHaveAttribute('href', /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/edit#gid=\d+/)
+})
+
+test('entries without a category are listed in Activity and leave the list once they have one', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  const serial = await todaySerial(page)
+  for (const [col, v] of [['A', 'nocat1'], ['B', serial], ['C', 'expense'], ['D', 5], ['E', 'Corner shop'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}5`, v)
+  await refresh(page)
+  await page.getByTestId('tab-activity').click()
+  await expect(page.getByTestId('needs-category-entry')).toHaveCount(1)
+  await expect(page.getByTestId('needs-category-entry')).toHaveClass(/attn-soft/) // amber: counts, only asks for a look
+  await expect(page.getByTestId('badge')).toHaveCount(0) // it counts in the totals, so it does not raise the badge
+  await page.getByTestId('needs-category-entry').click()
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect.poll(() => cell(page, 'Ledger!G5')).toBe('Bills')
+  await expect(page.getByTestId('needs-category')).toHaveCount(0)
+})

@@ -38,9 +38,9 @@ describe('suggest', () => {
     // Tesco: 3 recent uses; Taxi One: 1 use but one day newer than Tesco's latest.
     expect(suggest('place', '', history, now)[0].text).toBe('Tesco')
   })
-  it('carries category, account and currency from the latest use', () => {
+  it('carries category and account from the latest use', () => {
     expect(suggest('place', 'Tesco', history, now)[0]).toEqual({
-      text: 'Tesco', category: 'Groceries', account: 'Joint', currency: 'GBP',
+      text: 'Tesco', category: 'Groceries', account: 'Joint',
     })
   })
   it('suggests descriptions and ignores entries without the field', () => {
@@ -64,5 +64,18 @@ describe('usualAmounts', () => {
     expect(usualAmounts('Tesco', h, now, 1)).toHaveLength(1)
     expect(usualAmounts('Nowhere', h, now)).toEqual([])
     expect(usualAmounts('  ', h, now)).toEqual([])
+  })
+})
+
+describe('description from the latest use of a place', () => {
+  it('a place suggestion carries the description of the latest entry at that place; a description suggestion does not', () => {
+    const h = [
+      mk('2024-05-01', 'Tesco', { description: 'Old shop', category: 'Groceries', account: 'Joint' }),
+      mk('2024-05-20', 'Tesco', { description: 'Weekly shop', category: 'Groceries', account: 'Joint' }),
+      mk('2024-05-25', 'Metro', { description: '' }),
+    ]
+    expect(suggest('place', 'Tesco', h, now)[0].description).toBe('Weekly shop')
+    expect(suggest('place', 'Metro', h, now)[0].description).toBeUndefined()
+    expect(suggest('description', 'Weekly', h, now)[0].description).toBeUndefined()
   })
 })

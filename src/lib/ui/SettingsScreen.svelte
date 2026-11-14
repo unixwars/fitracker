@@ -1,71 +1,51 @@
 <script lang="ts">
+  import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
-  import { isYear, yearOptions, type Theme } from '../config'
+  import type { Theme } from '../config'
   import { messages } from '../messages'
-  import { SCHEMA_VERSION } from '../schema'
-  import { CURRENCIES, type Currency } from '../types'
+  import { BOOK_VERSION } from '../schema'
 
   let { app }: { app: AppState } = $props()
-  const years = $derived(yearOptions(Object.keys(app.sheets).map(Number), new Date().getFullYear(), app.year))
-  let otherYear = $state('')
   let confirmingUnlink = $state(false)
-  const otherValid = $derived(isYear(Number(otherYear)))
-  async function openOther() {
-    if (!otherValid) return
-    await app.setYear(Number(otherYear))
-    otherYear = ''
-  }
-  let base = $state<Currency>('EUR')
-  const linked = $derived(Boolean(app.sheets[app.year]))
+  const linked = $derived(Boolean(app.sheetId))
+  // The name and tab ids: from the device, then once signed in. Reading signedIn here makes the effect re-run on sign-in.
+  $effect(() => { if (app.sheetId && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
 </script>
 
 <h2 style="margin: 4px 0 12px">{messages.settingsTitle}</h2>
 
-<section class="card">
-  <label class="field">
-    <span>{messages.year}</span>
-    <select value={app.year} onchange={(e) => app.setYear(Number(e.currentTarget.value))} data-testid="year">
-      {#each years as y (y)}<option value={y}>{y}{app.sheets[y] ? ' ✓' : ''}</option>{/each}
-    </select>
-  </label>
-  <div class="row" style="margin-bottom: 12px">
-    <input type="number" inputmode="numeric" placeholder={messages.otherYear} aria-label={messages.otherYear} bind:value={otherYear} data-testid="other-year" />
-    <button class="secondary fit" disabled={!otherValid} onclick={openOther} data-testid="other-year-go">{messages.otherYearGo}</button>
-  </div>
-  <p class="muted">{linked ? messages.linked : messages.notLinked}</p>
-  <button class="secondary" onclick={() => app.link(app.year)} data-testid="link">{linked ? messages.relinkChoose(app.year) : messages.linkSheet(app.year)}</button>
-  {#if linked}
-    {#if confirmingUnlink}
-      <div class="banner" role="alertdialog" style="margin: 8px 0 0" data-testid="unlink-confirm">
-        <span>{messages.unlinkWarn(app.year)}</span>
-        <span class="row" style="flex: 0 0 auto">
-          <button class="secondary" onclick={() => (confirmingUnlink = false)}>{messages.cancel}</button>
-          <button class="secondary" onclick={async () => { confirmingUnlink = false; await app.unlink(app.year) }} data-testid="unlink-yes">{messages.unlinkConfirm}</button>
-        </span>
-      </div>
+<div class="tiles">
+  <section class="card tile">
+    <span class="tile-label">{messages.linked}</span>
+    {#if linked}
+      <a class="tile-main" href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet">{app.sheetName || messages.openSheet}</a>
     {:else}
-      <button class="secondary" style="margin-top: 8px" onclick={() => (confirmingUnlink = true)} data-testid="unlink">{messages.unlink}</button>
+      <span class="tile-main muted">{messages.notLinked}</span>
     {/if}
-  {/if}
-  {#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
-</section>
-
-{#if app.status === 'needs-migration' && app.sheetVersion !== null}
-  <section class="card" data-testid="migrate">
-    <h3>{messages.migrateTitle}</h3>
-    <p>{messages.migrateIntro}</p>
-    <ul>{#each app.migrationSteps as m (m.from)}<li>{messages.migrateStep(m.from, m.to)}</li>{/each}</ul>
-    <label class="field">
-      <span>{messages.migrateBase}</span>
-      <select bind:value={base}>{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}</select>
-    </label>
-    {#if app.flaggedRows.length}
-      <p class="err">{messages.migrateFlagged}</p>
-      <ul>{#each app.flaggedRows as r (r.kind + r.row)}<li>{r.kind} row {r.row}: {r.reason}</li>{/each}</ul>
+    {#if linked && app.signedIn && !confirmingUnlink}
+      <button class="secondary" onclick={() => (confirmingUnlink = true)} data-testid="unlink">{messages.unlinkSheet}</button>
     {/if}
-    <button class="primary" onclick={() => app.migrate(base)}>{messages.migrateRun}</button>
   </section>
+  {#if app.signedIn}
+    <section class="card tile">
+      <span class="tile-label">{messages.account}</span>
+      <span class="tile-main">
+        {app.accountEmail}
+      </span>
+      <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
+    </section>
+  {/if}
+</div>
+{#if linked && app.signedIn && confirmingUnlink}
+  <div class="banner" role="alertdialog" style="margin: 0 0 12px" data-testid="unlink-confirm">
+    <span>{messages.unlinkWarnSheet}</span>
+    <span class="row" style="flex: 0 0 auto">
+      <button class="secondary" onclick={() => (confirmingUnlink = false)}>{messages.cancel}</button>
+      <button class="secondary" onclick={async () => { confirmingUnlink = false; await app.unlink() }} data-testid="unlink-yes">{messages.unlinkConfirm}</button>
+    </span>
+  </div>
 {/if}
+{#if app.message}<Alert>{app.message}</Alert>{/if}
 
 <section class="card">
   <label class="field">
@@ -77,9 +57,5 @@
     </select>
   </label>
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
-  <div class="stat"><span>{messages.version}</span><span>{app.sheetVersion ?? SCHEMA_VERSION}</span></div>
-  <div class="row" style="margin-top: 8px">
-    <button class="secondary" onclick={() => app.reconnect()}>{messages.signIn}</button>
-    <button class="secondary" onclick={() => app.signOut()}>{messages.signOut}</button>
-  </div>
+  <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
 </section>

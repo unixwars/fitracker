@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoryIcon, ICON_PATHS } from './categoryIcon'
+import { categoryIcon, CATEGORY_EMOJI, ICON_PATHS } from './categoryIcon'
 
 describe('categoryIcon', () => {
   it('maps the template categories', () => {
@@ -37,5 +37,11 @@ describe('categoryIcon', () => {
   it('has a drawing for every icon it can return', () => {
     for (const name of ['Business', 'Bills', 'Groceries', 'Recreation', 'Shopping', 'Transportation', 'Vacation', 'Health', 'Paycheck', 'Interest', 'Refund', 'x'])
       expect(ICON_PATHS[categoryIcon(name)]).toMatch(/^M/)
+  })
+})
+
+describe('dropdown emoji', () => {
+  it('has an emoji for every icon', () => {
+    expect(Object.keys(CATEGORY_EMOJI).sort()).toEqual(Object.keys(ICON_PATHS).sort())
   })
 })

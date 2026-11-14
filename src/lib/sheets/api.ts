@@ -1,88 +1,7 @@
 import { ApiError, AuthExpired, RateLimited } from '../errors'
-import { parseRange } from './a1'
-import type { RenderOption, SheetOp, SheetsApi } from './types'
+import type { RenderOption, SheetsApi } from './types'
 
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
-
-// Sheets batchUpdate requests are a large open union; they are only built here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Request = any
-
-function grid(range: string, tabs: Map<string, number>) {
-  const r = parseRange(range)
-  const sheetId = tabs.get(r.sheet)
-  if (sheetId === undefined) throw new Error(`Unknown tab ${r.sheet}`)
-  return { sheetId, startRowIndex: r.r1 - 1, ...(r.r2 === Infinity ? {} : { endRowIndex: r.r2 }), startColumnIndex: r.c1 - 1, endColumnIndex: r.c2 }
-}
-
-function cellValue(v: unknown) {
-  if (v === '' || v === null || v === undefined) return {}
-  if (typeof v === 'number') return { numberValue: v }
-  if (typeof v === 'boolean') return { boolValue: v }
-  if (typeof v === 'string' && v.startsWith('=')) return { formulaValue: v }
-  return { stringValue: String(v) }
-}
-
-export function compileOps(ops: SheetOp[], tabs: Map<string, number>, existingMeta: Set<string>): Request[] {
-  return ops.map((op): Request => {
-    switch (op.t) {
-      case 'copyTab': {
-        const sourceSheetId = tabs.get(op.from)
-        if (sourceSheetId === undefined) throw new Error(`Unknown tab ${op.from}`)
-        return { duplicateSheet: { sourceSheetId, newSheetName: op.to } }
-      }
-      case 'set':
-        return {
-          updateCells: {
-            range: grid(op.range, tabs),
-            rows: op.values.map((row) => ({ values: row.map((v) => ({ userEnteredValue: cellValue(v) })) })),
-            fields: 'userEnteredValue',
-          },
-        }
-      case 'clear':
-        return { repeatCell: { range: grid(op.range, tabs), cell: {}, fields: 'userEnteredValue' } }
-      case 'hideColumn': {
-        const { sheetId, startColumnIndex, endColumnIndex } = grid(`${op.tab}!${op.column}1`, tabs)
-        return {
-          updateDimensionProperties: {
-            range: { sheetId, dimension: 'COLUMNS', startIndex: startColumnIndex, endIndex: endColumnIndex },
-            properties: { hiddenByUser: true },
-            fields: 'hiddenByUser',
-          },
-        }
-      }
-      case 'listValidation':
-        return {
-          setDataValidation: {
-            range: grid(op.range, tabs),
-            rule: { condition: { type: 'ONE_OF_LIST', values: op.values.map((v) => ({ userEnteredValue: v })) }, strict: true, showCustomUi: true },
-          },
-        }
-      case 'numberFormat':
-        return {
-          repeatCell: {
-            range: grid(op.range, tabs),
-            cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER', pattern: op.pattern } } },
-            fields: 'userEnteredFormat.numberFormat',
-          },
-        }
-      case 'metadata':
-        return existingMeta.has(op.key)
-          ? {
-              updateDeveloperMetadata: {
-                dataFilters: [{ developerMetadataLookup: { metadataKey: op.key, visibility: 'DOCUMENT', locationType: 'SPREADSHEET' } }],
-                developerMetadata: { metadataValue: op.value },
-                fields: 'metadataValue',
-              },
-            }
-          : {
-              createDeveloperMetadata: {
-                developerMetadata: { metadataKey: op.key, metadataValue: op.value, location: { spreadsheet: true }, visibility: 'DOCUMENT' },
-              },
-            }
-    }
-  })
-}
 
 function retryAfterMs(header: string | null): number {
   if (!header?.trim()) return 2000
@@ -114,25 +33,51 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
   }
 
+  // DOCUMENT-level developer metadata: update the entry when the key exists, otherwise create it.
+  async function setMetadata(id: string, key: string, value: string): Promise<void> {
+    const req = (await metadataValue(id, key)) !== null
+      ? { updateDeveloperMetadata: { dataFilters: [lookup(key)], developerMetadata: { metadataValue: value }, fields: 'metadataValue' } }
+      : { createDeveloperMetadata: { developerMetadata: { metadataKey: key, metadataValue: value, location: { spreadsheet: true }, visibility: 'DOCUMENT' } } }
+    await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [req] })
+  }
+
   return {
     async batchGet(id, ranges, render: RenderOption = 'UNFORMATTED_VALUE') {
       const q = [...ranges.map((r) => `ranges=${encodeURIComponent(r)}`), 'majorDimension=ROWS', `valueRenderOption=${render}`, 'dateTimeRenderOption=SERIAL_NUMBER']
       const r = await request<{ valueRanges?: { values?: unknown[][] }[] }>('GET', `${BASE}/${id}/values:batchGet?${q.join('&')}`)
       return ranges.map((_, i) => r.valueRanges?.[i]?.values ?? [])
     },
-    async valuesBatchUpdate(id, data) {
-      await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: 'RAW', data })
+    async valuesBatchUpdate(id, data, input = 'RAW') {
+      await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: input, data })
+    },
+    async sheetInfo(id) {
+      const meta = await request<{ properties: { title: string }; sheets: { properties: { sheetId: number; title: string } }[] }>(
+        'GET', `${BASE}/${id}?fields=properties.title,sheets.properties(sheetId,title)`)
+      return { title: meta.properties.title, tabs: Object.fromEntries(meta.sheets.map((x) => [x.properties.title, x.properties.sheetId])) }
+    },
+    // Grows a tab with appendDimension. (values:append is not used: on the real template it lands one column to the right.)
+    // The new rows get the number formats and the data validation of the last existing row, so a date typed or written
+    // there looks and is checked like the rest of the column.
+    async growTab(id, tab, rows) {
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string; gridProperties: { rowCount: number; columnCount: number } } }[] }>(
+        'GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title,gridProperties.rowCount,gridProperties.columnCount)`)
+      const sheet = meta.sheets.find((x) => x.properties.title === tab)
+      if (!sheet) throw new ApiError(400, `No tab ${tab}`)
+      const { sheetId, gridProperties } = sheet.properties
+      const missing = rows - gridProperties.rowCount
+      if (missing <= 0) return
+      const source = { sheetId, startRowIndex: gridProperties.rowCount - 1, endRowIndex: gridProperties.rowCount, startColumnIndex: 0, endColumnIndex: gridProperties.columnCount }
+      const destination = { sheetId, startRowIndex: gridProperties.rowCount, endRowIndex: rows, startColumnIndex: 0, endColumnIndex: gridProperties.columnCount }
+      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [
+        { appendDimension: { sheetId, dimension: 'ROWS', length: missing } },
+        { copyPaste: { source, destination, pasteType: 'PASTE_FORMAT' } },
+        { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
+      ] })
     },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })
     },
-    async applyOps(id, ops) {
-      const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
-      const tabs = new Map(meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]))
-      const existing = new Set<string>()
-      for (const op of ops) if (op.t === 'metadata' && (await metadataValue(id, op.key)) !== null) existing.add(op.key)
-      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: compileOps(ops, tabs, existing) })
-    },
+    setMetadata,
     getMetadata: metadataValue,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError, AuthExpired, RateLimited } from '../errors'
-import { compileOps, createSheetsApi } from './api'
+import { createSheetsApi } from './api'
 
 const json = (body: unknown, init: ResponseInit = {}) => new Response(JSON.stringify(body), { status: 200, ...init })
 
@@ -61,55 +61,49 @@ describe('createSheetsApi', () => {
     const { fetchImpl } = stub([json({ matchedDeveloperMetadata: [{ developerMetadata: { metadataValue: '2' } }] })])
     expect(await createSheetsApi(() => 'tok', fetchImpl).getMetadata('S1', 'k')).toBe('2')
   })
-
-  it('applyOps resolves tab ids and sends one batchUpdate', async () => {
-    const { calls, fetchImpl } = stub([
-      json({ sheets: [{ properties: { sheetId: 7, title: 'Expenses' } }] }),
-      json({ matchedDeveloperMetadata: [] }),
-      json({}),
-    ])
-    await createSheetsApi(() => 'tok', fetchImpl).applyOps('S1', [
-      { t: 'hideColumn', tab: 'Expenses', column: 'A' },
-      { t: 'metadata', key: 'k', value: '2' },
-    ])
-    const last = calls[calls.length - 1]
-    expect(last.url).toContain(':batchUpdate')
-    expect(JSON.parse(last.init!.body as string).requests).toHaveLength(2)
-  })
 })
 
-describe('compileOps', () => {
-  const tabs = new Map([['Expenses', 7], ['Setup', 3]])
-  it('compiles each op to the matching request', () => {
-    const r = compileOps([
-      { t: 'copyTab', from: 'Expenses', to: 'Expenses (backup v0)' },
-      { t: 'set', range: 'Setup!U8:U9', values: [['EUR'], ['=1+1']] },
-      { t: 'clear', range: 'Expenses!C11:C1000' },
-      { t: 'hideColumn', tab: 'Expenses', column: 'A' },
-      { t: 'listValidation', range: 'Expenses!I10:I1000', values: ['EUR', 'GBP'] },
-      { t: 'numberFormat', range: 'Expenses!D10:D1000', pattern: '#,##0.00' },
-      { t: 'metadata', key: 'k', value: '2' },
-    ], tabs, new Set())
-    expect(r[0]).toEqual({ duplicateSheet: { sourceSheetId: 7, newSheetName: 'Expenses (backup v0)' } })
-    expect(r[1].updateCells.range).toEqual({ sheetId: 3, startRowIndex: 7, endRowIndex: 9, startColumnIndex: 20, endColumnIndex: 21 })
-    expect(r[1].updateCells.rows[1].values[0].userEnteredValue).toEqual({ formulaValue: '=1+1' })
-    expect(r[1].updateCells.rows[0].values[0].userEnteredValue).toEqual({ stringValue: 'EUR' })
-    expect(r[2].repeatCell.fields).toBe('userEnteredValue')
-    expect(r[3].updateDimensionProperties).toMatchObject({ range: { sheetId: 7, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { hiddenByUser: true } })
-    expect(r[4].setDataValidation.rule.condition).toMatchObject({ type: 'ONE_OF_LIST' })
-    expect(r[4].setDataValidation.rule.strict).toBe(true)
-    expect(r[5].repeatCell.cell.userEnteredFormat.numberFormat.pattern).toBe('#,##0.00')
-    expect(r[6].createDeveloperMetadata.developerMetadata).toMatchObject({ metadataKey: 'k', metadataValue: '2', visibility: 'DOCUMENT' })
+describe('createSheetsApi additions', () => {
+  it('sheetInfo returns the spreadsheet title and the numeric id of each tab in one request', async () => {
+    const { calls, fetchImpl } = stub([json({ properties: { title: 'Fitracker (test copy)' }, sheets: [{ properties: { sheetId: 0, title: 'Ledger' } }, { properties: { sheetId: 203680765, title: 'Snapshots' } }] })])
+    expect(await createSheetsApi(() => 'tok', fetchImpl).sheetInfo('S1')).toEqual({ title: 'Fitracker (test copy)', tabs: { Ledger: 0, Snapshots: 203680765 } })
+    expect(calls).toHaveLength(1)
+    expect(decodeURIComponent(calls[0].url)).toContain('fields=properties.title,sheets.properties(sheetId,title)')
   })
-  it('updates metadata that already exists', () => {
-    const r = compileOps([{ t: 'metadata', key: 'k', value: '2' }], tabs, new Set(['k']))
-    expect(r[0].updateDeveloperMetadata.developerMetadata.metadataValue).toBe('2')
+
+  it('growTab adds only the missing rows and gives them the format and validation of the last row', async () => {
+    const meta = () => json({ sheets: [{ properties: { sheetId: 7, title: 'Ledger', gridProperties: { rowCount: 1001, columnCount: 26 } } }] })
+    const grow = stub([meta(), json({})])
+    await createSheetsApi(() => 'tok', grow.fetchImpl).growTab('S1', 'Ledger', 1500)
+    const requests = JSON.parse(grow.calls[1].init!.body as string).requests
+    expect(requests[0]).toEqual({ appendDimension: { sheetId: 7, dimension: 'ROWS', length: 499 } })
+    const source = { sheetId: 7, startRowIndex: 1000, endRowIndex: 1001, startColumnIndex: 0, endColumnIndex: 26 }
+    const destination = { sheetId: 7, startRowIndex: 1001, endRowIndex: 1500, startColumnIndex: 0, endColumnIndex: 26 }
+    expect(requests.slice(1)).toEqual([
+      { copyPaste: { source, destination, pasteType: 'PASTE_FORMAT' } },
+      { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
+    ])
+    const same = stub([meta()])
+    await createSheetsApi(() => 'tok', same.fetchImpl).growTab('S1', 'Ledger', 900)
+    expect(same.calls).toHaveLength(1) // already big enough: no write
   })
-  it('leaves the end row off for ranges that run to the bottom', () => {
-    const r = compileOps([{ t: 'clear', range: 'Expenses!C10:C' }], tabs, new Set())
-    expect(r[0].repeatCell.range).toEqual({ sheetId: 7, startRowIndex: 9, startColumnIndex: 2, endColumnIndex: 3 })
+
+  it('valuesBatchUpdate can be asked for USER_ENTERED; RAW stays the default', async () => {
+    const { calls, fetchImpl } = stub([json({}), json({})])
+    const api = createSheetsApi(() => 'tok', fetchImpl)
+    await api.valuesBatchUpdate('S1', [{ range: 'Rates!A9', values: [['=1+1']] }], 'USER_ENTERED')
+    await api.valuesBatchUpdate('S1', [{ range: 'Rates!A9', values: [['=1+1']] }])
+    expect(JSON.parse(calls[0].init!.body as string).valueInputOption).toBe('USER_ENTERED')
+    expect(JSON.parse(calls[1].init!.body as string).valueInputOption).toBe('RAW')
   })
-  it('rejects unknown tabs', () => {
-    expect(() => compileOps([{ t: 'hideColumn', tab: 'Nope', column: 'A' }], tabs, new Set())).toThrow()
+
+  it('setMetadata creates the entry when none exists and updates it when one does', async () => {
+    const create = stub([json({ matchedDeveloperMetadata: [] }), json({})])
+    await createSheetsApi(() => 'tok', create.fetchImpl).setMetadata('S1', 'k', '3')
+    expect(JSON.parse(create.calls[create.calls.length - 1].init!.body as string).requests[0].createDeveloperMetadata.developerMetadata)
+      .toMatchObject({ metadataKey: 'k', metadataValue: '3', visibility: 'DOCUMENT' })
+    const update = stub([json({ matchedDeveloperMetadata: [{ developerMetadata: { metadataValue: '2' } }] }), json({})])
+    await createSheetsApi(() => 'tok', update.fetchImpl).setMetadata('S1', 'k', '3')
+    expect(JSON.parse(update.calls[update.calls.length - 1].init!.body as string).requests[0].updateDeveloperMetadata.developerMetadata.metadataValue).toBe('3')
   })
 })

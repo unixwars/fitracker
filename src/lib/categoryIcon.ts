@@ -36,3 +36,9 @@ export const ICON_PATHS: Record<CategoryIconName, string> = {
   refund: 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z',
   other: 'M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z',
 }
+
+// A native dropdown option can only hold text, so options carry an emoji instead of the SVG.
+export const CATEGORY_EMOJI: Record<CategoryIconName, string> = {
+  work: '💼', bills: '🧾', groceries: '🛒', recreation: '🎮', shopping: '🛍️', transport: '🚗',
+  travel: '✈️', health: '❤️', pay: '💵', growth: '📈', refund: '↩️', other: '🏷️',
+}

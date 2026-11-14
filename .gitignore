@@ -29,3 +29,11 @@ dist-ssr
 test-results
 playwright-report
 dev-dist
+
+private/
+out/
+
+# Private data files
+*.xlsx
+*.csv
+*.zip
