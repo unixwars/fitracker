@@ -4,17 +4,17 @@ import { cell, clearRange } from './helpers'
 async function addExpense(page: import('@playwright/test').Page, amount: string, place: string) {
   await page.getByTestId('amount').fill(amount)
   await page.getByTestId('place').fill(place)
-  await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
-  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
 }
 
 test('typing the next entry right after Save is never wiped by the previous save', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('amount').fill('5')
-  await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
-  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
   await page.getByTestId('amount').fill('6') // typed immediately, while the first save is still in flight
   await expect(page.getByTestId('amount')).toHaveValue('6')
@@ -24,7 +24,7 @@ test('typing the next entry right after Save is never wiped by the previous save
 
 test('entries added offline are replayed once when the connection returns', async ({ page, context }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await context.setOffline(true)
   await expect(page.getByTestId('offline')).toBeVisible()
 
@@ -42,7 +42,7 @@ test('entries added offline are replayed once when the connection returns', asyn
 
 test('an edit of a row that was removed in the sheet shows up under Needs attention', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
   await page.getByRole('button', { name: /Groceries/ }).click()
   await page.getByRole('button', { name: /Mercadona/ }).first().click()
@@ -57,7 +57,7 @@ test('an edit of a row that was removed in the sheet shows up under Needs attent
 
 test('deleting an entry asks first and can be undone from Activity', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
   await page.getByRole('button', { name: /Bills/ }).click()
   await page.getByRole('button', { name: /Metro/ }).first().click()

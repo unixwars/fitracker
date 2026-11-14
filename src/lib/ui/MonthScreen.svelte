@@ -41,13 +41,13 @@
   <div class="stat muted"><span>{messages.business}</span><span>{fmt(view.expenses.business)}</span></div>
   {#each view.expenses.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('e:' + c.name)} aria-expanded={open === 'e:' + c.name}>
-      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span>{fmt(c.actual)} / {fmt(c.planned)}</span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span class="amt">{fmt(c.actual)} / {fmt(c.planned)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
       <span class="bar" class:over={over(c)}><i style="width: {pct(c)}%"></i></span>
     </button>
     {#if open === 'e:' + c.name}
       {#each entriesOf('expense', c.name) as e (e.id)}
         <button class="entry" onclick={() => (editing = e)}>
-          <span>{dateLabel(e.date)} · {e.place || e.description || '—'}</span><b>{fmt(e.money)}</b>
+          <span>{dateLabel(e.date)} · {e.place || e.description || '—'}</span><b class="amt">{fmt(e.money)}<svg class="pen" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></b>
         </button>
       {:else}<p class="muted">{messages.noEntries}</p>{/each}
     {/if}
@@ -61,11 +61,11 @@
   <div class="stat"><span>{messages.savingsRate}</span><b>{view.savingsRate === null ? messages.noSavingsRate : Math.round(view.savingsRate * 100) + '%'}</b></div>
   {#each view.income.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('i:' + c.name)} aria-expanded={open === 'i:' + c.name}>
-      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span>{fmt(c.actual)}</span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span class="amt">{fmt(c.actual)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
     </button>
     {#if open === 'i:' + c.name}
       {#each entriesOf('income', c.name) as e (e.id)}
-        <button class="entry" onclick={() => (editing = e)}><span>{dateLabel(e.date)} · {e.description || '—'}</span><b>{fmt(e.money)}</b></button>
+        <button class="entry" onclick={() => (editing = e)}><span>{dateLabel(e.date)} · {e.description || '—'}</span><b class="amt">{fmt(e.money)}<svg class="pen" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></b></button>
       {/each}
     {/if}
   {/each}

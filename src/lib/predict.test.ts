@@ -66,3 +66,16 @@ describe('usualAmounts', () => {
     expect(usualAmounts('  ', h, now)).toEqual([])
   })
 })
+
+describe('description from the latest use of a place', () => {
+  it('a place suggestion carries the description of the latest entry at that place; a description suggestion does not', () => {
+    const h = [
+      mk('2024-05-01', 'Tesco', { description: 'Old shop', category: 'Groceries', account: 'Joint' }),
+      mk('2024-05-20', 'Tesco', { description: 'Weekly shop', category: 'Groceries', account: 'Joint' }),
+      mk('2024-05-25', 'Metro', { description: '' }),
+    ]
+    expect(suggest('place', 'Tesco', h, now)[0].description).toBe('Weekly shop')
+    expect(suggest('place', 'Metro', h, now)[0].description).toBeUndefined()
+    expect(suggest('description', 'Weekly', h, now)[0].description).toBeUndefined()
+  })
+})

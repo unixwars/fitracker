@@ -10,11 +10,11 @@ export const FAKE_ID = 'fake-sheet'
 export function createFakeEnv(): Env {
   const fake = createFakeSheets()
   const today = todayLocal()
-  const hist = (id: string, place: string, category: string, account: string, minor: number, days: number): Entry => ({
+  const hist = (id: string, place: string, category: string, account: string, minor: number, days: number, description = ''): Entry => ({
     id, kind: 'expense', date: new Date(Date.parse(today) - days * 86_400_000).toISOString().slice(0, 10),
-    money: { minor, currency: 'EUR' }, description: '', place, category, account,
+    money: { minor, currency: 'EUR' }, description, place, category, account,
   })
-  const entries = [hist('h1', 'Mercadona', 'Groceries', 'Joint', 4210, 3), hist('h2', 'Mercadona', 'Groceries', 'Joint', 3890, 9), hist('h3', 'Metro', 'Bills', 'M-Cash', 250, 5)]
+  const entries = [hist('h1', 'Mercadona', 'Groceries', 'Joint', 4210, 3, 'Weekly shop'), hist('h2', 'Mercadona', 'Groceries', 'Joint', 3890, 9, 'Weekly shop'), hist('h3', 'Metro', 'Bills', 'M-Cash', 250, 5)]
   const year = Number(today.slice(0, 4))
   const previous = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, 1)
   const previousMonth = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-01`

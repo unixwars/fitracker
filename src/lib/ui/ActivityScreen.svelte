@@ -8,6 +8,7 @@
   const recent = $derived([...app.ops].filter((o) => o.status === 'done').reverse().slice(0, 30))
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
   const opName = (op: Op) => (op.subject === 'snapshot' ? messages.snapshotOps[op.type as 'add' | 'delete'] : messages.ops[op.type])
+  const opAmount = (op: Op) => (op.subject === 'snapshot' ? (op.snapshot ? fmt(op.snapshot.balance) : '') : op.entry ? fmt(op.entry.money) : '')
   const opText = (op: Op) =>
     op.subject === 'snapshot'
       ? op.snapshot ? `${op.snapshot.account} ${fmt(op.snapshot.balance)}` : op.entryId
@@ -51,6 +52,7 @@
   {#each recent as op (op.opId)}
     <div class="stat">
       <span>{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
+      <b data-testid="recent-amount">{opAmount(op)}</b>
       {#if op.undone}<span class="muted">{messages.undone}</span>
       {:else if op.type !== 'add' || op.entry || op.snapshot}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
     </div>

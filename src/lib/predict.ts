@@ -1,7 +1,7 @@
 import type { Entry } from './rows'
 import type { Money } from './types'
 
-export type Suggestion = { text: string; category?: string; account?: string }
+export type Suggestion = { text: string; category?: string; account?: string; description?: string }
 
 const HALF_LIFE_DAYS = 90
 const DAY = 86_400_000
@@ -28,6 +28,7 @@ export function suggest(field: 'place' | 'description', prefix: string, history:
     const s: Suggestion = { text: latest[field]!.trim() }
     if (latest.category) s.category = latest.category
     if (latest.account) s.account = latest.account
+    if (field === 'place' && latest.description.trim()) s.description = latest.description.trim() // what you bought there last time
     return s
   })
 }

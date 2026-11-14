@@ -26,10 +26,10 @@ test('the appearance setting switches between system, light and dark and is reme
 
 test('an entry dated in an earlier year is saved', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('amount').fill('5')
-  await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
-  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
   await page.locator('input[type=date]').fill('2020-06-01')
   await page.getByTestId('save').click()
   await expect.poll(() => cell(page, 'Ledger!B5')).toBe(43983) // 2020-06-01
@@ -48,7 +48,7 @@ test('unlink warns first and relinking works', async ({ page }) => {
   await expect(page.getByTestId('tab-add')).toBeVisible() // the tab bar is back once a sheet is linked
   await expect(page.getByText('Linked', { exact: true })).toBeVisible()
   await page.getByTestId('tab-add').click()
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })
 
 test('Settings shows sign in or sign out, never both, and only Unlink (no relink) while signed in', async ({ page }) => {

@@ -54,6 +54,7 @@ export function chooseAccount(form: FormState, name: string, ref: Reference): Fo
 
 export function applySuggestion(form: FormState, s: Suggestion, ref: Reference, field: 'place' | 'description'): FormState {
   let next: FormState = { ...form, [field]: s.text }
+  if (field === 'place' && s.description && !form.description.trim()) next.description = s.description // never over what was typed
   next.category = valid(s.category, categoriesFor(form.kind, ref)) || form.category
   const account = valid(s.account, accountNames(ref))
   if (account && account !== form.account) next = chooseAccount(next, account, ref)

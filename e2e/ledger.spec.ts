@@ -3,9 +3,9 @@ import { cell, refresh, setCell, todaySerial } from './helpers'
 
 test('a foreign amount warns, converts after confirming and stores the converted amount', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
-  await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
-  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click() // EUR account
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint') // EUR account
   await page.getByTestId('currency').selectOption('GBP')
   await page.getByTestId('amount').fill('10')
   await page.getByTestId('description').fill('Taxi')
@@ -24,7 +24,7 @@ test('a foreign amount warns, converts after confirming and stores the converted
 
 test('unticking an account in Accounts removes its entries from the Month totals', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   const serial = await todaySerial(page)
   for (const [col, v] of [['A', 'tick1'], ['B', serial], ['C', 'expense'], ['D', 7], ['F', 'Tick test'], ['G', 'Bills'], ['H', 'M-Cash']] as const) {
     await setCell(page, `Ledger!${col}5`, v)
@@ -42,7 +42,7 @@ test('unticking an account in Accounts removes its entries from the Month totals
 
 test('a hand-typed row that is not understood shows under Needs attention', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
   const before = await page.getByTestId('expenses-actual').textContent()
   for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) {
@@ -60,5 +60,5 @@ test('first run creates the sheet from the template', async ({ page }) => {
   await page.goto('/?unlinked')
   await expect(page.getByTestId('first-run')).toBeVisible()
   await page.getByTestId('create-from-template').click() // one tap links the copy
-  await expect(page.getByTestId('categories')).toBeVisible()
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })

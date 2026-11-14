@@ -97,6 +97,10 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .bar.over > i { background: var(--danger); }
 .cat { width: 100%; text-align: left; border: 0; background: none; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .cat .line { display: flex; justify-content: space-between; gap: 8px; }
+.amt { display: inline-flex; align-items: center; }
+.chev { flex: none; margin-left: 6px; opacity: 0.6; transition: transform 0.15s; }
+.cat[aria-expanded='true'] .chev { transform: rotate(90deg); opacity: 1; }
+.pen { flex: none; margin-left: 8px; opacity: 0.5; }
 .entry { display: flex; justify-content: space-between; gap: 8px; width: 100%; border: 0; background: none; text-align: left; padding: 10px 0 10px 12px; border-bottom: 1px dashed var(--line); }
 .monthnav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
 .monthnav button { min-width: 48px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }

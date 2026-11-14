@@ -1,6 +1,5 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import CategoryIcon from './CategoryIcon.svelte'
   import { accountNames, applySuggestion, categoriesFor, chooseAccount, convertedAmount, currencyIssue, switchKind, validate, type Errors, type FormState } from '../addForm'
   import type { DeviceSettings } from '../config'
   import { messages } from '../messages'
@@ -8,7 +7,7 @@
   import { suggest, usualAmounts, type Suggestion } from '../predict'
   import { todayLocal, type Entry, type Kind } from '../rows'
   import { CURRENCIES, type RateRow, type Reference } from '../types'
-  import { formatMoney } from '../money'
+  import { cleanAmountInput, formatMoney } from '../money'
   import { dateLabel } from './format'
 
   let {
@@ -111,7 +110,7 @@
   {/if}
 
   <div class="amount-row">
-    <input bind:this={amountEl} bind:value={form.amount} inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label={messages.amount} data-testid="amount" />
+    <input bind:this={amountEl} value={form.amount} oninput={(e) => { const v = cleanAmountInput(e.currentTarget.value); e.currentTarget.value = v; form = { ...form, amount: v, convertConfirmed: false } }} inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label={messages.amount} data-testid="amount" />
     <select bind:value={form.currency} onchange={() => (form = { ...form, convertConfirmed: false })} aria-label={messages.currency} data-testid="currency">
       {#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
     </select>
@@ -172,30 +171,35 @@
   {/if}
 
   {#if form.kind !== 'transfer'}
-    <h3>{messages.category}</h3>
-    <div class="chips" data-testid="categories">
-      {#each categories as c (c)}
-        <button type="button" class="chip" aria-pressed={form.category === c} onclick={() => (form = { ...form, category: c })}><CategoryIcon name={c} />{c}</button>
-      {/each}
-    </div>
+    <label class="field">
+      <span>{messages.category}</span>
+      <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} data-testid="categories">
+        <option value="">{messages.choose}</option>
+        {#if form.category && !categories.includes(form.category)}<option value={form.category}>{form.category}</option>{/if}
+        {#each categories as c (c)}<option value={c}>{c}</option>{/each}
+      </select>
+    </label>
     {#if errors.category}<p class="err">{messages.errors.category}</p>{/if}
   {/if}
 
-  <h3>{form.kind === 'transfer' ? messages.fromAccount : messages.account}</h3>
-  <div class="chips" data-testid="accounts">
-    {#each accounts as a (a)}
-      <button type="button" class="chip" aria-pressed={form.account === a} onclick={() => (form = chooseAccount(form, a, lists))}>{a}</button>
-    {/each}
-  </div>
+  <label class="field">
+    <span>{form.kind === 'transfer' ? messages.fromAccount : messages.account}</span>
+    <select value={form.account} onchange={(e) => (form = chooseAccount(form, e.currentTarget.value, lists))} aria-label={form.kind === 'transfer' ? messages.fromAccount : messages.account} data-testid="accounts">
+      <option value="">{messages.choose}</option>
+      {#if form.account && !accounts.includes(form.account)}<option value={form.account}>{form.account}</option>{/if}
+      {#each accounts as a (a)}<option value={a}>{a}</option>{/each}
+    </select>
+  </label>
   {#if errors.account}<p class="err">{messages.errors.account}</p>{/if}
 
   {#if form.kind === 'transfer'}
-    <h3>{messages.toAccount}</h3>
-    <div class="chips">
-      {#each accounts as a (a)}
-        <button type="button" class="chip" aria-pressed={form.toAccount === a} onclick={() => (form = { ...form, toAccount: a })}>{a}</button>
-      {/each}
-    </div>
+    <label class="field">
+      <span>{messages.toAccount}</span>
+      <select value={form.toAccount} onchange={(e) => (form = { ...form, toAccount: e.currentTarget.value })} aria-label={messages.toAccount} data-testid="to-account">
+        <option value="">{messages.choose}</option>
+        {#each accounts as a (a)}<option value={a}>{a}</option>{/each}
+      </select>
+    </label>
     {#if errors.toAccount}<p class="err">{messages.errors.toAccount}</p>{/if}
   {/if}
 

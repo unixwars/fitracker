@@ -61,6 +61,12 @@ describe('applySuggestion', () => {
     const bad = applySuggestion(f, { text: 'Tesco', category: 'Nope', account: 'Nowhere' }, ref, 'place')
     expect(bad).toMatchObject({ category: 'Bills', account: 'T-Cash', currency: 'GBP' })
   })
+  it('fills the description from a place suggestion only when it is empty', () => {
+    const s = { text: 'Tesco', category: 'Groceries', account: 'Joint', description: 'Weekly shop' }
+    expect(applySuggestion(base, s, ref, 'place').description).toBe('Weekly shop')
+    expect(applySuggestion({ ...base, description: 'Typed by me' }, s, ref, 'place').description).toBe('Typed by me')
+    expect(applySuggestion(base, { text: 'Weekly shop', description: 'x' }, ref, 'description').description).toBe('Weekly shop')
+  })
   it('puts a description suggestion in the description field', () => {
     expect(applySuggestion(base, { text: 'Lunch' }, ref, 'description').description).toBe('Lunch')
   })

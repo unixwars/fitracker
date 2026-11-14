@@ -1,31 +1,20 @@
 import type { Currency, Money } from './types'
 
-const GROUPED_DOT = /^[1-9]\d{0,2}(\.\d{3})+$/
-const GROUPED_COMMA = /^[1-9]\d{0,2}(,\d{3})+$/
-
-// Returns minor units (2 digits) or null. A lone separator followed by exactly three digits is
-// read as a thousands group; followed by one or two digits as the decimal separator.
+// Returns minor units (2 digits) or null. One separator, a dot or a comma, is the decimal point; thousands
+// separators are not accepted, so an amount can only be read one way (Spanish keyboards show a comma, English a dot).
 export function parseAmount(input: string): number | null {
-  const s = input.trim()
-  if (!/^\d[\d.,]*$/.test(s)) return null
-  const last = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','))
-  let intPart = s
-  let frac = ''
-  if (last >= 0) {
-    const sep = s[last]
-    const tail = s.slice(last + 1)
-    const sameCount = s.split(sep).length - 1
-    if ((tail.length === 1 || tail.length === 2) && sameCount === 1) {
-      intPart = s.slice(0, last)
-      frac = tail
-    } else if (tail.length !== 3) {
-      return null
-    }
-  }
-  if (!/^\d+$/.test(intPart) && !GROUPED_DOT.test(intPart) && !GROUPED_COMMA.test(intPart)) return null
-  const digits = intPart.replace(/[.,]/g, '')
-  if (digits.length > 12) return null
-  return Number(digits) * 100 + Number(frac.padEnd(2, '0'))
+  const m = /^(\d{1,12})(?:\.(\d{0,2}))?$/.exec(input.trim().replace(',', '.'))
+  if (!m) return null
+  return Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
+}
+
+/** What the amount field keeps while typing: digits and one dot (a comma becomes the dot), at most two decimals. */
+export function cleanAmountInput(raw: string): string {
+  const v = raw.replace(/,/g, '.').replace(/[^\d.]/g, '')
+  const dot = v.indexOf('.')
+  if (dot < 0) return v
+  const int = v.slice(0, dot) || '0'
+  return `${int}.${v.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`
 }
 
 export function toMinor(sheetNumber: number): number {
