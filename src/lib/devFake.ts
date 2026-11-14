@@ -15,12 +15,22 @@ export function createFakeEnv(): Env {
     money: { minor, currency: 'EUR' }, description: '', place, category, account,
   })
   const entries = [hist('h1', 'Mercadona', 'Groceries', 'Joint', 4210, 3), hist('h2', 'Mercadona', 'Groceries', 'Joint', 3890, 9), hist('h3', 'Metro', 'Bills', 'M-Cash', 250, 5)]
-  seedLedger(fake, FAKE_ID, { entries, today, reference: { ...DEFAULT_REFERENCE, budgets: DEFAULT_REFERENCE.budgets.map((b) => ({ ...b, year: Number(today.slice(0, 4)) })) } })
+  const year = Number(today.slice(0, 4))
+  const previous = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, 1)
+  const previousMonth = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-01`
+  seedLedger(fake, FAKE_ID, {
+    entries,
+    today,
+    rates: [{ month: previousMonth, GBP: 1.15, USD: 0.9 }],
+    reference: { ...DEFAULT_REFERENCE, budgets: DEFAULT_REFERENCE.budgets.map((b) => ({ ...b, year })) },
+  })
   const auth: Auth = { token: () => 'fake', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
+  // ?unlinked starts on the first-run screen; otherwise the fake sheet is linked unless the device already stored a link.
+  const linkedByDefault = !window.location.search.includes('unlinked')
   const storage = {
-    getItem: (k: string) => window.localStorage.getItem(k) ?? (k === 'fitracker.sheet' ? FAKE_ID : null),
+    getItem: (k: string) => window.localStorage.getItem(k) ?? (k === 'fitracker.sheet' && linkedByDefault ? FAKE_ID : null),
     setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
   }
   ;(window as unknown as { __fake: unknown }).__fake = fake
-  return { storage, idb: indexedDB, api: fake, auth, pick: async () => FAKE_ID, copyTemplate: async () => FAKE_ID, fake: true }
+  return { storage, idb: indexedDB, api: fake, auth, pick: async () => FAKE_ID, copyTemplate: async () => FAKE_ID, fake: true, ttlMs: 0 }
 }

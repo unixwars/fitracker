@@ -24,6 +24,7 @@ export type Env = {
   auth: Auth
   pick: () => Promise<string | null>
   copyTemplate: () => Promise<string | null> // null when the user cancels
+  ttlMs?: number // overrides the book refresh interval (the offline end-to-end mode uses 0)
   fake?: boolean
 }
 type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[] }
@@ -88,7 +89,7 @@ export class AppState {
       this.replayer = null
       return
     }
-    this.store = createLedgerStore(this.env.api, this.sheetId)
+    this.store = createLedgerStore(this.env.api, this.sheetId, { ttlMs: this.env.ttlMs })
     this.replayer = createReplayer(this.store, this.db)
     this.replayer.onAuthExpired(() => (this.authExpired = true))
   }

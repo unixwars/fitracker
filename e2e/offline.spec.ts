@@ -30,14 +30,14 @@ test('entries added offline are replayed once when the connection returns', asyn
 
   await addExpense(page, '5', 'Offline one')
   await addExpense(page, '6', 'Offline two')
-  await expect(page.getByTestId('year-pill')).toContainText('2 waiting to sync')
-  expect(await cell(page, 'Expenses!A13')).toBeNull()
+  await expect(page.getByTestId('status-pill')).toContainText('2 waiting to sync')
+  expect(await cell(page, 'Ledger!A5')).toBeNull()
 
   await context.setOffline(false)
-  await expect.poll(() => cell(page, 'Expenses!E13')).toBe('Offline one')
-  await expect.poll(() => cell(page, 'Expenses!E14')).toBe('Offline two')
-  expect(await cell(page, 'Expenses!A15')).toBeNull() // exactly once each
-  await expect(page.getByTestId('year-pill')).not.toContainText('waiting')
+  await expect.poll(() => cell(page, 'Ledger!E5')).toBe('Offline one')
+  await expect.poll(() => cell(page, 'Ledger!E6')).toBe('Offline two')
+  expect(await cell(page, 'Ledger!A7')).toBeNull() // exactly once each
+  await expect(page.getByTestId('status-pill')).not.toContainText('waiting')
 })
 
 test('an edit of a row that was removed in the sheet shows up under Needs attention', async ({ page }) => {
@@ -47,7 +47,7 @@ test('an edit of a row that was removed in the sheet shows up under Needs attent
   await page.getByRole('button', { name: /Groceries/ }).click()
   await page.getByRole('button', { name: /Mercadona/ }).first().click()
 
-  await clearRange(page, 'Expenses!A10:I12') // a partner removed the rows in Sheets
+  await clearRange(page, 'Ledger!A2:I4') // a partner removed the rows in Sheets
   await page.getByRole('button', { name: 'Save changes' }).click()
 
   await expect(page.getByTestId('badge')).toHaveText('1')
@@ -64,9 +64,9 @@ test('deleting an entry asks first and can be undone from Activity', async ({ pa
   await page.getByTestId('delete').click()
   await expect(page.getByText('Delete this entry?')).toBeVisible()
   await page.getByTestId('confirm-delete').click()
-  await expect.poll(() => cell(page, 'Expenses!A12')).toBeNull()
+  await expect.poll(() => cell(page, 'Ledger!A4')).toBeNull()
 
   await page.getByTestId('tab-activity').click()
   await page.getByTestId('undo').first().click()
-  await expect.poll(() => cell(page, 'Expenses!E12')).toBe('Metro')
+  await expect.poll(() => cell(page, 'Ledger!E4')).toBe('Metro')
 })

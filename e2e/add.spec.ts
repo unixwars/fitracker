@@ -12,12 +12,12 @@ test('a repeat purchase takes 3 interactions', async ({ page }) => {
   await page.getByTestId('place-suggestions').getByRole('button', { name: 'Mercadona' }).click() // 2: suggestion (fills category and account)
   await page.getByTestId('save').click() //                                              3: save
 
-  await expect.poll(() => cell(page, 'Expenses!A13')).not.toBeNull()
-  expect(await cell(page, 'Expenses!D13')).toBe(12.5)
-  expect(await cell(page, 'Expenses!E13')).toBe('Mercadona')
-  expect(await cell(page, 'Expenses!G13')).toBe('Groceries')
-  expect(await cell(page, 'Expenses!H13')).toBe('Joint')
-  expect(await cell(page, 'Expenses!I13')).toBe('EUR')
+  await expect.poll(() => cell(page, 'Ledger!A5')).not.toBeNull()
+  expect(await cell(page, 'Ledger!C5')).toBe('expense')
+  expect(await cell(page, 'Ledger!D5')).toBe(12.5)
+  expect(await cell(page, 'Ledger!E5')).toBe('Mercadona')
+  expect(await cell(page, 'Ledger!G5')).toBe('Groceries')
+  expect(await cell(page, 'Ledger!H5')).toBe('Joint')
 })
 
 test('a new purchase takes at most 5 interactions', async ({ page }) => {
@@ -29,22 +29,23 @@ test('a new purchase takes at most 5 interactions', async ({ page }) => {
   await page.getByTestId('accounts').getByRole('button', { name: 'T-Cash' }).click() //               4
   await page.getByTestId('save').click() //                                                           5
 
-  await expect.poll(() => cell(page, 'Expenses!A13')).not.toBeNull()
-  expect(await cell(page, 'Expenses!E13')).toBe('Kebab House')
-  expect(await cell(page, 'Expenses!G13')).toBe('Recreation')
+  await expect.poll(() => cell(page, 'Ledger!A5')).not.toBeNull()
+  expect(await cell(page, 'Ledger!E5')).toBe('Kebab House')
+  expect(await cell(page, 'Ledger!G5')).toBe('Recreation')
 })
 
-test('the form resets after saving but keeps currency, category and account', async ({ page }) => {
+test('the form resets after saving but keeps category and account, and the currency follows the account', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('currency').selectOption('GBP')
-  await page.getByTestId('amount').fill('3')
   await page.getByTestId('categories').getByRole('button', { name: 'Bills' }).click()
-  await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
+  await page.getByTestId('accounts').getByRole('button', { name: 'T-Cash' }).click()
+  await expect(page.getByTestId('currency')).toHaveValue('GBP') // the account chip sets the currency
+  await page.getByTestId('amount').fill('3')
   await page.getByTestId('save').click()
   await expect(page.getByTestId('amount')).toHaveValue('')
   await expect(page.getByTestId('currency')).toHaveValue('GBP')
   await expect(page.getByTestId('categories').getByRole('button', { name: 'Bills' })).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => cell(page, 'Expenses!I13')).toBe('GBP')
+  await expect(page.getByTestId('accounts').getByRole('button', { name: 'T-Cash' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => cell(page, 'Ledger!H5')).toBe('T-Cash')
 })
 
 test('invalid input is rejected with a message and nothing is saved', async ({ page }) => {
@@ -52,5 +53,5 @@ test('invalid input is rejected with a message and nothing is saved', async ({ p
   await expect(page.getByTestId('categories')).toBeVisible()
   await page.getByTestId('save').click()
   await expect(page.getByText('Enter an amount above zero')).toBeVisible()
-  expect(await cell(page, 'Expenses!A13')).toBeNull()
+  expect(await cell(page, 'Ledger!A5')).toBeNull()
 })

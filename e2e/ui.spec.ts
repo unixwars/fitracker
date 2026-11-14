@@ -24,7 +24,7 @@ test('the appearance setting switches between system, light and dark and is reme
   await expect(html).not.toHaveAttribute('data-theme', /.+/)
 })
 
-test('an entry dated outside the selected year is refused', async ({ page }) => {
+test('an entry dated in an earlier year is saved', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories')).toBeVisible()
   await page.getByTestId('amount').fill('5')
@@ -32,26 +32,21 @@ test('an entry dated outside the selected year is refused', async ({ page }) => 
   await page.getByTestId('accounts').getByRole('button', { name: 'Joint' }).click()
   await page.locator('input[type=date]').fill('2020-06-01')
   await page.getByTestId('save').click()
-  await expect(page.getByText('That date is not in the selected year')).toBeVisible()
-  expect(await cell(page, 'Expenses!A13')).toBeNull()
+  await expect.poll(() => cell(page, 'Ledger!B5')).toBe(43983) // 2020-06-01
 })
 
-test('any year can be opened, and a linked year can be unlinked after a warning', async ({ page }) => {
+test('unlink warns first and relinking works', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  await page.getByTestId('other-year').fill('2012')
-  await page.getByTestId('other-year-go').click()
-  await expect(page.getByTestId('year')).toHaveValue('2012')
-  await expect(page.getByText('Not linked')).toBeVisible()
-  await expect(page.getByTestId('unlink')).toHaveCount(0)
-
-  const linkedYear = await page.locator('[data-testid=year] option', { hasText: '✓' }).first().getAttribute('value')
-  await page.getByTestId('year').selectOption(linkedYear!)
   await expect(page.getByText('Linked', { exact: true })).toBeVisible()
   await page.getByTestId('unlink').click()
   await expect(page.getByTestId('unlink-confirm')).toBeVisible() // warns first, nothing changed yet
   await expect(page.getByText('Linked', { exact: true })).toBeVisible()
   await page.getByTestId('unlink-yes').click()
-  await expect(page.getByText('Not linked')).toBeVisible()
-  await expect(page.getByTestId('link')).toHaveText(/Link the/)
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await page.getByTestId('link-existing').click()
+  await expect(page.getByTestId('tab-add')).toBeVisible() // the tab bar is back once a sheet is linked
+  await expect(page.getByText('Linked', { exact: true })).toBeVisible()
+  await page.getByTestId('tab-add').click()
+  await expect(page.getByTestId('categories')).toBeVisible()
 })
