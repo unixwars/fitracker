@@ -38,21 +38,21 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 
 ## E. Rates and months
 
-17. Open the app on the first day of a new month (or set the clock). *Pass:* last month's `Rates` row now holds numbers instead of formulas, and one new row for the current month holds `GOOGLEFINANCE` formulas.
-18. Open the app on two devices at the same moment. *Pass:* only one new `Rates` row exists.
+18. Open the app on the first day of a new month (or set the clock). *Pass:* last month's `Rates` row now holds numbers instead of formulas, and one new row for the current month holds `GOOGLEFINANCE` formulas.
+19. Open the app on two devices at the same moment. *Pass:* only one new `Rates` row exists.
 
 ## F. Offline, PWA and two people
 
-19. Open the deployed HTTPS site and **Add to Home Screen / Install**. *Pass:* it launches fullscreen with the invader icon.
-20. Airplane mode, add two entries. *Pass:* offline banner and "2 waiting to sync". Turn airplane mode off. *Pass:* both appear in `Ledger` exactly once.
-21. Leave the installed app closed for over an hour, open it and add an entry. *Pass:* a "Signed out" banner with **Reconnect**; sign in and the entry syncs.
-22. Place field → **Use my location**. *Pass:* the first time it asks permission; after two entries saved at one spot with GPS on, a third tap suggests that place.
-23. Settings → Appearance: System, Light, Dark. *Pass:* the whole app changes immediately and stays after reloading; System follows the phone.
-24. Share the sheet with your partner, who links it on their phone. Both press Save within a second on different entries. *Pass:* both exist, on different rows.
-25. The partner deletes a row in Sheets; before the app refreshes, you edit that entry. *Pass:* a badge on Activity says the row was removed; **Add as new row** recreates it.
-26. Sort `Ledger` in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
-27. Untick `In Monthly` for one account in `Accounts`, then refresh the app. *Pass:* the Month totals drop that account's entries and the screen says "2 of 3 accounts included" (for three accounts).
+20. Open the deployed HTTPS site and **Add to Home Screen / Install**. *Pass:* it launches fullscreen with the invader icon.
+21. Airplane mode, add two entries. *Pass:* offline banner and "2 waiting to sync". Turn airplane mode off. *Pass:* both appear in `Ledger` exactly once.
+22. Leave the installed app closed for over an hour, open it and add an entry. *Pass:* a "Signed out" banner with **Reconnect**; sign in and the entry syncs.
+23. Place field → **Use my location**. *Pass:* the first time it asks permission; after two entries saved at one spot with GPS on, a third tap suggests that place.
+24. Settings → Appearance: System, Light, Dark. *Pass:* the whole app changes immediately and stays after reloading; System follows the phone.
+25. Share the sheet with your partner, who links it on their phone. Both press Save within a second on different entries. *Pass:* both exist, on different rows.
+26. The partner deletes a row in Sheets; before the app refreshes, you edit that entry. *Pass:* a badge on Activity says the row was removed; **Add as new row** recreates it.
+27. Sort `Ledger` in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
+28. Untick `In Monthly` for one account in `Accounts`, then refresh the app. *Pass:* the Month totals drop that account's entries and the screen says "2 of 3 accounts included" (for three accounts).
 
 ## Could be automated if you give me credentials
 
-Items 1 to 16 and 20 to 27 could run as a Playwright test against a throwaway Google account and a copy of the template. That needs a test Google account, an OAuth client for it and the template copy link; say if you want it.
+Items 1 to 17 and 21 to 28 could run as a Playwright test against a throwaway Google account and a copy of the template. That needs a test Google account, an OAuth client for it and the template copy link; say if you want it.
