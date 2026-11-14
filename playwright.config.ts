@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   use: { baseURL: 'http://localhost:4173', viewport: { width: 390, height: 844 } },
   webServer: {
-    command: 'VITE_FAKE_SHEETS=1 pnpm build && VITE_FAKE_SHEETS=1 pnpm preview --port 4173',
+    command: 'VITE_FAKE_SHEETS=1 VITE_TEMPLATE_COPY_URL=https://docs.google.com/spreadsheets/d/e2e-template/copy pnpm build && VITE_FAKE_SHEETS=1 pnpm preview --port 4173',
     url: 'http://localhost:4173',
     reuseExistingServer: false,
     timeout: 120_000,
