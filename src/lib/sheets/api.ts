@@ -50,11 +50,14 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     async valuesBatchUpdate(id, data, input = 'RAW') {
       await request('POST', `${BASE}/${id}/values:batchUpdate`, { valueInputOption: input, data })
     },
-    // Google reference: POST /v4/spreadsheets/{id}/values/{range}:append, response.updates.updatedRange.
-    async valuesAppend(id, range, values) {
-      const url = `${BASE}/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
-      const r = await request<{ updates?: { updatedRange?: string } }>('POST', url, { values })
-      return { updatedRange: r.updates?.updatedRange ?? '' }
+    // Grows a tab with appendDimension. (values:append is not used: on the real template it lands one column to the right.)
+    async growTab(id, tab, rows) {
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string; gridProperties: { rowCount: number } } }[] }>(
+        'GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title,gridProperties.rowCount)`)
+      const sheet = meta.sheets.find((x) => x.properties.title === tab)
+      if (!sheet) throw new ApiError(400, `No tab ${tab}`)
+      const missing = rows - sheet.properties.gridProperties.rowCount
+      if (missing > 0) await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [{ appendDimension: { sheetId: sheet.properties.sheetId, dimension: 'ROWS', length: missing } }] })
     },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })

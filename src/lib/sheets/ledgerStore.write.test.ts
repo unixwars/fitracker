@@ -17,20 +17,19 @@ function setup(rows = 0) {
 }
 
 describe('addMany (append, spike S1 branch A)', () => {
-  it('appends three entries with one read before, one append and one read-back', async () => {
+  it('writes three entries with one read before, one write and one read-back', async () => {
     const { fake, store } = setup(20) // rows 2..21
     fake.book('S1').clear('Ledger!A8:I9')
     const res = await store.addMany([entry('a'), entry('b'), entry('c')])
     expect(res).toEqual([{ id: 'a', ok: true }, { id: 'b', ok: true }, { id: 'c', ok: true }])
     expect(fake.count('batchGet')).toBe(2)
-    expect(fake.count('valuesAppend')).toBe(1)
-    expect(fake.count('valuesBatchUpdate')).toBe(0)
+    expect(fake.count('valuesBatchUpdate')).toBe(1)
     expect(fake.book('S1').read('Ledger!A22:A24', 'UNFORMATTED_VALUE').flat()).toEqual(['a', 'b', 'c'])
   })
   it('an id already in the sheet is not appended again', async () => {
     const { fake, store } = setup(2)
     expect(await store.addMany([entry('seed0')])).toEqual([{ id: 'seed0', ok: true }])
-    expect(fake.count('valuesAppend')).toBe(0)
+    expect(fake.count('valuesBatchUpdate')).toBe(0)
   })
   it('duplicates in one call are appended once', async () => {
     const { fake, store } = setup()
@@ -46,7 +45,7 @@ describe('addMany (append, spike S1 branch A)', () => {
   it('writes only A to I and never J', async () => {
     const { fake, store } = setup(1) // one row exists, so this one is appended
     await store.addMany([entry('a')])
-    expect(fake.calls.filter((c) => c.method === 'valuesAppend').map((c) => c.args[1])).toEqual(['Ledger!A:I'])
+    expect(fake.calls.filter((c) => c.method === 'valuesBatchUpdate').map((c) => (c.args[1] as { range: string }[])[0].range)).toEqual(['Ledger!A3:I3'])
     expect(fake.book('S1').get('Ledger!J2')?.f).toMatch(/^=ARRAYFORMULA/)
     expect(fake.book('S1').get('Ledger!J4')).toBeUndefined()
   })
@@ -89,7 +88,7 @@ describe('addMany (append, spike S1 branch A)', () => {
       b.write('Ledger!A9:I9', values)
     })
     expect(await store.addMany([entry('a')])).toEqual([{ id: 'a', ok: true }])
-    expect(fake.count('valuesAppend')).toBe(1)
+    expect(fake.count('valuesBatchUpdate')).toBe(1) // found again by id, so never written twice
     expect(idsColumn(fake).filter((x) => x === 'a')).toHaveLength(1)
   })
   it('gives up with an error after three failed attempts instead of looping', async () => {
@@ -97,7 +96,7 @@ describe('addMany (append, spike S1 branch A)', () => {
     const wipe = () => { fake.book('S1').clear('Ledger!A2:I60'); fake.afterNextWrite(wipe) }
     fake.afterNextWrite(wipe)
     await expect(store.addMany([entry('a')])).rejects.toThrow()
-    expect(fake.count('valuesAppend')).toBeLessThanOrEqual(3)
+    expect(fake.count('valuesBatchUpdate')).toBeLessThanOrEqual(3)
   })
 })
 

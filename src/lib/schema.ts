@@ -14,14 +14,14 @@ export const LEDGER = {
   lastRow: 1000, // only used by the find-free-row alternative if spike S1 fails
   headers: ['id', 'date', 'type', 'amount', 'place', 'description', 'category', 'account', 'to_account', 'base_amount'],
   cols: { id: 'A', date: 'B', type: 'C', amount: 'D', place: 'E', description: 'F', category: 'G', account: 'H', toAccount: 'I', base: 'J' },
-  ranges: { rows: 'Ledger!A2:I', rowsWithBase: 'Ledger!A2:J', ids: 'Ledger!A2:A', header: 'Ledger!A1:J1', append: 'Ledger!A:I' },
+  ranges: { rows: 'Ledger!A2:I', rowsWithBase: 'Ledger!A2:J', ids: 'Ledger!A2:A', header: 'Ledger!A1:J1' },
 } as const
 
 export const SNAPSHOTS = {
   tab: 'Snapshots',
   firstRow: 2,
   headers: ['id', 'date', 'account', 'balance', 'note'],
-  ranges: { rows: 'Snapshots!A2:E', ids: 'Snapshots!A2:A', header: 'Snapshots!A1:E1', append: 'Snapshots!A:E' },
+  ranges: { rows: 'Snapshots!A2:E', ids: 'Snapshots!A2:A', header: 'Snapshots!A1:E1' },
 } as const
 
 export const REFERENCE = {

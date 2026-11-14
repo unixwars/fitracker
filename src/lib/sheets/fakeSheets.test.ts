@@ -13,43 +13,14 @@ function ledgerWith(rows: number): { fake: FakeSheets; id: string } {
   return { fake, id: 'S1' }
 }
 
-describe('fake valuesAppend (the semantics spike S1 confirms live)', () => {
-  it('lands after the last non-empty row, around a cleared gap', async () => {
-    const { fake, id } = ledgerWith(20) // rows 2..21
-    fake.book(id).clear('Ledger!A8:I9')
-    const out = await fake.valuesAppend(id, 'Ledger!A:I', [entryRow(99)])
-    expect(out.updatedRange).toBe('Ledger!A22:I22')
-    expect(fake.book(id).get('Ledger!A22')?.v).toBe('id99')
-  })
-  it('reuses a cleared LAST row', async () => {
-    const { fake, id } = ledgerWith(20)
-    fake.book(id).clear('Ledger!A21:I21')
-    expect((await fake.valuesAppend(id, 'Ledger!A:I', [entryRow(99)])).updatedRange).toBe('Ledger!A21:I21')
-  })
-  it('writes several rows consecutively and reports them', async () => {
-    const { fake, id } = ledgerWith(20)
-    const out = await fake.valuesAppend(id, 'Ledger!A:I', [entryRow(90), entryRow(91), entryRow(92)])
-    expect(out.updatedRange).toBe('Ledger!A22:I24')
-    expect(fake.book(id).get('Ledger!A24')?.v).toBe('id92')
-  })
-  it('two concurrent appends use different rows', async () => {
-    const { fake, id } = ledgerWith(20)
-    const [a, b] = await Promise.all([fake.valuesAppend(id, 'Ledger!A:I', [entryRow(90)]), fake.valuesAppend(id, 'Ledger!A:I', [entryRow(91)])])
-    expect(new Set([a.updatedRange, b.updatedRange]).size).toBe(2)
-  })
-  it('respects a hand-typed row below the table', async () => {
-    const { fake, id } = ledgerWith(20)
-    fake.book(id).write('Ledger!A25:I25', [entryRow(77)])
-    expect((await fake.valuesAppend(id, 'Ledger!A:I', [entryRow(99)])).updatedRange).toBe('Ledger!A26:I26')
-  })
-  it('column J does not count towards the table end', async () => {
-    const { fake, id } = ledgerWith(20)
-    fake.book(id).set('Ledger!J30', 12)
-    expect((await fake.valuesAppend(id, 'Ledger!A:I', [entryRow(99)])).updatedRange).toBe('Ledger!A22:I22')
-  })
-  it('appends to Snapshots after the header', async () => {
-    const { fake, id } = ledgerWith(1)
-    expect((await fake.valuesAppend(id, 'Snapshots!A:E', [['s1', 45292, 'Joint', 5, '']])).updatedRange).toBe('Snapshots!A2:E2')
+describe('fake grid limit', () => {
+  it('rejects a write past maxRows with the real API message and grows on request', async () => {
+    const fake = createFakeSheets()
+    fake.maxRows = 5
+    await expect(fake.valuesBatchUpdate('S', [{ range: 'Ledger!A6:I6', values: [['x']] }])).rejects.toMatchObject({ status: 400 })
+    await fake.growTab('S', 'Ledger', 20)
+    await fake.valuesBatchUpdate('S', [{ range: 'Ledger!A6:I6', values: [['x']] }])
+    expect(fake.book('S').get('Ledger!A6')?.v).toBe('x')
   })
 })
 

@@ -10,36 +10,47 @@ const setup = (entries: Entry[] = []) => {
   seedLedger(fake, 'S1', { today: '2026-11-12', entries })
   return { fake, store: createLedgerStore(fake, 'S1', { now: () => 1000 }) }
 }
+const ranges = (fake: ReturnType<typeof createFakeSheets>) => fake.calls.filter((c) => c.method === 'valuesBatchUpdate').map((c) => (c.args[1] as { range: string }[])[0].range)
 
-describe('the first row of an empty tab (real Sheets appends it one column to the right)', () => {
-  it('is written explicitly to A2:I2, never appended, and J2 is untouched', async () => {
+// The live check showed that real values:append puts a row one column to the right of the table (and into column J,
+// over the formula). Rows are therefore written to an explicit free row.
+describe('rows are written to an explicit free row, never appended', () => {
+  it('the first row goes to A2:I2 and J2 is untouched', async () => {
     const { fake, store } = setup()
     expect(await store.addMany([e('a')])).toEqual([{ id: 'a', ok: true }])
-    expect(fake.count('valuesAppend')).toBe(0)
-    const write = fake.calls.find((c) => c.method === 'valuesBatchUpdate')!
-    expect((write.args[1] as { range: string }[])[0].range).toBe('Ledger!A2:I2')
-    expect(fake.book('S1').get('Ledger!A2')?.v).toBe('a')
+    expect(ranges(fake)).toEqual(['Ledger!A2:I2'])
     expect(fake.book('S1').get('Ledger!J2')?.f).toContain('ARRAYFORMULA')
   })
-  it('later rows are appended', async () => {
-    const { fake, store } = setup()
-    await store.addMany([e('a')])
-    await store.addMany([e('b')])
-    expect(fake.count('valuesAppend')).toBe(1)
-    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('b')
+  it('later rows go below the last used row, several at once', async () => {
+    const { fake, store } = setup([e('a')])
+    await store.addMany([e('b'), e('c')])
+    expect(ranges(fake)).toEqual(['Ledger!A3:I4'])
+    expect(fake.book('S1').read('Ledger!A2:A4', 'UNFORMATTED_VALUE').flat()).toEqual(['a', 'b', 'c'])
   })
-  it('an empty-looking tab that holds a hand-typed row without an id is not overwritten', async () => {
+  it('a hand-typed row without an id is never overwritten', async () => {
     const { fake, store } = setup()
     fake.book('S1').write('Ledger!B2:H2', [[46330, 'expense', 5, 'Hand', 'typed', 'Groceries', 'Joint']])
     await store.addMany([e('a')])
-    expect(fake.book('S1').get('Ledger!D2')?.v).toBe(5) // still the hand-typed amount
-    expect(fake.book('S1').get('Ledger!A2')?.v).toBeUndefined()
+    expect(fake.book('S1').get('Ledger!D2')?.v).toBe(5)
+    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('a')
   })
-  it('stops when an append lands outside columns A to I and does not retry', async () => {
+  it('never writes column J', async () => {
     const { fake, store } = setup([e('a')])
-    const real = fake.valuesAppend.bind(fake)
-    fake.valuesAppend = async (id, range, values) => { await real(id, range, values); return { updatedRange: 'Ledger!B3:J3' } }
-    await expect(store.addMany([e('b')])).rejects.toThrow(/outside/)
-    expect(fake.count('valuesAppend')).toBe(1)
+    await store.addMany([e('b')])
+    expect(ranges(fake).every((r) => /!A\d+:I\d+$/.test(r))).toBe(true)
+  })
+  it('a full tab is grown once and the write retried', async () => {
+    const { fake, store } = setup([e('a')])
+    fake.maxRows = 2
+    expect(await store.addMany([e('b')])).toEqual([{ id: 'b', ok: true }])
+    expect(fake.count('growTab')).toBe(1)
+    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('b')
+  })
+  it('a tab that cannot be grown is an error, not a loop', async () => {
+    const { fake, store } = setup([e('a')])
+    fake.maxRows = 2
+    fake.growTab = async () => undefined // growing does nothing
+    await expect(store.addMany([e('b')])).rejects.toThrow()
+    expect(fake.count('valuesBatchUpdate')).toBeLessThanOrEqual(2)
   })
 })

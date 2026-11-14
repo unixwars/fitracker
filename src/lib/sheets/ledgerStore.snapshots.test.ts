@@ -15,27 +15,25 @@ function setup(snapshots: Snapshot[] = []) {
 }
 
 describe('snapshot writes', () => {
-  it('addSnapshot writes the first row explicitly and appends A to E after that, reading the id back', async () => {
+  it('addSnapshot writes A to E to the first free row of Snapshots and reads the id back', async () => {
     const { fake, store } = setup()
     expect(await store.addSnapshot(snap('s1', { note: 'start' }))).toEqual({ id: 's1', ok: true })
-    const first = fake.calls.find((c) => c.method === 'valuesBatchUpdate')!
-    expect((first.args[1] as { range: string; values: unknown[][] }[])[0]).toEqual({ range: 'Snapshots!A2:E2', values: [['s1', 46326, 'Joint', 100.25, 'start']] })
     expect(await store.addSnapshot(snap('s2'))).toEqual({ id: 's2', ok: true })
-    const call = fake.calls.find((c) => c.method === 'valuesAppend')!
-    expect(call.args[1]).toBe('Snapshots!A:E')
-    expect(call.args[2]).toEqual([['s2', 46326, 'Joint', 100.25, '']])
+    const writes = fake.calls.filter((c) => c.method === 'valuesBatchUpdate').map((c) => c.args[1] as { range: string; values: unknown[][] }[])
+    expect(writes[0][0]).toEqual({ range: 'Snapshots!A2:E2', values: [['s1', 46326, 'Joint', 100.25, 'start']] })
+    expect(writes[1][0]).toEqual({ range: 'Snapshots!A3:E3', values: [['s2', 46326, 'Joint', 100.25, '']] })
     expect(fake.book('S1').get('Snapshots!A3')?.v).toBe('s2')
   })
   it('an id already present is ok without a second append', async () => {
     const { fake, store } = setup([snap('s1')])
     expect(await store.addSnapshot(snap('s1'))).toEqual({ id: 's1', ok: true })
-    expect(fake.count('valuesAppend')).toBe(0)
+    expect(fake.count('valuesBatchUpdate')).toBe(0)
   })
   it("a balance whose currency differs from the account's is AccountChanged; zero and negative are accepted", async () => {
     const { fake, store } = setup()
     expect(await store.addSnapshot(snap('a', { balance: { minor: 100, currency: 'GBP' } }))).toEqual({ id: 'a', ok: false, reason: 'AccountChanged' })
     expect(await store.addSnapshot(snap('b', { account: 'Nowhere' }))).toEqual({ id: 'b', ok: false, reason: 'AccountChanged' })
-    expect(fake.count('valuesAppend')).toBe(0)
+    expect(fake.count('valuesBatchUpdate')).toBe(0)
     expect((await store.addSnapshot(snap('z', { balance: { minor: 0, currency: 'EUR' } }))).ok).toBe(true)
     expect((await store.addSnapshot(snap('n', { balance: { minor: -2050, currency: 'EUR' } }))).ok).toBe(true)
   })

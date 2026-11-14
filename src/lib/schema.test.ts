@@ -24,10 +24,8 @@ describe('v3 schema', () => {
     expect(LEDGER.headers).toHaveLength(10)
     expect(LEDGER.ranges.rows).toBe('Ledger!A2:I')
     expect(LEDGER.ranges.rowsWithBase).toBe('Ledger!A2:J')
-    expect(LEDGER.ranges.append).toBe('Ledger!A:I')
     expect(LEDGER.cols.account).toBe('H')
     expect(SNAPSHOTS.headers).toHaveLength(5)
-    expect(SNAPSHOTS.ranges.append).toBe('Snapshots!A:E')
     expect(REFERENCE.accounts).toBe('Accounts!A2:E')
   })
 

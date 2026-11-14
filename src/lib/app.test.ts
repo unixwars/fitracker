@@ -25,7 +25,7 @@ function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null
   const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
   return { fake, env, data, idb, app: new AppState(env) }
 }
-const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesAppend', 'valuesBatchClear', 'setMetadata'].reduce((n, m) => n + fake.count(m), 0)
+const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesBatchClear', 'setMetadata'].reduce((n, m) => n + fake.count(m), 0)
 
 describe('AppState', () => {
   it('shows the cached book first, then the sheet', async () => {
@@ -58,7 +58,7 @@ describe('AppState', () => {
     expect(app.displayed.map((x) => x.id)).toEqual(['seed', 'n1'])
     await vi.waitFor(() => expect(app.pendingCount).toBe(0))
     await app.sync()
-    expect(fake.count('valuesAppend')).toBe(1)
+    expect(fake.book('S1').get('Ledger!A3')?.v).toBe('n1')
     expect(app.entries.map((x) => x.id)).toEqual(['seed', 'n1'])
     expect(app.displayed).toHaveLength(2)
   })

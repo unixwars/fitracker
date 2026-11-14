@@ -64,13 +64,14 @@ describe('createSheetsApi', () => {
 })
 
 describe('createSheetsApi additions', () => {
-  it('valuesAppend appends RAW with INSERT_ROWS and returns the updated range', async () => {
-    const { calls, fetchImpl } = stub([json({ updates: { updatedRange: 'Ledger!A22:I22' } })])
-    const out = await createSheetsApi(() => 'tok', fetchImpl).valuesAppend('S1', 'Ledger!A:I', [['id1', 45292]])
-    expect(out).toEqual({ updatedRange: 'Ledger!A22:I22' })
-    expect(calls[0].url).toBe('https://sheets.googleapis.com/v4/spreadsheets/S1/values/Ledger!A%3AI:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS')
-    expect(calls[0].init?.method).toBe('POST')
-    expect(JSON.parse(calls[0].init!.body as string)).toEqual({ values: [['id1', 45292]] })
+  it('growTab adds only the missing rows with appendDimension', async () => {
+    const meta = () => json({ sheets: [{ properties: { sheetId: 7, title: 'Ledger', gridProperties: { rowCount: 1001 } } }] })
+    const grow = stub([meta(), json({})])
+    await createSheetsApi(() => 'tok', grow.fetchImpl).growTab('S1', 'Ledger', 1500)
+    expect(JSON.parse(grow.calls[1].init!.body as string)).toEqual({ requests: [{ appendDimension: { sheetId: 7, dimension: 'ROWS', length: 499 } }] })
+    const same = stub([meta()])
+    await createSheetsApi(() => 'tok', same.fetchImpl).growTab('S1', 'Ledger', 900)
+    expect(same.calls).toHaveLength(1) // already big enough: no write
   })
 
   it('valuesBatchUpdate can be asked for USER_ENTERED; RAW stays the default', async () => {

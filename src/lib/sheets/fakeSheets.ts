@@ -79,6 +79,8 @@ export type FakeSheets = SheetsApi & {
   /** When true, reading a range on a tab that does not exist is a 400, like the real API. */
   strictTabs: boolean
   injectWrite(id: string, range: string, values: unknown[][]): void
+  /** Rows every tab has; a write past it is a 400 "exceeds grid limits" like the real API (default: unlimited). */
+  maxRows: number
 }
 
 export function createFakeSheets(): FakeSheets {
@@ -123,6 +125,7 @@ export function createFakeSheets(): FakeSheets {
     beforeNextWrite: (fn) => { beforeWrite = fn },
     liveRates: { EUR: 1, GBP: 1.17, USD: 0.94 },
     strictTabs: false,
+    maxRows: Infinity,
     injectWrite: (id, range, values) => book(id).write(range, values),
 
     async batchGet(id, ranges, render = 'UNFORMATTED_VALUE') {
@@ -137,6 +140,7 @@ export function createFakeSheets(): FakeSheets {
     },
     async valuesBatchUpdate(id, data, input = 'RAW') {
       enter('valuesBatchUpdate', id, data, input)
+      for (const d of data) if (parseRange(d.range).r2 > fake.maxRows) throw new ApiError(400, `Range (${d.range}) exceeds grid limits.`)
       fireBeforeWrite()
       for (const d of data) {
         const values = input === 'USER_ENTERED' ? d.values.map((row) => row.map((v) => userEntered(v, fake.liveRates))) : d.values
@@ -144,20 +148,9 @@ export function createFakeSheets(): FakeSheets {
       }
       fireAfterWrite()
     },
-    async valuesAppend(id, range, values) {
-      enter('valuesAppend', id, range, values)
-      fireBeforeWrite()
-      const r = parseRange(range)
-      const b = book(id)
-      let last = 0
-      for (const key of b.sheets.get(r.sheet)?.keys() ?? []) {
-        const [row, col] = key.split(',').map(Number)
-        if (col >= r.c1 && col <= r.c2) last = Math.max(last, row)
-      }
-      const first = Math.max(last + 1, 2)
-      b.write(`${r.sheet}!${numToCol(r.c1)}${first}:${numToCol(r.c1 + Math.max(...values.map((v) => v.length)) - 1)}${first + values.length - 1}`, values)
-      fireAfterWrite()
-      return { updatedRange: `${r.sheet}!${numToCol(r.c1)}${first}:${numToCol(r.c2)}${first + values.length - 1}` }
+    async growTab(id, tab, rows) {
+      enter('growTab', id, tab, rows)
+      fake.maxRows = Math.max(fake.maxRows, rows)
     },
     async valuesBatchClear(id, ranges) {
       enter('valuesBatchClear', id, ranges)

@@ -27,6 +27,7 @@ These override the task text where they differ.
 - **Refresh interval** is `clamp(15000 + 5 * rows, 15000, 120000)` ms. A `strictTabs` 400 maps to `UnrecognisedLayout`; a newer schema tag allows no reads. No version bump on this branch.
 - **Snapshot undo**: undo of an add deletes by id; undo of a delete re-adds the previous snapshot with its own id.
 - **Spec deviation**: tests use synthetic fixtures, never real data.
+- **Live-check ruling (2026-11-14):** `values:append` is NOT used. On a real copy of the template it landed rows one column to the right (`Ledger!B2:J2`, `B3:J3`) and wrote over the `J2` array formula, with and without rows already present. Rows are written with `values:batchUpdate` to an explicit free row (below the last row that holds anything in A, B, D or the description); a write past the grid is a 400 "exceeds grid limits", answered once with `SheetsApi.growTab` and a retry. `SheetsApi.valuesAppend`, `LEDGER.ranges.append` and `SNAPSHOTS.ranges.append` are removed. Spec 3.2 ("Writing") still says append and needs amending; ask the owner first.
 
 ## Open spikes
 
