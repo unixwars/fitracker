@@ -2,7 +2,8 @@ import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
 import { RowChanged, RowGone, AccountChanged } from '../errors'
-import { ledgerRowValues, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
+import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
+import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
 import type { AddResult, LedgerStore, RefreshOpts } from '../store'
 import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
@@ -24,7 +25,6 @@ type Data = {
 }
 
 const VERSION_RECHECK_MS = 5 * 60_000
-const notYet = (): never => { throw new Error('not implemented') }
 const MAX_ADD_ATTEMPTS = 3
 const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v)).trim()
 
@@ -223,6 +223,49 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return { previous: parsed.value }
   }
 
+  // Month-roll (spec 3.4): freeze the closed month's live rate cells as values and append the new month's live row.
+  // Skipped for a non-EUR base; runs at most once per month per store; the months are re-read just before writing so a
+  // second device that got there first is not duplicated.
+  let ratesHandled: string | null = null
+  async function maintainRates(today: string): Promise<void> {
+    const month = today.slice(0, 7)
+    if (ratesHandled === month) return
+    await checkVersion()
+    const data = await load()
+    if (data.reference.base !== 'EUR') { ratesHandled = month; return }
+    if (data.rates.some((r) => r.month === month + '-01')) { ratesHandled = month; return }
+    const [formulas, values] = await Promise.all([
+      api.batchGet(spreadsheetId, [RATES.ranges.rows], 'FORMULA'),
+      api.batchGet(spreadsheetId, [RATES.ranges.rows], 'UNFORMATTED_VALUE'),
+    ])
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+    const cellAt = (f: unknown, v: unknown): RateCell => ({ value: num(v), formula: typeof f === 'string' && f.startsWith('=') ? f : null })
+    const rows: RateCellRow[] = []
+    ;(formulas[0] ?? []).forEach((fr, i) => {
+      const vr = values[0]?.[i] ?? []
+      const serial = num(vr[0])
+      if (serial === null) return
+      rows.push({ row: RATES.firstRow + i, month: serialToDate(serial), GBP: cellAt(fr?.[1], vr[1]), USD: cellAt(fr?.[2], vr[2]) })
+    })
+    const plan = planRatesMaintenance(rows, today, data.reference.base)
+    const writes: { range: string; values: unknown[][] }[] = []
+    if (plan.freeze) {
+      const f = plan.freeze
+      if (f.values.GBP !== undefined) writes.push({ range: `Rates!B${f.row}`, values: [[f.values.GBP]] })
+      if (f.values.USD !== undefined) writes.push({ range: `Rates!C${f.row}`, values: [[f.values.USD]] })
+    }
+    if (plan.append) {
+      const [current] = await api.batchGet(spreadsheetId, [RATES.ranges.months], 'UNFORMATTED_VALUE')
+      const exists = (current ?? []).some((r) => typeof r?.[0] === 'number' && serialToDate(r[0]) === plan.append!.month)
+      if (!exists) {
+        const a = plan.append
+        writes.push({ range: `Rates!A${a.row}:C${a.row}`, values: [[dateToSerial(a.month), a.formulas.GBP, a.formulas.USD]] })
+      }
+    }
+    if (writes.length) { await api.valuesBatchUpdate(spreadsheetId, writes, 'USER_ENTERED'); markDirty() }
+    ratesHandled = month
+  }
+
   const markDirty = () => {
     stale = true
     notify()
@@ -247,7 +290,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     delete: remove,
     addSnapshot,
     deleteSnapshot,
-    maintainRates: async () => notYet(),
+    maintainRates,
   }
   return Object.assign(store, { _internals: { api, spreadsheetId, load, markDirty, checkVersion, newId, now } as Internals })
 }

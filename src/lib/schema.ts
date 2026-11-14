@@ -111,7 +111,7 @@ export const REFERENCE = {
   budgets: 'Budgets!A2:D',
 } as const
 
-export const RATES = { tab: 'Rates', ranges: { rows: 'Rates!A2:C', months: 'Rates!A2:A' } } as const
+export const RATES = { tab: 'Rates', firstRow: 2, ranges: { rows: 'Rates!A2:C', months: 'Rates!A2:A' } } as const
 
 /** A1 range of one whole row of a tab from column A to `lastCol`, e.g. rowRange('Ledger', 7, 'I') is Ledger!A7:I7. */
 export const rowRange = (tab: string, row: number, lastCol: string): string => `${tab}!A${row}:${lastCol}${row}`
