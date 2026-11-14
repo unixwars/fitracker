@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
   import { monthView, UNCATEGORISED, type CategoryRow } from '../month'
@@ -72,5 +73,5 @@
 </section>
 
 {#if view.approx}<p class="muted">{messages.approx}</p>{/if}
-{#each view.missingRates as c (c)}<p class="err" role="alert">{messages.ratesMissing(c)}</p>{/each}
+{#each view.missingRates as c (c)}<Alert>{messages.ratesMissing(c)}</Alert>{/each}
 {#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import type { Theme } from '../config'
   import { messages } from '../messages'
@@ -44,7 +45,7 @@
     </span>
   </div>
 {/if}
-{#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
+{#if app.message}<Alert>{app.message}</Alert>{/if}
 
 <section class="card">
   <label class="field">

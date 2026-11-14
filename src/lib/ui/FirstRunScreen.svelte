@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
 
@@ -13,5 +14,5 @@
   {/if}
   <button class="secondary" style="margin-top: 8px" onclick={() => app.link()} data-testid="link-existing">{messages.linkExisting}</button>
   {#if app.signedIn && app.accountEmail}<p class="muted" data-testid="account">{messages.signedInAs(app.accountEmail)}</p>{/if}
-  {#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
+  {#if app.message}<Alert>{app.message}</Alert>{/if}
 </section>

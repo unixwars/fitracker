@@ -140,3 +140,7 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
   .opt-emoji { display: none; }
   .opt-icon { display: inline-block; flex: none; width: 18px; height: 18px; color: var(--muted); }
 }
+
+.alert { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); font-size: 0.9rem; }
+.alert svg { flex: none; margin-top: 1px; }
+.alert span { min-width: 0; overflow-wrap: anywhere; }
