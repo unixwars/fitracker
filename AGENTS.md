@@ -12,17 +12,18 @@ for data. Do not add one.
 ## Rules
 - **Pure logic in `src/lib` with a `.test.ts` beside it.** Parsing, money, sync and
   queue rules are functions; components render and do not decide. Test first.
-- **Money is integer cents.** Request `UNFORMATTED_VALUE` and never parse
-  locale-formatted strings. Never overwrite formula cells.
-- **One column mapping, one source.** The sheet layout is fixed across years. Define
-  it once in `src/lib/schema.ts`; nothing else hardcodes a column or tab name.
-- **Rows are found by the hidden id column, never by row number.** Row numbers shift.
+- **Money is integer minor units.** Request `UNFORMATTED_VALUE` and never parse
+  locale-formatted strings. Never overwrite formula cells, except the `Rates` month-roll (spec 3.4).
+- **One column mapping, one source.** The sheet is one multi-year book (`Ledger`, `Snapshots`,
+  reference tabs). Define its layout once in `src/lib/schema.ts`; nothing else hardcodes a column or tab name.
+- **Rows are found by the id column (`Ledger` and `Snapshots` column A), never by row number.** Row numbers shift.
 - **One data seam.** Screens, the outbox and prediction use the `EntryStore` interface; only the
   Sheets adapter knows about Sheets.
-- **Schema is versioned.** Layout changes are ordered migrations in `src/lib/migrations/`, each
-  atomic and preceded by backup tabs; a sheet newer than the app is read-only.
-- **The app never writes column C or Setup.** It writes only the id, date, amount, currency and
-  text/category/account fields; column C is a sheet formula.
+- **Schema is versioned.** The book carries version 3 as developer metadata (`fitracker.schemaVersion`). The
+  app has no migrations. A newer version is read-only; an unrecognised layout aborts before any write; a lost
+  tag is re-stamped only when the `Ledger` and `Snapshots` headers match.
+- **The app writes only `Ledger` columns A-I, `Snapshots` and the `Rates` maintenance rows;** never `J`, a view
+  or another reference tab.
 - **Offline-first.** Writes (append, edit, delete) go to an IndexedDB outbox and are
   replayed in order. A replay on a missing row is dropped and flagged, not retried.
   Last write wins per row; keep the overwritten values so the user can undo.
@@ -30,7 +31,7 @@ for data. Do not add one.
   `values:batchGet` per screen, respect the ~60 reads/min quota. Watch the bundle
   size; a new dependency needs a reason.
 - **Auth.** Google Identity Services, `drive.file` scope with the Picker. Keep access
-  tokens in memory, never in localStorage. The year to spreadsheet-id list is the only
+  tokens in memory, never in localStorage. The one linked spreadsheet id (plus device settings) is the only
   stored config.
 - **Secrets stay out of the repo.** OAuth client ID and anything else go in `.env`;
   list the names in `.env.example`.
