@@ -3,7 +3,7 @@ import './app.css'
 import App from './App.svelte'
 import { AppState, type Env } from './lib/app.svelte'
 import { createAuth, kvTokenStore } from './lib/auth'
-import { fetchAccountEmail } from './lib/driveAbout'
+import { fetchAccount } from './lib/driveAbout'
 import { createKv } from './lib/kv'
 import { pickSheet } from './lib/picker'
 import { copyTemplate } from './lib/driveCopy'
@@ -23,7 +23,7 @@ async function makeEnv(): Promise<Env> {
     idb: indexedDB,
     api: createSheetsApi(() => auth.token()),
     auth,
-    account: () => { const t = auth.token(); return t ? fetchAccountEmail(t) : Promise.resolve(null) },
+    account: () => { const t = auth.token(); return t ? fetchAccount(t) : Promise.resolve(null) },
     pick: () => {
       const token = auth.token()
       return token ? pickSheet(token, import.meta.env.VITE_GOOGLE_API_KEY ?? '', import.meta.env.VITE_GOOGLE_PROJECT_NUMBER ?? '') : Promise.resolve(null)

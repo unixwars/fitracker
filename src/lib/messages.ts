@@ -7,6 +7,7 @@ export const messages = {
   reconnectBanner: 'Signed out. Tap to reconnect and sync your changes.',
   reconnect: 'Reconnect',
   wrongAccount: (email?: string) => `${email ?? 'This Google account'} can't open the linked sheet. Tap Reconnect and choose the account that has it.`,
+  account: 'Account',
   signedInAs: (email: string) => `Signed in as ${email}`,
   newerBanner: 'This sheet uses a newer version than this app. Update the app; the sheet is read-only here.',
   openSettings: 'Open settings',

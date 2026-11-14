@@ -13,27 +13,42 @@
 
 <h2 style="margin: 4px 0 12px">{messages.settingsTitle}</h2>
 
-<section class="card">
-  {#if linked}
-    <p class="muted">{messages.linked}: <a href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet">{app.sheetName || messages.openSheet}</a></p>
-  {:else}
-    <p class="muted">{messages.notLinked}</p>
-  {/if}
-  {#if linked && app.signedIn}
-    {#if confirmingUnlink}
-      <div class="banner" role="alertdialog" style="margin: 8px 0 0" data-testid="unlink-confirm">
-        <span>{messages.unlinkWarnSheet}</span>
-        <span class="row" style="flex: 0 0 auto">
-          <button class="secondary" onclick={() => (confirmingUnlink = false)}>{messages.cancel}</button>
-          <button class="secondary" onclick={async () => { confirmingUnlink = false; await app.unlink() }} data-testid="unlink-yes">{messages.unlinkConfirm}</button>
-        </span>
-      </div>
+<div class="tiles">
+  <section class="card tile">
+    <span class="tile-label">{messages.linked}</span>
+    {#if linked}
+      <a class="tile-main" href={app.sheetLink} target="_blank" rel="noopener" data-testid="open-sheet">{app.sheetName || messages.openSheet}</a>
     {:else}
+      <span class="tile-main muted">{messages.notLinked}</span>
+    {/if}
+    {#if linked && app.signedIn && !confirmingUnlink}
       <button class="secondary" onclick={() => (confirmingUnlink = true)} data-testid="unlink">{messages.unlinkSheet}</button>
     {/if}
+  </section>
+  {#if app.signedIn}
+    <section class="card tile">
+      <span class="tile-label">{messages.account}</span>
+      <span class="tile-main who">
+        <span class="avatar" aria-hidden="true">
+          {#if app.accountPhoto}<img src={app.accountPhoto} alt="" referrerpolicy="no-referrer" onerror={(e) => e.currentTarget.remove()} />{/if}
+          {(app.accountEmail || '?').slice(0, 1).toUpperCase()}
+        </span>
+        <span class="who-email">{app.accountEmail}</span>
+      </span>
+      <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
+    </section>
   {/if}
-  {#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
-</section>
+</div>
+{#if linked && app.signedIn && confirmingUnlink}
+  <div class="banner" role="alertdialog" style="margin: 0 0 12px" data-testid="unlink-confirm">
+    <span>{messages.unlinkWarnSheet}</span>
+    <span class="row" style="flex: 0 0 auto">
+      <button class="secondary" onclick={() => (confirmingUnlink = false)}>{messages.cancel}</button>
+      <button class="secondary" onclick={async () => { confirmingUnlink = false; await app.unlink() }} data-testid="unlink-yes">{messages.unlinkConfirm}</button>
+    </span>
+  </div>
+{/if}
+{#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
 
 <section class="card">
   <label class="field">
@@ -46,10 +61,4 @@
   </label>
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
   <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
-  {#if app.signedIn}
-    {#if app.accountEmail}<div class="stat"><span>{messages.signedInAs(app.accountEmail)}</span></div>{/if}
-    <div class="row" style="margin-top: 8px">
-      <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
-    </div>
-  {/if}
 </section>

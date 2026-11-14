@@ -55,7 +55,7 @@ test('Settings has only Sign out (no Sign in; the Reconnect banner signs in) and
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
   await expect(page.getByTestId('sign-out')).toBeVisible()
-  await expect(page.getByText('Signed in as demo@example.test')).toBeVisible()
+  await expect(page.getByText('demo@example.test')).toBeVisible()
   await expect(page.getByTestId('sign-in')).toHaveCount(0)
   await expect(page.getByTestId('unlink')).toBeVisible()
   await expect(page.getByText('Link a different sheet')).toHaveCount(0)

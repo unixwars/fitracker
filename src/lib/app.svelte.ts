@@ -1,6 +1,7 @@
 // Application state. Components render this; the rules live in the modules it composes.
 import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
+import type { Account } from './driveAbout'
 import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
 import { applyPending, makeOp, makeRepairOp, pendingCount, undo, type Op } from './outbox'
@@ -25,7 +26,7 @@ export type Env = {
   auth: Auth
   pick: () => Promise<string | null>
   copyTemplate: () => Promise<string | null> // null when the user cancels
-  account?: () => Promise<string | null> // the email of the signed-in Google account, for display only
+  account?: () => Promise<Account | null> // the signed-in Google account, for display only
   ttlMs?: number // overrides the book refresh interval (the offline end-to-end mode uses 0)
   fake?: boolean
 }
@@ -67,6 +68,7 @@ export class AppState {
   authExpired = $state(false)
   signedIn = $state(false) // a valid token is held; Settings shows Sign in or Sign out accordingly
   accountEmail = $state('') // who is signed in (display only, never stored)
+  accountPhoto = $state('')
   gestureTried = $state(false) // a silent sign-in inside a tap was refused: only then is the Reconnect banner shown
   private userSignedOut = false // the person signed out on purpose (kept across reloads): never sign in silently behind their back
   private silentBusy = false
@@ -110,8 +112,10 @@ export class AppState {
 
   private async refreshAccount() {
     const lookup = this.env.account
-    if (!lookup || !this.env.auth.token()) { this.accountEmail = ''; return }
-    this.accountEmail = (await lookup().catch(() => null)) ?? ''
+    if (!lookup || !this.env.auth.token()) { this.accountEmail = ''; this.accountPhoto = ''; return }
+    const who = await lookup().catch(() => null)
+    this.accountEmail = who?.email ?? ''
+    this.accountPhoto = who?.photoUrl ?? ''
   }
 
   async init() {
@@ -124,7 +128,7 @@ export class AppState {
         if (document.visibilityState === 'visible') void this.sync()
       })
     }
-    this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false; this.accountEmail = '' })
+    this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false; this.accountEmail = ''; this.accountPhoto = '' })
     try {
       this.ops = await this.db.all()
       await this.db.prune(PRUNE_AFTER_MS)
@@ -249,6 +253,7 @@ export class AppState {
       this.authExpired = true
       this.message = messages.wrongAccount(this.accountEmail || undefined)
       this.accountEmail = ''
+      this.accountPhoto = ''
     }
     else if (err instanceof UnrecognisedLayout) {
       this.status = 'unrecognised'
@@ -350,6 +355,7 @@ export class AppState {
     this.signedIn = false
     this.authExpired = true
     this.accountEmail = ''
+    this.accountPhoto = ''
   }
 
   private setUserSignedOut(value: boolean) {
