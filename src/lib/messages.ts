@@ -74,6 +74,17 @@ export const messages = {
     Other: 'This change could not be applied.',
   },
   ops: { add: 'Added', edit: 'Edited', delete: 'Deleted' },
+  snapshotOps: { add: 'Added a balance', delete: 'Deleted a balance' },
+  unrecognisedBanner: 'This sheet is not a fitracker ledger, so the app will not read or write it. Link the ledger sheet in Settings.',
+  linkNotLedger: 'That sheet is not a fitracker ledger, so the link was not changed.',
+  rowNotUnderstood: (row: number, reason: string) => `Row ${row}: ${reason}. Fix it in the sheet; it clears on the next refresh.`,
+  unreadableReasons: {
+    date: 'The date is not a date',
+    amount: 'The amount must be a positive number',
+    type: 'The type is not expense, income or transfer',
+    account: 'The account is not in the Accounts tab',
+    toAccount: 'The destination account is missing or the same as the source',
+  },
 
   settingsTitle: 'Settings',
   year: 'Year',
