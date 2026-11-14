@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spike S5 scripted (THROWAWAY)</title>
+<style>
+  body { font: 14px system-ui, sans-serif; max-width: 720px; margin: 1rem auto; padding: 0 1rem; }
+  label { display: block; margin: .4rem 0; }
+  input { width: 100%; box-sizing: border-box; padding: .3rem; }
+  button { margin: .5rem .5rem 0 0; padding: .4rem .7rem; }
+  pre { background: #eee; padding: .6rem; white-space: pre-wrap; min-height: 8rem; }
+  .warn { background: #fee; padding: .5rem; }
+</style>
+</head>
+<body>
+<p class="warn"><b>THROWAWAY S5.</b> Creates one Drive file named "S5 spike copy" in the signed-in account and deletes it again at the end. Typed values are never stored. Use an account that does NOT own the template.</p>
+<label>OAuth client ID <input id="clientId" autocomplete="off"></label>
+<label>API key <input id="apiKey" autocomplete="off"></label>
+<label>Google Cloud project number <input id="projectNumber" autocomplete="off"></label>
+<label>Template file id <input id="templateId" value="1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-jUfcqgaTLp8yY" autocomplete="off"></label>
+<button id="signIn">1. Sign in</button>
+<button id="runIds">2a. Picker with the template preselected, then copy</button>
+<button id="runPlain">2c. CONTROL: plain Picker (same as the S1 page), then copy</button>
+<button id="runRecent">2b. Picker (Shared with me / Recent), then copy</button>
+<pre id="log"></pre>
+<script>
+const SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const $ = (id) => document.getElementById(id)
+const out = $('log')
+let token = null
+const log = (m) => { out.textContent += (typeof m === 'string' ? m : JSON.stringify(m)) + '\n' }
+const load = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s) })
+const ready = (async () => {
+  await load('https://accounts.google.com/gsi/client'); await load('https://apis.google.com/js/api.js')
+  await new Promise((r) => gapi.load('picker', r)); log('Libraries loaded.')
+})().catch((e) => log('Load error: ' + e.message))
+const auth = () => ({ Authorization: 'Bearer ' + token })
+
+$('signIn').onclick = async () => {
+  await ready
+  google.accounts.oauth2.initTokenClient({
+    client_id: $('clientId').value.trim(), scope: SCOPE,
+    callback: (r) => { if (r.error) return log('Sign-in error: ' + r.error); token = r.access_token; log('Signed in. Granted scope(s): ' + r.scope + (r.scope === SCOPE ? '  (ONLY drive.file: OK)' : '  (MORE THAN drive.file: note it)')) },
+    error_callback: (e) => log('Sign-in error: ' + e.type),
+  }).requestAccessToken()
+}
+
+async function afterPick(id, name) {
+  log('Picked: ' + name + ' (' + id + ')')
+  let copyId = null
+  try {
+    const r = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '/copy', { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'S5 spike copy' }) })
+    const t = await r.text()
+    log('files.copy HTTP ' + r.status + (r.ok ? '' : ': ' + t.slice(0, 400)))
+    if (!r.ok) return log('S5 RESULT: FAIL at files.copy (the spec falls back to the copy-link flow)')
+    copyId = JSON.parse(t).id
+    log('New file: ' + copyId + ' ' + JSON.parse(t).name)
+    // Verify the copy with the Sheets API, exactly as the app would link it.
+    const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${copyId}/developerMetadata:search`, { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ dataFilters: [{ developerMetadataLookup: { metadataKey: 'fitracker.schemaVersion', visibility: 'DOCUMENT', locationType: 'SPREADSHEET' } }] }) })
+    const mj = await meta.json()
+    const tag = mj.matchedDeveloperMetadata?.[0]?.developerMetadata?.metadataValue ?? null
+    log('Sheets API on the copy: HTTP ' + meta.status + ', schemaVersion tag = ' + tag + ' (expect 3)')
+    const vals = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${copyId}/values:batchGet?ranges=Ledger!A1:J1&ranges=Snapshots!A1:E1&valueRenderOption=FORMULA`, { headers: auth() })
+    const vj = await vals.json()
+    log('Ledger header: ' + JSON.stringify(vj.valueRanges?.[0]?.values) + '\nSnapshots header: ' + JSON.stringify(vj.valueRanges?.[1]?.values))
+    log('S5 RESULT: ' + (tag === '3' && vals.ok ? 'PASS (copy works with drive.file, tag survives, the app can read it)' : 'FAIL on the copy contents'))
+    log('Script attached to the copy: check by hand (open the copy, Extensions menu; it should have no Apps Script project).')
+  } catch (e) {
+    log('ERROR: ' + e.message)
+  } finally {
+    if (copyId) {
+      const d = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(copyId), { method: 'DELETE', headers: auth() })
+      log('Cleanup: deleted the spike copy, HTTP ' + d.status + (d.status === 204 ? ' (done)' : ' (delete it from Drive by hand)'))
+    }
+  }
+}
+
+async function run(mode) {
+  await ready
+  if (!token) return log('Sign in first.')
+  const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+  if (mode === 'ids') view.setFileIds($('templateId').value.trim()); else if (mode === 'recent') view.setIncludeFolders(false)
+  log('Opening the Picker, mode: ' + mode)
+  new google.picker.PickerBuilder().addView(view).setOAuthToken(token).setDeveloperKey($('apiKey').value.trim()).setAppId($('projectNumber').value.trim())
+    .setCallback((r) => {
+      if (r.action === google.picker.Action.PICKED && r.docs?.[0]) afterPick(r.docs[0].id, r.docs[0].name)
+      else if (r.action === google.picker.Action.CANCEL) log('Picker closed/cancelled.')
+      else if (r.action === google.picker.Action.ERROR) log('Picker ERROR: ' + JSON.stringify(r))
+    }).build().setVisible(true)
+}
+$('runIds').onclick = () => run('ids')
+$('runRecent').onclick = () => run('recent')
+$('runPlain').onclick = () => run('plain')
+</script>
+</body>
+</html>
