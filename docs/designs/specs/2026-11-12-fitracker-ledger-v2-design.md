@@ -1,6 +1,6 @@
 # Fitracker v2: one multi-year ledger
 
-Status: draft rev 4 (Picker and `files.copy` template flow), awaiting user approval. Date: 2026-11-12.
+Status: draft rev 5 (rows are written to an explicit free row, not appended; live check 2026-11-14), awaiting user approval. Date: 2026-11-12.
 
 Supersedes sections 3 (template findings), 5 (data layer, migrations) and the year switcher in section 7
 of `2026-11-10-fitracker-design.md`. Everything else there (architecture, sync and undo, auth, testing
@@ -71,9 +71,13 @@ entry's month), or 1 for the base currency. A row it cannot resolve shows an err
 so one bad row cannot turn a whole summary into an error, and show the count of unresolved rows.
 
 Writing:
-- Appends use `values:append` with `insertDataOption=INSERT_ROWS` on `Ledger!A:I` and read back from the
-  response's `updatedRange`. Before re-sending an unacknowledged add, the outbox looks the id up (as today),
-  because append is not idempotent.
+- A new row is written with `values:batchUpdate` to an explicit free row: one below the last row that holds
+  anything in `A`, `B`, `D` or the description (so a hand-typed row without an id is never overwritten), columns
+  `A` to `I` only. `values:append` is not used: against a real copy of the template it landed rows one column
+  to the right (`B2:J2`) over the `J2` formula, with and without rows present (live check, 2026-11-14). A write
+  past the grid is a 400 "exceeds grid limits"; the app then adds rows (`appendDimension`) once and retries.
+  After writing, the app reads the id column back for that row and retries if another device took the row. Before
+  re-sending an unacknowledged add, the outbox looks the id up, because a write is not idempotent.
 - A delete clears A to I of the located row (the row stays; no shifting). Edits locate the row by id:
   read column A first, then the single row.
 - Rows typed by hand without an id get one from the app on refresh. After writing, the app reads the cell
@@ -94,7 +98,7 @@ One row per month (first day of the month, ascending): GBP and USD columns, each
 base currency. Past months are values. The current month's row holds a live
 `GOOGLEFINANCE("CURRENCY:...")` current-rate formula (no history), which the API can read (spike S2).
 On the first refresh in a new month the app writes the closed month's row as a value and appends the new
-month's row with the formula: the one write outside `Ledger` and `Snapshots`. Concurrent devices may both try;
+month's row (explicit row, after the last non-empty row of `A:C`) with the formula: the one write outside `Ledger` and `Snapshots`. Concurrent devices may both try;
 the app re-reads and skips if the month row already exists. History is loaded once from Bank of England
 monthly averages by the converter.
 
@@ -259,8 +263,9 @@ user before any PR.
 
 Each sub-project gets its own plan. A failed gate returns to this spec.
 1. This spec approved.
-2. Spikes pass (they can run alongside the converter): S1 append with `INSERT_ROWS` on a ledger with a cleared
-   gap, a three-row append, two concurrent appends and a hand-typed row below; S2 the current-rate formula and
+2. Spikes pass (they can run alongside the converter): S1 adding rows to a ledger with a cleared gap, a
+   three-row add, two concurrent adds and a hand-typed row below, on the real template copy (an append on a
+   scratch sheet passed but failed on the template: see 3.2); S2 the current-rate formula and
    `Ledger!J` read through the Sheets API, and Bank of England history loaded into `Rates`; S3 view and
    `Balances` month-end formulas fast on a ten-thousand-row ledger, timing the helper-column design of 3.6
    (ticked-account `FILTER` into AA:AD, plain `SUMIFS`), not the old `SUMPRODUCT` shape; S4 the Apps Script build (formulas,
@@ -291,3 +296,4 @@ Ships as 0.2.0, a breaking layout change replacing the unused 0.1.0 deployment.
 
 Editing reference lists in the app, Sankey, notifications, per-coin crypto holdings, business accounting (the two
 business accounts are tracked only as assets), a second storage backend, changing the base currency.
+- The sheet is the shared database, so two devices writing in the same fraction of a second can pick the same row; the read-back after each write retries the loser and the 7-day check flags a vanished row. A hosted database would remove this but also the "your data stays in your own Sheet" premise; that is a question for a later release.
