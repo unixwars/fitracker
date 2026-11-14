@@ -188,3 +188,38 @@ describe('createFromTemplate', () => {
     expect(app.sheetId).toBeNull()
   })
 })
+
+describe('review fixes', () => {
+  it('create from the template is refused while changes are waiting, and nothing is lost (M1)', async () => {
+    let copied = 0
+    const { app, fake } = setup({ copy: async () => { copied++; return 'COPY' } })
+    seedLedger(fake, 'COPY', { today })
+    await app.init()
+    await app.db.put(makeOp('add', e('p')))
+    app.ops = await app.db.all()
+    await app.createFromTemplate()
+    expect(app.message).toBe(messages.relinkBlocked(1))
+    expect(copied).toBe(0)
+    expect(app.sheetId).toBe('S1')
+    expect((await app.db.all()).map((o) => o.entryId)).toEqual(['p'])
+  })
+
+  it('Re-add on a flagged edit writes the edit, as a deliberate overwrite (M3)', async () => {
+    const { app, fake } = setup()
+    await app.init()
+    const op = await app.db.put({ ...makeOp('edit', e('a', { money: { minor: 2100, currency: 'EUR' } }), e('a')), status: 'flagged', reason: 'RowChanged' })
+    app.ops = await app.db.all()
+    await app.readd(op)
+    await vi.waitFor(() => expect(fake.book('S1').get('Ledger!D2')?.v).toBe(21))
+    expect(fake.book('S1').get('Ledger!A3')).toBeUndefined() // no second row
+  })
+
+  it('Re-add on a flagged edit of a removed row adds the entry back (M3)', async () => {
+    const { app, fake } = setup({ entries: [] })
+    await app.init()
+    const op = await app.db.put({ ...makeOp('edit', e('gone'), e('gone')), status: 'flagged', reason: 'RowGone' })
+    app.ops = await app.db.all()
+    await app.readd(op)
+    await vi.waitFor(() => expect(fake.book('S1').get('Ledger!A2')?.v).toBe('gone'))
+  })
+})

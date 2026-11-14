@@ -1,7 +1,7 @@
 import { backfillId } from '../ids'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
-import { RowChanged, RowGone, AccountChanged } from '../errors'
+import { AccountChanged, ApiError, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
 import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
 import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
@@ -26,6 +26,9 @@ type Data = {
 
 const VERSION_RECHECK_MS = 5 * 60_000
 const MAX_ADD_ATTEMPTS = 3
+// One cell of every other tab, added to the read before a write: a renamed or removed tab is a 400 there, so an
+// unrecognised layout aborts before any write (spec 4) at no extra request.
+const TAB_GUARD = [LEDGER.ranges.header, SNAPSHOTS.ranges.header, REFERENCE.base, RATES.ranges.months] as const
 const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v)).trim()
 
 export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options: StoreOptions = {}): EntryStore & { _internals: Internals } {
@@ -44,12 +47,20 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     verifiedAt = now()
   }
 
+  // A 400 on a tagged book means a tab was renamed or removed: that is an unrecognised layout, so writes stop (spec 4).
+  async function read(ranges: string[], render: 'UNFORMATTED_VALUE' | 'FORMULA' = 'UNFORMATTED_VALUE'): Promise<unknown[][][]> {
+    try {
+      return await api.batchGet(spreadsheetId, ranges, render)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) throw new UnrecognisedLayout('A tab of the ledger is missing or renamed')
+      throw err
+    }
+  }
+
   async function fetchBook(): Promise<Data> {
     await checkVersion()
-    const [ledger, base, accounts, categories, budgets, rates, snapshotRows] = await api.batchGet(
-      spreadsheetId,
+    const [ledger, base, accounts, categories, budgets, rates, snapshotRows] = await read(
       [LEDGER.ranges.rows, REFERENCE.base, REFERENCE.accounts, REFERENCE.categories, REFERENCE.budgets, RATES.ranges.rows, SNAPSHOTS.ranges.rows],
-      'UNFORMATTED_VALUE',
     )
     const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
     const unreadable: Unreadable[] = []
@@ -75,8 +86,18 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     const entries: Entry[] = []
     const snapshots: Snapshot[] = []
     const rows = new Map<string, RowRef>()
-    for (const { row, entry } of entryRows) if (entry.id !== '') { entries.push(entry); rows.set(entry.id, { tab: 'Ledger', row }) }
-    for (const { row, snapshot } of snapshotItems) if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
+    // An id belongs to one row. A row copied in Sheets brings its id along: the first row keeps it, every later row
+    // is reported as unreadable (the person fixes it in the sheet) and is never listed or edited.
+    const seen = new Set<string>()
+    const claim = (id: string): boolean => (id === '' ? true : seen.has(id) ? false : (seen.add(id), true))
+    for (const { row, entry } of entryRows) {
+      if (!claim(entry.id)) { unreadable.push({ tab: 'Ledger', row, reason: 'duplicateId', text: entry.description }); continue }
+      if (entry.id !== '') { entries.push(entry); rows.set(entry.id, { tab: 'Ledger', row }) }
+    }
+    for (const { row, snapshot } of snapshotItems) {
+      if (!claim(snapshot.id)) { unreadable.push({ tab: 'Snapshots', row, reason: 'duplicateId', text: snapshot.note }); continue }
+      if (snapshot.id !== '') { snapshots.push(snapshot); rows.set(snapshot.id, { tab: 'Snapshots', row }) }
+    }
     return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows }
   }
 
@@ -100,7 +121,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       spreadsheetId,
       blocks.map((b) => ({ range: range(b), values: targets.filter((t) => t.tab === b.tab && t.row >= b.first && t.row <= b.last).sort((x, y) => x.row - y.row).map((t) => [t.id]) })),
     )
-    const back = await api.batchGet(spreadsheetId, blocks.map(range), 'UNFORMATTED_VALUE')
+    const back = await read(blocks.map(range), 'UNFORMATTED_VALUE')
     blocks.forEach((b, i) => {
       for (const t of targets.filter((x) => x.tab === b.tab && x.row >= b.first && x.row <= b.last)) {
         const cell = back[i]?.[t.row - b.first]?.[0]
@@ -129,7 +150,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     const results = new Map<string, AddResult>()
     let pending = items.filter((e, i) => items.findIndex((x) => x.id === e.id) === i)
     for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS && pending.length; attempt++) {
-      const [idCells, accountRows] = await api.batchGet(spreadsheetId, [spec.ids, REFERENCE.accounts], 'UNFORMATTED_VALUE')
+      const [idCells, accountRows] = await read([spec.ids, REFERENCE.accounts, ...TAB_GUARD])
       const present = new Set((idCells ?? []).map((r) => str(r?.[0])))
       const accounts = parseReference([], accountRows ?? [], [], []).accounts
       pending = pending.filter((e) => {
@@ -140,7 +161,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       if (!pending.length) break
       const { updatedRange } = await api.valuesAppend(spreadsheetId, spec.append, pending.map(spec.values))
       const landed = parseRange(updatedRange)
-      const [back] = await api.batchGet(spreadsheetId, [`${spec.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
+      const [back] = await read([`${spec.tab}!A${landed.r1}:A${landed.r2}`], 'UNFORMATTED_VALUE')
       pending = pending.filter((e, i) => {
         if (str(back?.[i]?.[0]) !== e.id) return true
         results.set(e.id, { id: e.id, ok: true })
@@ -182,11 +203,13 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   // can be checked). Never by row number.
   async function locate(id: string, expectedPrevious?: Entry): Promise<{ row: number; previous: Entry; accounts: Reference['accounts'] }> {
     await checkVersion()
-    const [idCells] = await api.batchGet(spreadsheetId, [LEDGER.ranges.ids], 'UNFORMATTED_VALUE')
+    const [idCells] = await read([LEDGER.ranges.ids, ...TAB_GUARD])
     const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
     if (at < 0) throw new RowGone(id)
+    if ((idCells ?? []).filter((r) => str(r?.[0]) === id).length > 1) throw new RowChanged(id) // a copied row: ambiguous
     const row = LEDGER.firstRow + at
-    const [cells, accountRows] = await api.batchGet(spreadsheetId, [rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts], 'UNFORMATTED_VALUE')
+    const [cells, accountRows] = await read([rowRange(LEDGER.tab, row, 'I'), REFERENCE.accounts])
+    if (str(cells?.[0]?.[0]) !== id) throw new RowChanged(id) // the rows moved between the two reads
     const accounts = parseReference([], accountRows ?? [], [], []).accounts
     const parsed = parseLedgerRow(cells?.[0] ?? [], accounts)
     if (!('value' in parsed)) throw new RowChanged(id)
@@ -211,11 +234,13 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
 
   async function deleteSnapshot(id: string): Promise<{ previous: Snapshot }> {
     await checkVersion()
-    const [idCells] = await api.batchGet(spreadsheetId, [SNAPSHOTS.ranges.ids], 'UNFORMATTED_VALUE')
+    const [idCells] = await read([SNAPSHOTS.ranges.ids, ...TAB_GUARD])
     const at = (idCells ?? []).findIndex((r) => str(r?.[0]) === id)
     if (at < 0) throw new RowGone(id)
+    if ((idCells ?? []).filter((r) => str(r?.[0]) === id).length > 1) throw new RowChanged(id)
     const row = SNAPSHOTS.firstRow + at
-    const [cells, accountRows] = await api.batchGet(spreadsheetId, [rowRange(SNAPSHOTS.tab, row, 'E'), REFERENCE.accounts], 'UNFORMATTED_VALUE')
+    const [cells, accountRows] = await read([rowRange(SNAPSHOTS.tab, row, 'E'), REFERENCE.accounts])
+    if (str(cells?.[0]?.[0]) !== id) throw new RowChanged(id)
     const parsed = parseSnapshotRow(cells?.[0] ?? [], parseReference([], accountRows ?? [], [], []).accounts)
     if (!('value' in parsed)) throw new RowChanged(id)
     await api.valuesBatchClear(spreadsheetId, [rowRange(SNAPSHOTS.tab, row, 'E')])
@@ -235,8 +260,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     if (data.reference.base !== 'EUR') { ratesHandled = month; return }
     if (data.rates.some((r) => r.month === month + '-01')) { ratesHandled = month; return }
     const [formulas, values] = await Promise.all([
-      api.batchGet(spreadsheetId, [RATES.ranges.rows], 'FORMULA'),
-      api.batchGet(spreadsheetId, [RATES.ranges.rows], 'UNFORMATTED_VALUE'),
+      read([RATES.ranges.rows], 'FORMULA'),
+      read([RATES.ranges.rows], 'UNFORMATTED_VALUE'),
     ])
     const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
     const cellAt = (f: unknown, v: unknown): RateCell => ({ value: num(v), formula: typeof f === 'string' && f.startsWith('=') ? f : null })
@@ -255,7 +280,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       if (f.values.USD !== undefined) writes.push({ range: `Rates!C${f.row}`, values: [[f.values.USD]] })
     }
     if (plan.append) {
-      const [current] = await api.batchGet(spreadsheetId, [RATES.ranges.months], 'UNFORMATTED_VALUE')
+      const [current] = await read([RATES.ranges.months], 'UNFORMATTED_VALUE')
       const exists = (current ?? []).some((r) => typeof r?.[0] === 'number' && serialToDate(r[0]) === plan.append!.month)
       if (!exists) {
         const a = plan.append

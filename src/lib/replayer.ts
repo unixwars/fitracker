@@ -1,4 +1,4 @@
-import { AccountChanged, AuthExpired, RateLimited, RowChanged, RowGone } from './errors'
+import { AccountChanged, AuthExpired, NewerThanApp, RateLimited, RowChanged, RowGone, UnrecognisedLayout } from './errors'
 import type { Op, OpReason } from './outbox'
 import type { OutboxDb } from './outboxDb'
 import type { EntryStore } from './store'
@@ -82,6 +82,8 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
           authHandlers.forEach((h) => h())
           return false
         }
+        // The sheet is not writable by this app version: nothing was written, so the ops wait (the screen shows why).
+        if (err instanceof NewerThanApp || err instanceof UnrecognisedLayout) return false
         if (err instanceof RateLimited) {
           await sleep(err.retryAfterMs * 2 ** tries)
           continue
@@ -109,7 +111,7 @@ export function createReplayer(store: EntryStore, db: OutboxDb, opts: ReplayerOp
       const removedLater = (op: Op) => ops.some((o) => o.entryId === op.entryId && o.type === 'delete' && o.status !== 'flagged' && (o.seq ?? 0) > (op.seq ?? 0))
       const saved = ops.filter((o) => o.status === 'done' && o.type !== 'delete' && o.at >= since && !removedLater(o))
       if (!saved.length) return
-      const { missingIds } = await store.refresh({ force: true, expectIds: [...new Set(saved.map((o) => o.entryId))] })
+      const { missingIds } = await store.refresh({ expectIds: [...new Set(saved.map((o) => o.entryId))] })
       for (const op of saved) if (missingIds.includes(op.entryId)) await db.update(op.opId, { status: 'flagged', reason: 'Missing' })
     },
   }

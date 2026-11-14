@@ -91,6 +91,7 @@ export const messages = {
     type: 'The type is not expense, income or transfer',
     account: 'The account is not in the Accounts tab',
     toAccount: 'The destination account is missing or the same as the source',
+    duplicateId: 'The id in column A already belongs to an earlier row (a copied row?). Clear the id or delete the row',
   },
 
   settingsTitle: 'Settings',

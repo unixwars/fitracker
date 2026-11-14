@@ -234,9 +234,13 @@ export class AppState {
     await this.db.remove(op.opId)
     this.ops = await this.db.all()
   }
+  // Re-add: a flagged add or a vanished row is added again; a flagged edit whose row still exists is written again as a
+  // deliberate overwrite (last write wins), because an add with an existing id would be reported as done and write nothing.
   async readd(op: Op) {
-    if (!this.canWrite) return
-    if (op.subject === 'entry' && op.entry && op.type !== 'delete') await this.db.put($state.snapshot(makeOp('add', op.entry)) as Op)
+    if (!this.canWrite || op.subject !== 'entry' || !op.entry || op.type === 'delete') return
+    const vanished = op.reason === 'RowGone' || op.reason === 'Missing'
+    const next = op.type === 'edit' && !vanished ? makeOp('edit', op.entry) : makeOp('add', op.entry)
+    await this.db.put($state.snapshot(next) as Op)
     await this.db.remove(op.opId)
     this.ops = await this.db.all()
     void this.sync()
@@ -274,6 +278,7 @@ export class AppState {
   // Makes the user's own copy of the template (Picker with the template preselected, then Drive files.copy) and links it.
   async createFromTemplate() {
     this.message = ''
+    if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
       const id = await this.env.copyTemplate()

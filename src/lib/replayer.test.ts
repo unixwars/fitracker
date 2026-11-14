@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RateLimited } from './errors'
+import { NewerThanApp, RateLimited } from './errors'
 import { makeOp, makeSnapshotOp } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
@@ -195,5 +195,24 @@ describe('replayer', () => {
     expect(maxActive).toBe(1)
     const rows = (await fake.batchGet(ID, ['Ledger!A2:A4']))[0]
     expect(rows).toEqual([['a'], ['b']])
+  })
+
+  it('a sheet that is newer than the app keeps the ops pending and stops the run (review m7)', async () => {
+    const newer: EntryStore = { ...store, addMany: async () => { throw new NewerThanApp(4) } }
+    await db.put(makeOp('add', e('a')))
+    const r = createReplayer(newer, db, { sleep })
+    for (let i = 0; i < 4; i++) await r.run()
+    expect(await statuses()).toEqual({ 'a:add': 'pending' })
+    expect((await db.all())[0].attempts ?? 0).toBe(0)
+  })
+
+  it('verify reads through the cache instead of forcing a second full read (review m2)', async () => {
+    await db.put(makeOp('add', e('a')))
+    const s = spy(store)
+    const refresh = vi.spyOn(s.store, 'refresh')
+    const r = createReplayer(s.store, db, { sleep })
+    await r.run()
+    await r.verify()
+    expect(refresh).toHaveBeenCalledWith({ expectIds: ['a'] })
   })
 })

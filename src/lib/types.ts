@@ -12,5 +12,5 @@ export type Reference = { base: Currency; accounts: Account[]; categories: Categ
 // month is YYYY-MM-01; GBP and USD are the base-currency value of one unit, null when the cell is blank or not a number.
 export type RateRow = { month: string; GBP: number | null; USD: number | null }
 export type Snapshot = { id: string; date: string; account: string; balance: Money; note: string }
-export type UnreadableReason = 'date' | 'amount' | 'type' | 'account' | 'toAccount'
+export type UnreadableReason = 'date' | 'amount' | 'type' | 'account' | 'toAccount' | 'duplicateId'
 export type Unreadable = { tab: 'Ledger' | 'Snapshots'; row: number; reason: UnreadableReason; text: string }
