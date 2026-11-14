@@ -48,6 +48,21 @@ describe('monthView', () => {
     expect(v.savingsRate).toBeCloseTo((300000 - 8850) / 300000)
     expect(view({ entries: [] }).savingsRate).toBeNull()
   })
+  it('shows no savings rate when spending is above income (it would be negative)', () => {
+    const over = view({ entries: [
+      e({ kind: 'income', date: '2026-11-02', money: { minor: 14146, currency: 'EUR' }, category: 'Interest', account: 'Joint' }),
+      e({ kind: 'expense', date: '2026-11-03', money: { minor: 42331, currency: 'EUR' }, category: 'Bills', account: 'Joint' }),
+    ], month: '2026-11' })
+    expect(over.income.actual.minor).toBe(14146) // the entries are inside the viewed month
+    expect(over.savingsRate).toBeNull()
+  })
+  it('a rate of exactly zero is shown', () => {
+    const even = view({ entries: [
+      e({ kind: 'income', date: '2026-11-02', money: { minor: 1000, currency: 'EUR' }, category: 'Interest', account: 'Joint' }),
+      e({ kind: 'expense', date: '2026-11-03', money: { minor: 1000, currency: 'EUR' }, category: 'Bills', account: 'Joint' }),
+    ], month: '2026-11' })
+    expect(even.savingsRate).toBe(0)
+  })
   it('converts a GBP entry with the rate of the viewed month, not another', () => {
     const gbp = [e({ kind: 'expense', date: '2026-11-02', money: { minor: 1000, currency: 'GBP' }, category: 'Bills', account: 'T-Cash' })]
     expect(view({ entries: gbp, month: '2026-11' }).expenses.actual.minor).toBe(1300)

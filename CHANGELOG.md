@@ -23,6 +23,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - Settings has two tiles: the linked sheet with Unlink, and the signed-in Google account email with Sign out. The account is looked up from Google each time and never stored.
 - A Google account that cannot open the linked sheet (403) is dropped with a message asking you to reconnect and choose the right account.
 - The dock tabs have icons, and category and account dropdown options show monochrome icons (Chrome, desktop and Android) or an emoji (other browsers) and Recent changes show the category icon. Settings has only Sign out; the Reconnect banner signs in.
+- The savings rate is hidden when spending is above income, instead of showing a negative percentage.
 - Recent changes show amounts, category rows show an expand icon, and Settings shows Sign in or Sign out and Unlink only while signed in.
 - Month-roll of the `Rates` tab: the closed month is frozen at the live rate and the new month's row is added.
 - Account balance snapshots in the data layer (no screen yet), rows the app cannot read listed under Needs attention, and duplicate-id detection.

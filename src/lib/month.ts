@@ -60,7 +60,7 @@ export function monthView({ entries, lists, rates, month }: Input): MonthView {
   const inc = section(inMonth.filter((e) => e.kind === 'income'), 'income', lists, rates, month, missing)
   const business: Money = exp.categories.find((c) => c.name === BUSINESS)?.actual ?? { minor: 0, currency: base }
   const used = new Set(inMonth.map((e) => e.money.currency))
-  const savingsRate = inc.actual.minor > 0 ? (inc.actual.minor - exp.actual.minor) / inc.actual.minor : null
+  const savingsRate = inc.actual.minor > 0 && exp.actual.minor <= inc.actual.minor ? (inc.actual.minor - exp.actual.minor) / inc.actual.minor : null
   const active = lists.accounts.filter((a) => a.active)
   return {
     month,
