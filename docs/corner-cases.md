@@ -15,3 +15,4 @@ Rare situations the app accepts; each can be fixed by a person in the sheet.
 - Rows sorted in Sheets keep their ids in column A; if an id ends up on a different entry the app refuses to edit it and flags it.
 - Ids for rows typed directly in Sheets are written to the row numbers of the read that found them; sorting the sheet in the few milliseconds in between could attach an id to the wrong row, which the wrong-row check then flags on the next edit.
 - Two devices appending in the same ~100 ms can be given the same row by Sheets (spike S1); the later write overwrites the earlier. The after-append read-back retries the loser, and the 7-day check flags a row that vanished as "no longer in the sheet".
+- If the browser blocks third-party cookies (Safari, strict Chrome or Firefox settings, a fresh incognito window), the Google Picker fails with the misleading message "The API developer key is invalid"; allow third-party cookies for the site and retry (spike S5).

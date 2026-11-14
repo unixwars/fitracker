@@ -45,7 +45,8 @@ worker and sign-in).
 ## 4. First run
 
 1. Open the app. The first-run screen offers **Create your sheet from the template**: pick the template when the
-   Google picker opens and the app copies it into your Drive and links the copy.
+   Google picker opens and the app copies it into your Drive and links the copy. If the picker says "The API
+   developer key is invalid", your browser is blocking third-party cookies: allow them for the site and retry.
 2. Already have a sheet from the template (see [template.md](template.md))? Choose **I already have a sheet: link
    it** and pick the file.
 3. Everyone who should use the sheet shares it in Google Sheets, then chooses **Link it** on their own device and
