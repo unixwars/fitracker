@@ -99,8 +99,6 @@ export const messages = {
   unlinkConfirm: 'Unlink',
   relinkBlocked: (n: number) => `${n} change${n === 1 ? ' is' : 's are'} still waiting to sync. Wait until they are saved before changing the link.`,
   notLinked: 'Not linked',
-  linkLedger: 'Link the ledger sheet',
-  relinkLedger: 'Link a different sheet',
   unlinkSheet: 'Unlink this sheet',
   unlinkWarnSheet: 'Unlink the sheet from this device? The sheet itself is not changed, and you can link it again at any time.',
   linkFailed: 'Could not link that sheet',

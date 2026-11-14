@@ -17,12 +17,12 @@ const e = (id: string, o: Partial<Entry> = {}): Entry => ({
 })
 const auth: Auth = { token: () => 'tok', signIn: async () => undefined, signOut: () => undefined, onExpired: () => undefined }
 
-function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null; copy?: () => Promise<string | null> } = {}) {
+function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null; copy?: () => Promise<string | null>; auth?: Auth } = {}) {
   const fake = createFakeSheets()
   seedLedger(fake, 'S1', { today, entries: opts.entries ?? [e('a')] })
   const data = new Map<string, string>(opts.linked === false ? [] : [['fitracker.sheet', 'S1']])
   const idb = new IDBFactory()
-  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
+  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth: opts.auth ?? auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
   return { fake, env, data, idb, app: new AppState(env) }
 }
 const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesBatchClear', 'setMetadata'].reduce((n, m) => n + fake.count(m), 0)
@@ -221,5 +221,28 @@ describe('review fixes', () => {
     app.ops = await app.db.all()
     await app.readd(op)
     await vi.waitFor(() => expect(fake.book('S1').get('Ledger!A2')?.v).toBe('gone'))
+  })
+})
+
+describe('signed-in state (drives the Settings buttons)', () => {
+  it('is false without a token, true after signing in, false after signing out or when the token expires', async () => {
+    let tok: string | null = null
+    let expire = () => {}
+    const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, signOut: () => { tok = null }, onExpired: (fn) => { expire = fn } }
+    const { app } = setup({ auth: a })
+    expect(app.signedIn).toBe(false)
+    await app.init()
+    await app.reconnect()
+    expect(app.signedIn).toBe(true)
+    app.signOut()
+    expect(app.signedIn).toBe(false)
+    await app.reconnect()
+    expect(app.signedIn).toBe(true)
+    expire()
+    expect(app.signedIn).toBe(false)
+    expect(app.authExpired).toBe(true)
+  })
+  it('is true from the start when a token already exists', () => {
+    expect(setup().app.signedIn).toBe(true)
   })
 })

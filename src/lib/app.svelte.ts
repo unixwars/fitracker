@@ -60,6 +60,7 @@ export class AppState {
   status = $state<Status>('loading')
   online = $state(true)
   authExpired = $state(false)
+  signedIn = $state(false) // a token is held in memory; Settings shows Sign in or Sign out accordingly
   device = $state<DeviceSettings>({ kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
   syncing = $state(false)
@@ -77,6 +78,7 @@ export class AppState {
     this.config = createConfig(env.storage)
     this.db = createOutboxDb(env.idb)
     this.kv = createKv(env.idb)
+    this.signedIn = Boolean(env.auth.token())
     this.sheetId = this.config.getSheetId()
     this.device = this.config.getDevice()
     applyTheme(this.device.theme)
@@ -101,7 +103,7 @@ export class AppState {
       window.addEventListener('offline', () => { this.online = false })
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void this.sync() })
     }
-    this.env.auth.onExpired(() => (this.authExpired = true))
+    this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false })
     try {
       this.ops = await this.db.all()
       await this.db.prune(PRUNE_AFTER_MS)
@@ -248,11 +250,13 @@ export class AppState {
 
   async reconnect() {
     await this.env.auth.signIn()
+    this.signedIn = true
     this.authExpired = false
     await this.sync()
   }
   signOut() {
     this.env.auth.signOut()
+    this.signedIn = false
     this.authExpired = true
   }
 
@@ -268,6 +272,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
+      this.signedIn = true
       const id = await this.env.pick()
       if (id) await this.linkId(id)
     } catch {
@@ -281,6 +286,7 @@ export class AppState {
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
+      this.signedIn = true
       const id = await this.env.copyTemplate()
       if (id) await this.linkId(id)
     } catch {

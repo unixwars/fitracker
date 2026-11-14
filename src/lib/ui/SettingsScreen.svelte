@@ -13,8 +13,7 @@
 
 <section class="card">
   <p class="muted">{linked ? messages.linked : messages.notLinked}</p>
-  <button class="secondary" onclick={() => app.link()} data-testid="link">{linked ? messages.relinkLedger : messages.linkLedger}</button>
-  {#if linked}
+  {#if linked && app.signedIn}
     {#if confirmingUnlink}
       <div class="banner" role="alertdialog" style="margin: 8px 0 0" data-testid="unlink-confirm">
         <span>{messages.unlinkWarnSheet}</span>
@@ -24,7 +23,7 @@
         </span>
       </div>
     {:else}
-      <button class="secondary" style="margin-top: 8px" onclick={() => (confirmingUnlink = true)} data-testid="unlink">{messages.unlinkSheet}</button>
+      <button class="secondary" onclick={() => (confirmingUnlink = true)} data-testid="unlink">{messages.unlinkSheet}</button>
     {/if}
   {/if}
   {#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
@@ -42,7 +41,10 @@
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
   <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
   <div class="row" style="margin-top: 8px">
-    <button class="secondary" onclick={() => app.reconnect()}>{messages.signIn}</button>
-    <button class="secondary" onclick={() => app.signOut()}>{messages.signOut}</button>
+    {#if app.signedIn}
+      <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
+    {:else}
+      <button class="secondary" onclick={() => app.reconnect()} data-testid="sign-in">{messages.signIn}</button>
+    {/if}
   </div>
 </section>

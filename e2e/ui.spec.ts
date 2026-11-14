@@ -50,3 +50,19 @@ test('unlink warns first and relinking works', async ({ page }) => {
   await page.getByTestId('tab-add').click()
   await expect(page.getByTestId('categories')).toBeVisible()
 })
+
+test('Settings shows sign in or sign out, never both, and only Unlink (no relink) while signed in', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('sign-out')).toBeVisible()
+  await expect(page.getByTestId('sign-in')).toHaveCount(0)
+  await expect(page.getByTestId('unlink')).toBeVisible()
+  await expect(page.getByText('Link a different sheet')).toHaveCount(0)
+  await page.getByTestId('sign-out').click()
+  await expect(page.getByTestId('sign-in')).toBeVisible()
+  await expect(page.getByTestId('sign-out')).toHaveCount(0)
+  await expect(page.getByTestId('unlink')).toHaveCount(0) // nothing to unlink-or-link while signed out
+  await page.getByTestId('sign-in').click()
+  await expect(page.getByTestId('sign-out')).toBeVisible()
+  await expect(page.getByTestId('unlink')).toBeVisible()
+})
