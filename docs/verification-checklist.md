@@ -13,7 +13,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 1. Follow `docs/deploy-your-own.md` steps 1 to 3, including `VITE_TEMPLATE_COPY_URL`, then run `pnpm dev` and open the printed URL.
    *Pass:* the consent screen asks only for access to files the app opens or creates.
 2. Open the Network tab while you use the app. *Pass:* requests go only to `sheets.googleapis.com`, `www.googleapis.com` (the one `files.copy` call), `accounts.google.com`, `apis.google.com` and your own host.
-3. Application → Local Storage. *Pass:* it holds only `fitracker.sheet` and `fitracker.device`, and no token.
+3. Application → Local Storage. *Pass:* it holds only `fitracker.sheet`, `fitracker.device` and (after a Sign out) `fitracker.signedOut`, and no token. IndexedDB `fitracker-auth` holds only the token with its expiry time.
 
 ## C. First run and linking
 
