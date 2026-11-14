@@ -47,6 +47,7 @@
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
   <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
   {#if app.signedIn}
+    {#if app.accountEmail}<div class="stat"><span>{messages.signedInAs(app.accountEmail)}</span></div>{/if}
     <div class="row" style="margin-top: 8px">
       <button class="secondary" onclick={() => app.signOut()} data-testid="sign-out">{messages.signOut}</button>
     </div>

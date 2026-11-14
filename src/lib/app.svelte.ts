@@ -25,6 +25,7 @@ export type Env = {
   auth: Auth
   pick: () => Promise<string | null>
   copyTemplate: () => Promise<string | null> // null when the user cancels
+  account?: () => Promise<string | null> // the email of the signed-in Google account, for display only
   ttlMs?: number // overrides the book refresh interval (the offline end-to-end mode uses 0)
   fake?: boolean
 }
@@ -65,6 +66,7 @@ export class AppState {
   online = $state(true)
   authExpired = $state(false)
   signedIn = $state(false) // a valid token is held; Settings shows Sign in or Sign out accordingly
+  accountEmail = $state('') // who is signed in (display only, never stored)
   gestureTried = $state(false) // a silent sign-in inside a tap was refused: only then is the Reconnect banner shown
   private userSignedOut = false // the person signed out on purpose (kept across reloads): never sign in silently behind their back
   private silentBusy = false
@@ -106,7 +108,14 @@ export class AppState {
     this.replayer.onAuthExpired(() => (this.authExpired = true))
   }
 
+  private async refreshAccount() {
+    const lookup = this.env.account
+    if (!lookup || !this.env.auth.token()) { this.accountEmail = ''; return }
+    this.accountEmail = (await lookup().catch(() => null)) ?? ''
+  }
+
   async init() {
+    void this.refreshAccount()
     this.online = typeof navigator === 'undefined' ? true : navigator.onLine
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => { this.online = true; void this.sync() })
@@ -115,7 +124,7 @@ export class AppState {
         if (document.visibilityState === 'visible') void this.sync()
       })
     }
-    this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false })
+    this.env.auth.onExpired(() => { this.authExpired = true; this.signedIn = false; this.accountEmail = '' })
     try {
       this.ops = await this.db.all()
       await this.db.prune(PRUNE_AFTER_MS)
@@ -148,6 +157,7 @@ export class AppState {
     this.signedIn = true
     this.authExpired = false
     this.gestureTried = false
+    void this.refreshAccount()
     if (!wasSignedIn) await this.sync()
     return !wasSignedIn
   }
@@ -237,7 +247,8 @@ export class AppState {
       this.setUserSignedOut(true)
       this.signedIn = false
       this.authExpired = true
-      this.message = messages.wrongAccount
+      this.message = messages.wrongAccount(this.accountEmail || undefined)
+      this.accountEmail = ''
     }
     else if (err instanceof UnrecognisedLayout) {
       this.status = 'unrecognised'
@@ -330,6 +341,7 @@ export class AppState {
     this.gestureTried = false
     this.signedIn = true
     this.authExpired = false
+    void this.refreshAccount()
     await this.sync()
   }
   signOut() {
@@ -337,6 +349,7 @@ export class AppState {
     this.setUserSignedOut(true)
     this.signedIn = false
     this.authExpired = true
+    this.accountEmail = ''
   }
 
   private setUserSignedOut(value: boolean) {
@@ -364,6 +377,7 @@ export class AppState {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
       this.setUserSignedOut(false)
       this.signedIn = true
+      void this.refreshAccount()
       const id = await this.env.pick()
       if (id) await this.linkId(id)
     } catch {
@@ -379,6 +393,7 @@ export class AppState {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
       this.setUserSignedOut(false)
       this.signedIn = true
+      void this.refreshAccount()
       const id = await this.env.copyTemplate()
       if (id) await this.linkId(id)
     } catch {

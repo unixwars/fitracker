@@ -12,5 +12,6 @@
     <button class="primary" onclick={() => app.createFromTemplate()} data-testid="create-from-template">{messages.createFromTemplate}</button>
   {/if}
   <button class="secondary" style="margin-top: 8px" onclick={() => app.link()} data-testid="link-existing">{messages.linkExisting}</button>
+  {#if app.signedIn && app.accountEmail}<p class="muted" data-testid="account">{messages.signedInAs(app.accountEmail)}</p>{/if}
   {#if app.message}<p class="err" role="alert">{app.message}</p>{/if}
 </section>

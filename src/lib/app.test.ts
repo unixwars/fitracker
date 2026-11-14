@@ -373,16 +373,25 @@ describe('staying signed in without a Reconnect tap', () => {
 })
 
 describe('a token for the wrong Google account', () => {
+  it('the signed-in account is shown, and cleared on Sign out', async () => {
+    const { app, env } = setup()
+    env.account = async () => 'who@example.test'
+    await app.init()
+    await vi.waitFor(() => expect(app.accountEmail).toBe('who@example.test'))
+    app.signOut()
+    expect(app.accountEmail).toBe('')
+  })
   it('a 403 permission error drops the token, explains it, and asks to sign in again instead of retrying', async () => {
     let tok: string | null = 't'
     const signOut = vi.fn(() => { tok = null })
     const a: Auth = { token: () => tok, signIn: async () => { tok = 't' }, silentSignIn: async () => true, signOut, onExpired: () => undefined, onExpiring: () => undefined }
-    const { app, fake } = setup({ auth: a })
+    const { app, fake, env } = setup({ auth: a })
+    env.account = async () => 'who@example.test'
     fake.batchGet = async () => { throw new ApiError(403, '{"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}') }
     await app.init()
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(app.signedIn).toBe(false)
-    expect(app.message).toBe(messages.wrongAccount)
+    expect(app.message).toBe(messages.wrongAccount('who@example.test'))
     expect(app.reconnectNeeded).toBe(true)
   })
   it('other API errors keep showing their own message and keep the token', async () => {
