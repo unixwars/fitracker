@@ -60,7 +60,7 @@ main { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
 .banner.warn { border-color: var(--accent); }
 .banner button { white-space: nowrap; }
 .tabbar { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); background: var(--surface); padding-bottom: env(safe-area-inset-bottom); }
-.tabbar button { position: relative; border: 0; background: none; padding: 14px 4px; min-height: 54px; color: var(--muted); font-size: 0.88rem; }
+.tabbar button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; padding: 8px 4px; min-height: 58px; color: var(--muted); font-size: 0.88rem; }
 .tabbar button[aria-current='page'] { color: var(--accent); font-weight: 600; box-shadow: inset 0 3px 0 var(--accent); }
 .badge { position: absolute; top: 8px; right: calc(50% - 26px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.72rem; line-height: 18px; text-align: center; padding: 0 5px; }
 
@@ -80,6 +80,9 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .chip { display: inline-flex; align-items: center; gap: 6px; }
 .cat .name { display: inline-flex; align-items: center; gap: 8px; }
 .ci { flex: none; }
+.select-icon { position: relative; }
+.select-icon > .ci { position: absolute; left: 14px; top: 15px; color: var(--muted); pointer-events: none; }
+.select-icon > select { padding-left: 42px; }
 .chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row > * { flex: 1; }
@@ -121,3 +124,4 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 /* Needs attention: red rows block (the change or row was not applied), amber rows only ask for a look (they still count). */
 .attn-blocking { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); border-left: 4px solid var(--danger); border-radius: 8px; padding: 10px 12px; }
 .attn-soft { background: color-mix(in srgb, var(--amber) 16%, var(--surface)); border-left: 4px solid var(--amber); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
+.recent .ci { margin-right: 6px; vertical-align: -3px; }

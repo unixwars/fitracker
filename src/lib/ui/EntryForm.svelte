@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CategoryIcon from './CategoryIcon.svelte'
   import { tick } from 'svelte'
   import { accountNames, applySuggestion, categoriesFor, chooseAccount, convertedAmount, currencyIssue, switchKind, validate, type Errors, type FormState } from '../addForm'
   import type { DeviceSettings } from '../config'
@@ -173,11 +174,14 @@
   {#if form.kind !== 'transfer'}
     <label class="field">
       <span>{messages.category}</span>
-      <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} data-testid="categories">
-        <option value="">{messages.choose}</option>
-        {#if form.category && !categories.includes(form.category)}<option value={form.category}>{form.category}</option>{/if}
-        {#each categories as c (c)}<option value={c}>{c}</option>{/each}
-      </select>
+      <div class="select-icon">
+        {#if form.category}<CategoryIcon name={form.category} />{/if}
+        <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} data-testid="categories" style={form.category ? '' : 'padding-left: 12px'}>
+          <option value="">{messages.choose}</option>
+          {#if form.category && !categories.includes(form.category)}<option value={form.category}>{form.category}</option>{/if}
+          {#each categories as c (c)}<option value={c}>{c}</option>{/each}
+        </select>
+      </div>
     </label>
     {#if errors.category}<p class="err">{messages.errors.category}</p>{/if}
   {/if}

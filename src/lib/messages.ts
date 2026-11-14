@@ -122,7 +122,6 @@ export const messages = {
   storageUnavailable: 'This browser is blocking local storage, so the app cannot save changes here.',
   ratesMissing: (c: string) => `No exchange rate for ${c}: it is left out of the combined totals.`,
   signOut: 'Sign out',
-  signIn: 'Sign in with Google',
   syncStatus: 'Sync',
   syncIdle: 'Up to date',
   syncPending: (n: number) => `${n} waiting to sync`,

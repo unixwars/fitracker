@@ -51,7 +51,7 @@ test('unlink warns first and relinking works', async ({ page }) => {
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })
 
-test('Settings shows sign in or sign out, never both, and only Unlink (no relink) while signed in', async ({ page }) => {
+test('Settings has only Sign out (no Sign in; the Reconnect banner signs in) and Unlink only while signed in', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
   await expect(page.getByTestId('sign-out')).toBeVisible()
@@ -59,10 +59,18 @@ test('Settings shows sign in or sign out, never both, and only Unlink (no relink
   await expect(page.getByTestId('unlink')).toBeVisible()
   await expect(page.getByText('Link a different sheet')).toHaveCount(0)
   await page.getByTestId('sign-out').click()
-  await expect(page.getByTestId('sign-in')).toBeVisible()
   await expect(page.getByTestId('sign-out')).toHaveCount(0)
-  await expect(page.getByTestId('unlink')).toHaveCount(0) // nothing to unlink-or-link while signed out
-  await page.getByTestId('sign-in').click()
+  await expect(page.getByTestId('sign-in')).toHaveCount(0)
+  await expect(page.getByTestId('unlink')).toHaveCount(0) // nothing to unlink while signed out
+  await page.getByTestId('reconnect').getByRole('button').click()
   await expect(page.getByTestId('sign-out')).toBeVisible()
   await expect(page.getByTestId('unlink')).toBeVisible()
+})
+
+test('every dock tab and the chosen category show an icon', async ({ page }) => {
+  await page.goto('/')
+  for (const t of ['add', 'month', 'activity', 'settings']) await expect(page.getByTestId('tab-' + t).locator('svg')).toHaveCount(1)
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('categories').selectOption('Bills')
+  await expect(page.getByTestId('category-icon')).toBeVisible()
 })

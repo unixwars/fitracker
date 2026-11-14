@@ -8,6 +8,7 @@
   import { todayLocal } from '../rows'
   import type { Entry } from '../rows'
   import type { Unreadable } from '../types'
+  import CategoryIcon from './CategoryIcon.svelte'
   import EntrySheet from './EntrySheet.svelte'
   import { dateLabel, fmt } from './format'
 
@@ -85,7 +86,7 @@
   <h3>{messages.recentChanges}</h3>
   {#each recent as op (op.opId)}
     <div class="stat recent">
-      <span>{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
+      <span>{#if op.subject !== 'snapshot' && op.entry?.category}<CategoryIcon name={op.entry.category} />{/if}{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
       <b class="num" data-testid="recent-amount">{opAmount(op)}</b>
       {#if op.undone}<span class="muted">{messages.undone}</span>
       {:else if !op.repair && (op.type !== 'add' || op.entry || op.snapshot)}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}

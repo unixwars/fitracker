@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import type { AppState, Tab } from './lib/app.svelte'
   import { messages } from './lib/messages'
+  import { TAB_ICON_PATHS } from './lib/tabIcons'
   import ActivityScreen from './lib/ui/ActivityScreen.svelte'
   import AddScreen from './lib/ui/AddScreen.svelte'
   import FirstRunScreen from './lib/ui/FirstRunScreen.svelte'
@@ -49,7 +50,8 @@
   <nav class="tabbar" aria-label="Main">
     {#each tabs as t (t)}
       <button aria-current={app.tab === t ? 'page' : undefined} onclick={() => (app.tab = t)} data-testid={'tab-' + t}>
-        {messages.tabs[t]}
+        <svg class="tabicon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d={TAB_ICON_PATHS[t]} /></svg>
+        <span>{messages.tabs[t]}</span>
         {#if t === 'activity' && app.needsAttention}<span class="badge" data-testid="badge">{app.needsAttention}</span>{/if}
       </button>
     {/each}
