@@ -99,7 +99,8 @@ export function createAuth(clientId: string, now: () => number = Date.now, store
       clearTimeout(timer)
       clearTimeout(refreshTimer)
       forget()
-      if (t) google.accounts.oauth2.revoke(t)
+      // After a reload the Google script is not loaded yet, so load it first. Revoking is best effort.
+      if (t) void loadScript(GIS).then(() => google.accounts.oauth2.revoke(t)).catch(() => undefined)
     },
   }
 }

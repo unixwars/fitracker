@@ -135,7 +135,21 @@ describe('token kept on the device', () => {
     await auth.signIn()
     auth.signOut()
     expect(store.saved).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(0)
     expect(google.accounts.oauth2.revoke).toHaveBeenCalledWith('tok')
+  })
+  it('signing out a restored token works before the Google script has loaded (no throw, token gone, revoked once it loads)', async () => {
+    const store = memoryStore({ token: 'old', expiresAt: Date.now() + 10 * 60_000 })
+    const auth = createAuth('cid', Date.now, store)
+    await auth.restore()
+    const real = (globalThis as unknown as { google: unknown }).google
+    delete (globalThis as unknown as { google?: unknown }).google
+    expect(() => auth.signOut()).not.toThrow()
+    expect(auth.token()).toBeNull()
+    expect(store.saved).toBeUndefined()
+    ;(globalThis as unknown as { google: unknown }).google = real // the script finishes loading
+    await vi.advanceTimersByTimeAsync(0)
+    expect(google.accounts.oauth2.revoke).toHaveBeenCalledWith('old')
   })
   it('a storage failure never breaks sign-in or restore', async () => {
     const broken: TokenStore = { load: async () => { throw new Error('x') }, save: async () => { throw new Error('x') }, clear: async () => { throw new Error('x') } }
