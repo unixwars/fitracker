@@ -9,7 +9,7 @@ Get it: <https://docs.google.com/spreadsheets/d/1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-j
 
 1. Open the link above (sign in to Google if asked).
 2. Click **Make a copy**. The copy is yours; the template stays untouched.
-3. Once the app exists, link your copy in Settings (one Picker consent, once).
+3. Open the app and choose **I already have a sheet: link it** on the first-run screen (one Picker consent, once).
 
 ## Tabs
 

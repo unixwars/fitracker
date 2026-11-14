@@ -16,7 +16,7 @@ export default defineConfig({
       manifest: {
         name: 'fitracker',
         short_name: 'fitracker',
-        description: 'Fast mobile entry for your yearly budget sheet',
+        description: 'Fast mobile entry for your budget ledger',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,
