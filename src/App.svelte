@@ -16,7 +16,7 @@
 <div class="shell">
   <header class="top">
     <span class="brand"><img class="logo" src={import.meta.env.BASE_URL + 'favicon.svg'} alt="" width="28" height="28" /><strong><span class="fi">{messages.appName.slice(0, 2)}</span>{messages.appName.slice(2)}</strong></span>
-    <span class="pill" data-testid="year-pill">{app.year}{app.pendingCount ? ' · ' + messages.syncPending(app.pendingCount) : ''}</span>
+    <span class="pill" data-testid="status-pill">{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span>
   </header>
 
   {#if !app.online}<div class="banner" role="status" data-testid="offline">{messages.offline}</div>{/if}
@@ -27,12 +27,7 @@
     </div>
   {/if}
   {#if app.status === 'newer'}<div class="banner warn" role="alert">{messages.newerBanner}</div>{/if}
-  {#if app.status === 'needs-migration'}
-    <div class="banner warn" role="alert">
-      <span>{messages.needsMigrationBanner}</span>
-      <button class="secondary" onclick={() => (app.tab = 'settings')}>{messages.openSettings}</button>
-    </div>
-  {/if}
+  {#if app.status === 'unrecognised'}<div class="banner warn" role="alert" data-testid="unrecognised">{messages.unrecognisedBanner}</div>{/if}
   {#if app.status === 'unlinked'}
     <div class="banner warn">
       <span>{messages.noSheet}</span>
@@ -51,7 +46,7 @@
     {#each tabs as t (t)}
       <button aria-current={app.tab === t ? 'page' : undefined} onclick={() => (app.tab = t)} data-testid={'tab-' + t}>
         {messages.tabs[t]}
-        {#if t === 'activity' && app.attention.length}<span class="badge" data-testid="badge">{app.attention.length}</span>{/if}
+        {#if t === 'activity' && app.needsAttention}<span class="badge" data-testid="badge">{app.needsAttention}</span>{/if}
       </button>
     {/each}
   </nav>

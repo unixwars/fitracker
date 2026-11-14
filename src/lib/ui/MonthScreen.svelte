@@ -9,7 +9,7 @@
 
   let { app }: { app: AppState } = $props()
 
-  const view = $derived(monthView(app.displayed, app.lists, app.month, app.rates.rates, app.rates.base))
+  const view = $derived(monthView({ entries: app.displayed, lists: app.lists, rates: app.rates, month: app.month }))
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -17,7 +17,7 @@
   const over = (c: CategoryRow) => c.planned.minor > 0 && c.actual.minor > c.planned.minor
 
   function entriesOf(kind: 'expense' | 'income', name: string): Entry[] {
-    const known = new Set(kind === 'expense' ? app.lists.expenseCategories : app.lists.incomeCategories)
+    const known = new Set(app.lists.categories.filter((c) => c.type === kind).map((c) => c.name))
     return app.displayed
       .filter((e) => e.kind === kind && e.date.startsWith(app.month) && (name === UNCATEGORISED ? !e.category || !known.has(e.category) : e.category === name))
       .sort((a, b) => b.date.localeCompare(a.date))
@@ -27,10 +27,11 @@
 </script>
 
 <div class="monthnav">
-  <button aria-label={messages.prevMonth} onclick={() => (app.month = shiftMonth(app.month, -1, app.year))}>‹</button>
+  <button aria-label={messages.prevMonth} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
   <h2>{monthLabel(app.month)}</h2>
-  <button aria-label={messages.nextMonth} onclick={() => (app.month = shiftMonth(app.month, 1, app.year))}>›</button>
+  <button aria-label={messages.nextMonth} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
 </div>
+<p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
 
 <section class="card">
   <h3>{messages.expenses}</h3>
