@@ -38,15 +38,15 @@ test('an entry dated in an earlier year is saved', async ({ page }) => {
 test('unlink warns first and relinking works', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  await expect(page.getByText('Linked', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('open-sheet')).toBeVisible()
   await page.getByTestId('unlink').click()
   await expect(page.getByTestId('unlink-confirm')).toBeVisible() // warns first, nothing changed yet
-  await expect(page.getByText('Linked', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('open-sheet')).toBeVisible()
   await page.getByTestId('unlink-yes').click()
   await expect(page.getByTestId('first-run')).toBeVisible()
   await page.getByTestId('link-existing').click()
   await expect(page.getByTestId('tab-add')).toBeVisible() // the tab bar is back once a sheet is linked
-  await expect(page.getByText('Linked', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('open-sheet')).toBeVisible()
   await page.getByTestId('tab-add').click()
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
 })
