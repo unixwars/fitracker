@@ -71,11 +71,18 @@ describe('createSheetsApi additions', () => {
     expect(decodeURIComponent(calls[0].url)).toContain('fields=properties.title,sheets.properties(sheetId,title)')
   })
 
-  it('growTab adds only the missing rows with appendDimension', async () => {
-    const meta = () => json({ sheets: [{ properties: { sheetId: 7, title: 'Ledger', gridProperties: { rowCount: 1001 } } }] })
+  it('growTab adds only the missing rows and gives them the format and validation of the last row', async () => {
+    const meta = () => json({ sheets: [{ properties: { sheetId: 7, title: 'Ledger', gridProperties: { rowCount: 1001, columnCount: 26 } } }] })
     const grow = stub([meta(), json({})])
     await createSheetsApi(() => 'tok', grow.fetchImpl).growTab('S1', 'Ledger', 1500)
-    expect(JSON.parse(grow.calls[1].init!.body as string)).toEqual({ requests: [{ appendDimension: { sheetId: 7, dimension: 'ROWS', length: 499 } }] })
+    const requests = JSON.parse(grow.calls[1].init!.body as string).requests
+    expect(requests[0]).toEqual({ appendDimension: { sheetId: 7, dimension: 'ROWS', length: 499 } })
+    const source = { sheetId: 7, startRowIndex: 1000, endRowIndex: 1001, startColumnIndex: 0, endColumnIndex: 26 }
+    const destination = { sheetId: 7, startRowIndex: 1001, endRowIndex: 1500, startColumnIndex: 0, endColumnIndex: 26 }
+    expect(requests.slice(1)).toEqual([
+      { copyPaste: { source, destination, pasteType: 'PASTE_FORMAT' } },
+      { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
+    ])
     const same = stub([meta()])
     await createSheetsApi(() => 'tok', same.fetchImpl).growTab('S1', 'Ledger', 900)
     expect(same.calls).toHaveLength(1) // already big enough: no write

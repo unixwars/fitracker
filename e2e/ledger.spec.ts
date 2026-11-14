@@ -112,3 +112,19 @@ test('Settings links to the sheet in Google Sheets', async ({ page }) => {
   await expect(page.getByTestId('open-sheet')).toHaveText('Fitracker (demo)') // the sheet's name, before opening it
   await expect(page.getByTestId('open-sheet')).toHaveAttribute('href', /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/edit#gid=\d+/)
 })
+
+test('entries without a category are listed in Activity and leave the list once they have one', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  const serial = await todaySerial(page)
+  for (const [col, v] of [['A', 'nocat1'], ['B', serial], ['C', 'expense'], ['D', 5], ['E', 'Corner shop'], ['H', 'Joint']] as const) await setCell(page, `Ledger!${col}5`, v)
+  await refresh(page)
+  await page.getByTestId('tab-activity').click()
+  await expect(page.getByTestId('needs-category-entry')).toHaveCount(1)
+  await expect(page.getByTestId('badge')).toHaveCount(0) // it counts in the totals, so it does not raise the badge
+  await page.getByTestId('needs-category-entry').click()
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect.poll(() => cell(page, 'Ledger!G5')).toBe('Bills')
+  await expect(page.getByTestId('needs-category')).toHaveCount(0)
+})

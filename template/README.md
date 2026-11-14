@@ -246,6 +246,8 @@ who ran the converter; do not clean cells by hand.
 
 ### C. Post-import checks
 
+0. **Formats below row 1000.** The template formats and validates the first 1000 rows of `Ledger` and `Snapshots`; an import can add rows below that with no format, so a date shows as a number such as `46340`. Fix it once: in `Ledger`, copy `B2:J2`, select `B3:J` down to the last row, Edit > Paste special > **Format only**, then again > **Data validation only**. Do the same for `Snapshots` (`A2:E2` to `A3:E`). The app copies the last row's format and validation itself when it has to add rows.
+
 In an empty cell (for example `Settings!D1`) type each formula, read the result, then delete the cell.
 
 | Check | Type | Pass |

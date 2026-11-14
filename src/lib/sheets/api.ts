@@ -56,13 +56,23 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
       return { title: meta.properties.title, tabs: Object.fromEntries(meta.sheets.map((x) => [x.properties.title, x.properties.sheetId])) }
     },
     // Grows a tab with appendDimension. (values:append is not used: on the real template it lands one column to the right.)
+    // The new rows get the number formats and the data validation of the last existing row, so a date typed or written
+    // there looks and is checked like the rest of the column.
     async growTab(id, tab, rows) {
-      const meta = await request<{ sheets: { properties: { sheetId: number; title: string; gridProperties: { rowCount: number } } }[] }>(
-        'GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title,gridProperties.rowCount)`)
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string; gridProperties: { rowCount: number; columnCount: number } } }[] }>(
+        'GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title,gridProperties.rowCount,gridProperties.columnCount)`)
       const sheet = meta.sheets.find((x) => x.properties.title === tab)
       if (!sheet) throw new ApiError(400, `No tab ${tab}`)
-      const missing = rows - sheet.properties.gridProperties.rowCount
-      if (missing > 0) await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [{ appendDimension: { sheetId: sheet.properties.sheetId, dimension: 'ROWS', length: missing } }] })
+      const { sheetId, gridProperties } = sheet.properties
+      const missing = rows - gridProperties.rowCount
+      if (missing <= 0) return
+      const source = { sheetId, startRowIndex: gridProperties.rowCount - 1, endRowIndex: gridProperties.rowCount, startColumnIndex: 0, endColumnIndex: gridProperties.columnCount }
+      const destination = { sheetId, startRowIndex: gridProperties.rowCount, endRowIndex: rows, startColumnIndex: 0, endColumnIndex: gridProperties.columnCount }
+      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [
+        { appendDimension: { sheetId, dimension: 'ROWS', length: missing } },
+        { copyPaste: { source, destination, pasteType: 'PASTE_FORMAT' } },
+        { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
+      ] })
     },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })

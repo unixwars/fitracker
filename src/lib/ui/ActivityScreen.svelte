@@ -3,8 +3,10 @@
   import { messages } from '../messages'
   import type { Op } from '../outbox'
   import { repairDraft } from '../repairDraft'
+  import { needsCategory } from '../needsCategory'
   import { rowSummary } from '../unreadableSummary'
   import { todayLocal } from '../rows'
+  import type { Entry } from '../rows'
   import type { Unreadable } from '../types'
   import EntrySheet from './EntrySheet.svelte'
   import { dateLabel, fmt } from './format'
@@ -13,6 +15,9 @@
   const recent = $derived([...app.ops].filter((o) => o.status === 'done').reverse().slice(0, 30))
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
   let fixing = $state<Unreadable | null>(null)
+  let editing = $state<Entry | null>(null)
+  const uncategorised = $derived(needsCategory(app.displayed, app.lists))
+  const SHOWN = 20
   // Every Ledger row can be fixed here: by its id when it has one, otherwise by its row while it still holds what is shown.
   const fixable = (u: Unreadable) => u.tab === 'Ledger' && Array.isArray(u.raw)
   // The tab ids for the links come from the device or, once signed in, from one request; re-run when either changes.
@@ -54,6 +59,19 @@
   {#if !app.needsAttention}<p class="muted">{messages.nothingToReview}</p>{/if}
 </section>
 
+{#if uncategorised.length && app.lists.categories.length}
+  <section class="card" data-testid="needs-category">
+    <h3>{messages.needsCategoryTitle}</h3>
+    <p class="muted">{messages.needsCategoryHint}</p>
+    {#each uncategorised.slice(0, SHOWN) as x (x.id)}
+      <button class="entry" onclick={() => (editing = x)} data-testid="needs-category-entry">
+        <span>{dateLabel(x.date)} · {x.place || x.description || '—'}</span><b class="amt">{fmt(x.money)}</b>
+      </button>
+    {/each}
+    {#if uncategorised.length > SHOWN}<p class="muted">{messages.moreEntries(uncategorised.length - SHOWN)}</p>{/if}
+  </section>
+{/if}
+
 {#if waiting.length}
   <section class="card">
     <h3>{messages.pending}</h3>
@@ -76,3 +94,4 @@
 </section>
 
 {#if fixing}<EntrySheet {app} entry={repairDraft(fixing.raw ?? [], app.lists, todayLocal())} repair repairAt={fixing.id ? undefined : { row: fixing.row, raw: $state.snapshot(fixing.raw ?? []) }} onclose={() => (fixing = null)} />{/if}
+{#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}
