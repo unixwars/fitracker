@@ -9,7 +9,11 @@ export const messages = {
   newerBanner: 'This sheet uses a newer version than this app. Update the app; the sheet is read-only here.',
   needsMigrationBanner: 'This sheet needs a one-time update before the app can use it.',
   openSettings: 'Open settings',
-  noSheet: 'No sheet is linked for this year yet. Link one in Settings.',
+  noSheet: 'No sheet is linked yet. Link one in Settings.',
+  firstRunTitle: 'Set up your sheet',
+  firstRunBody: 'Fitracker keeps everything in one Google Sheet that only you can open. Create yours from the template, or link one you already have.',
+  createFromTemplate: 'Create your sheet from the template',
+  linkExisting: 'I already have a sheet: link it',
   loading: 'Loading…',
 
   addSave: 'Save',

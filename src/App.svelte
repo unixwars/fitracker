@@ -4,6 +4,7 @@
   import { messages } from './lib/messages'
   import ActivityScreen from './lib/ui/ActivityScreen.svelte'
   import AddScreen from './lib/ui/AddScreen.svelte'
+  import FirstRunScreen from './lib/ui/FirstRunScreen.svelte'
   import MonthScreen from './lib/ui/MonthScreen.svelte'
   import SettingsScreen from './lib/ui/SettingsScreen.svelte'
 
@@ -28,20 +29,16 @@
   {/if}
   {#if app.status === 'newer'}<div class="banner warn" role="alert">{messages.newerBanner}</div>{/if}
   {#if app.status === 'unrecognised'}<div class="banner warn" role="alert" data-testid="unrecognised">{messages.unrecognisedBanner}</div>{/if}
-  {#if app.status === 'unlinked'}
-    <div class="banner warn">
-      <span>{messages.noSheet}</span>
-      <button class="secondary" onclick={() => (app.tab = 'settings')}>{messages.openSettings}</button>
-    </div>
-  {/if}
 
   <main>
-    {#if app.tab === 'add'}<AddScreen {app} />
+    {#if app.status === 'unlinked'}<FirstRunScreen {app} />
+    {:else if app.tab === 'add'}<AddScreen {app} />
     {:else if app.tab === 'month'}<MonthScreen {app} />
     {:else if app.tab === 'activity'}<ActivityScreen {app} />
     {:else}<SettingsScreen {app} />{/if}
   </main>
 
+  {#if app.status !== 'unlinked'}
   <nav class="tabbar" aria-label="Main">
     {#each tabs as t (t)}
       <button aria-current={app.tab === t ? 'page' : undefined} onclick={() => (app.tab = t)} data-testid={'tab-' + t}>
@@ -50,4 +47,5 @@
       </button>
     {/each}
   </nav>
+  {/if}
 </div>

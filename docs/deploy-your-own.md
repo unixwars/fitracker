@@ -1,12 +1,12 @@
 # Deploy your own copy
 
 Nothing is shared between deployments: you host a static copy, you bring your own Google OAuth
-client, and your data stays in your own Google Sheets.
+client, and your data stays in your own Google Sheet.
 
 ## 1. Google Cloud (once)
 
 1. Create a project at <https://console.cloud.google.com/>. Note its **project number**.
-2. Enable the **Google Sheets API** and the **Google Picker API**.
+2. Enable the **Google Sheets API**, the **Google Drive API** (used once, to copy the template) and the **Google Picker API**.
 3. Configure the OAuth consent screen. The only scope used is `drive.file` (non-sensitive), so no
    Google verification is needed; set the publishing status to *In production* so sign-ins do not
    expire after 7 days.
@@ -24,7 +24,10 @@ Copy `.env.example` to `.env` and fill in:
 VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 VITE_GOOGLE_API_KEY=...
 VITE_GOOGLE_PROJECT_NUMBER=...
+VITE_TEMPLATE_COPY_URL=https://docs.google.com/spreadsheets/d/<template id>/copy
 ```
+
+`VITE_TEMPLATE_COPY_URL` is the public template's copy link. The first-run screen uses it to create each person's own sheet. Leave it empty if you do not publish a template: people then link a sheet they made themselves.
 
 `.env` is ignored by git. Never commit real values.
 
@@ -41,8 +44,9 @@ worker and sign-in).
 
 ## 4. First run
 
-1. Make a copy of the template (see [template.md](template.md)) and convert it to a Google Sheet.
-2. Open the app, **Settings**, choose the year, **Link the sheet**, pick the file.
-3. If the app asks for a one-time update, read what it will do and run it. Backup tabs are made first.
-4. Everyone who should use the sheet shares it in Google Sheets, then repeats step 2 on their own
-   device and account: with `drive.file`, each person must pick each year's sheet once.
+1. Open the app. The first-run screen offers **Create your sheet from the template**: pick the template when the
+   Google picker opens and the app copies it into your Drive and links the copy.
+2. Already have a sheet from the template (see [template.md](template.md))? Choose **I already have a sheet: link
+   it** and pick the file.
+3. Everyone who should use the sheet shares it in Google Sheets, then chooses **Link it** on their own device and
+   account: with `drive.file`, each person must pick the sheet once.
