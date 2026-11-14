@@ -31,7 +31,10 @@ export const messages = {
   locationAria: 'Use my location for the place',
   locationNone: 'No known place nearby',
   locationDenied: 'Location is unavailable',
-  errors: { amount: 'Enter an amount above zero', category: 'Pick a category', account: 'Pick an account', toAccount: 'Pick a different destination account', date: 'That date is not in the selected year' },
+  errors: { amount: 'Enter an amount above zero', category: 'Pick a category', account: 'Pick an account', toAccount: 'Pick a different destination account', currency: 'Confirm the conversion first', rate: 'No exchange rate for that month' },
+  currencyWarning: (input: string, account: string, converted: string) => `This account is in ${account}, but you typed ${input}. Save it as ${converted}?`,
+  convertAndKeep: 'Convert and keep',
+  noRateForMonth: (currency: string) => `There is no ${currency} exchange rate for that month, so it cannot be converted. Pick an account in ${currency}, or add the rate in the Rates tab.`,
 
   monthTitle: 'Month',
   planned: 'Planned',

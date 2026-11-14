@@ -12,7 +12,7 @@
   let confirming = $state(false)
 
   async function onsubmit(f: FormState) {
-    await app.edit(toEntry(f, entry.id), entry)
+    await app.edit(toEntry(f, entry.id, app.lists, app.rates), entry)
     onclose()
   }
   async function remove() {
@@ -27,7 +27,7 @@
       <h2>{messages.edit}</h2>
       <button class="secondary fit" onclick={onclose}>{messages.cancel}</button>
     </div>
-    <EntryForm bind:form lists={app.lists} history={[]} device={app.device} submitLabel={messages.saveChanges} year={app.year} {onsubmit} lockKind />
+    <EntryForm bind:form lists={app.lists} rates={app.rates} history={[]} device={app.device} submitLabel={messages.saveChanges} {onsubmit} lockKind />
     <div style="margin-top: 16px">
       {#if confirming}
         <p>{messages.confirmDelete}</p>

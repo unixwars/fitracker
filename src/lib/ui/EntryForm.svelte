@@ -1,34 +1,34 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import CategoryIcon from './CategoryIcon.svelte'
-  import { applySuggestion, categoriesFor, switchKind, validate, type Errors, type FormState } from '../addForm'
+  import { accountNames, applySuggestion, categoriesFor, chooseAccount, convertedAmount, currencyIssue, switchKind, validate, type Errors, type FormState } from '../addForm'
   import type { DeviceSettings } from '../config'
   import { messages } from '../messages'
   import { nearestPlace, shouldAutoLocate, type LatLng } from '../places'
   import { suggest, usualAmounts, type Suggestion } from '../predict'
   import { todayLocal, type Entry, type Kind } from '../rows'
-  import { CURRENCIES, type Lists } from '../types'
+  import { CURRENCIES, type RateRow, type Reference } from '../types'
   import { formatMoney } from '../money'
   import { dateLabel } from './format'
 
   let {
     form = $bindable(),
     lists,
+    rates,
     history,
     device,
     submitLabel,
     onsubmit,
     lockKind = false,
-    year,
   }: {
     form: FormState
-    lists: Lists
+    lists: Reference
+    rates: RateRow[]
     history: Entry[]
     device: DeviceSettings
     submitLabel: string
     onsubmit: (form: FormState, coords: LatLng | null) => void
     lockKind?: boolean
-    year?: number
   } = $props()
 
   let errors = $state<Errors>({})
@@ -40,6 +40,9 @@
   const kinds: Kind[] = ['expense', 'income', 'transfer']
   const kindHistory = $derived(history.filter((e) => e.kind === form.kind))
   const categories = $derived(categoriesFor(form.kind, lists))
+  const accounts = $derived(accountNames(lists))
+  const issue = $derived(currencyIssue(form, lists))
+  const converted = $derived(issue ? convertedAmount(form, lists, rates) : null)
   const placeSuggestions = $derived(form.kind === 'expense' ? suggest('place', form.place, kindHistory) : [])
   const amounts = $derived(form.amount.trim() === '' ? usualAmounts(form.place, kindHistory) : [])
   const descSuggestions = $derived(form.description || form.kind !== 'expense' ? suggest('description', form.description, kindHistory) : [])
@@ -82,7 +85,7 @@
 
   function submit(ev: Event) {
     ev.preventDefault()
-    errors = validate(form, lists, year)
+    errors = validate(form, lists, rates)
     if (Object.keys(errors).length === 0) { onsubmit(form, coords); return }
     tick().then(() => {
       if (errors.amount) amountEl?.focus()
@@ -109,7 +112,7 @@
 
   <div class="amount-row">
     <input bind:this={amountEl} bind:value={form.amount} inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label={messages.amount} data-testid="amount" />
-    <select bind:value={form.currency} aria-label={messages.currency} data-testid="currency">
+    <select bind:value={form.currency} onchange={() => (form = { ...form, convertConfirmed: false })} aria-label={messages.currency} data-testid="currency">
       {#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
     </select>
   </div>
@@ -121,6 +124,19 @@
     </div>
   {/if}
   {#if errors.amount}<p class="err">{messages.errors.amount}</p>{/if}
+  {#if issue}
+    <div class="banner warn" data-testid="currency-warning">
+      {#if converted}
+        <p>{messages.currencyWarning(issue.input, issue.account, formatMoney(converted))}</p>
+        {#if !form.convertConfirmed}
+          <button type="button" class="secondary" data-testid="convert-confirm" onclick={() => (form = { ...form, convertConfirmed: true })}>{messages.convertAndKeep}</button>
+        {/if}
+      {:else}
+        <p>{messages.noRateForMonth(issue.input)}</p>
+      {/if}
+    </div>
+    {#if errors.currency && !errors.rate}<p class="err">{messages.errors.currency}</p>{/if}
+  {/if}
 
   {#if form.kind === 'expense'}
     <label class="field">
@@ -167,8 +183,8 @@
 
   <h3>{form.kind === 'transfer' ? messages.fromAccount : messages.account}</h3>
   <div class="chips" data-testid="accounts">
-    {#each lists.accounts as a (a)}
-      <button type="button" class="chip" aria-pressed={form.account === a} onclick={() => (form = { ...form, account: a })}>{a}</button>
+    {#each accounts as a (a)}
+      <button type="button" class="chip" aria-pressed={form.account === a} onclick={() => (form = chooseAccount(form, a, lists))}>{a}</button>
     {/each}
   </div>
   {#if errors.account}<p class="err">{messages.errors.account}</p>{/if}
@@ -176,7 +192,7 @@
   {#if form.kind === 'transfer'}
     <h3>{messages.toAccount}</h3>
     <div class="chips">
-      {#each lists.accounts as a (a)}
+      {#each accounts as a (a)}
         <button type="button" class="chip" aria-pressed={form.toAccount === a} onclick={() => (form = { ...form, toAccount: a })}>{a}</button>
       {/each}
     </div>
@@ -189,8 +205,6 @@
     </button>
     <input bind:this={dateEl} type="date" bind:value={form.date} aria-label={messages.date} style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;min-height:0;padding:0;border:0" tabindex="-1" />
   </div>
-
-  {#if errors.date}<p class="err">{messages.errors.date}</p>{/if}
 
   <button class="primary" type="submit" data-testid="save">{submitLabel}</button>
 </form>
