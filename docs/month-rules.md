@@ -3,7 +3,7 @@
 Derived from the ledger views, so the app and the sheet agree.
 
 - **Planned** per category is the `Budgets` amount for the category in the month's year (monthly amount, base currency).
-- **Accounts:** only entries of accounts ticked `In Monthly` in `Accounts` count; the screen says how many accounts are included.
+- **Accounts:** only entries of accounts ticked `In Monthly` in `Accounts` count (a shared setting in Settings overrides the tick inside the app); the screen says how many accounts are included.
 - **Actual** per category is the sum of that category's entries dated in the month. Each entry converts at the `Rates` row of its own month (the latest row on or before it).
 - **Missing rate:** an entry whose currency has no rate for the month is left out of the combined totals and the currency is named; its native amount is still listed.
 - **Business** is the expense category named `Business`; **Regular** is total expenses minus it.

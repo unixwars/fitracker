@@ -8,6 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Added
+- Shared settings in Settings: choose per account whether it counts in Month and in Year, and pick an emoji for any account or category. Both are shared with everyone using the sheet, stored as the sheet's own developer metadata (`fitracker.*`), and never written to a cell. Settings marks accounts that differ from the sheet.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
 
 ---

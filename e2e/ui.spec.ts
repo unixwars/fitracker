@@ -127,3 +127,18 @@ test('the cookie help opens by itself after a link attempt that ends without a s
   await page.getByTestId('link-existing').click()
   await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
 })
+
+test('an account toggle in Settings changes the Month count, is stored as metadata and leaves the Accounts cells alone', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  const before = await page.getByTestId('accounts-included').innerText()
+  await page.getByTestId('tab-settings').click()
+  const row = page.getByTestId('account-row').first()
+  const box = row.getByTestId('toggle-monthly')
+  const sheetCell = await cell(page, 'Accounts!D2')
+  await box.click()
+  await expect(row).toContainText('Differs from the sheet')
+  expect(await cell(page, 'Accounts!D2')).toBe(sheetCell)
+  await page.getByTestId('tab-month').click()
+  expect(await page.getByTestId('accounts-included').innerText()).not.toBe(before)
+})
