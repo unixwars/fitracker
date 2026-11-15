@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Live check (THROWAWAY)</title>
+<style>body{font:14px system-ui,sans-serif;max-width:760px;margin:1rem auto;padding:0 1rem}label{display:block;margin:.4rem 0}input{width:100%;box-sizing:border-box;padding:.3rem}button{margin:.5rem .5rem 0 0;padding:.4rem .7rem}pre{background:#eee;padding:.6rem;white-space:pre-wrap;min-height:10rem}.warn{background:#fee;padding:.5rem}</style></head>
+<body>
+<p class="warn"><b>THROWAWAY.</b> Makes a COPY of the template named "Fitracker LIVE CHECK (delete me)" in the signed-in account, runs the app's real store code against it, and leaves it for inspection until you click "Delete the test copy". Never your real sheet. Nothing typed here is stored.</p>
+<label>OAuth client ID <input id="clientId" autocomplete="off"></label>
+<label>API key <input id="apiKey" autocomplete="off"></label>
+<label>Google Cloud project number <input id="projectNumber" autocomplete="off"></label>
+<label>Template file id <input id="templateId" value="1ISaC0GTqkYlwsnrUd9IU2wrFjmWYx-jUfcqgaTLp8yY" autocomplete="off"></label>
+<button id="signIn">1. Sign in</button><button id="run">2. Copy the template and run the checks</button><button id="del">3. Delete the test copy</button>
+<pre id="log"></pre>
+<script src="dist/live-check.js"></script>
+</body></html>
