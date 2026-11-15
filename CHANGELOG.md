@@ -8,6 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Added
+- Browse by day: a "By day" switch on the Month screen lists the month's entries newest day first, including transfers, and opens the same edit sheet.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
 
 ---

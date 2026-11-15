@@ -127,3 +127,12 @@ test('the cookie help opens by itself after a link attempt that ends without a s
   await page.getByTestId('link-existing').click()
   await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
 })
+
+test('Month can be browsed by day and an entry opens for editing', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-day').click()
+  await expect(page.getByTestId('day').first()).toBeVisible()
+  await page.getByTestId('day').first().locator('.entry').first().click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+})

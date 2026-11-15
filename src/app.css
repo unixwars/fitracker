@@ -153,3 +153,7 @@ details.fold { margin-top: 12px; }
 details.fold summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); }
 .links { display: flex; gap: 16px; margin-top: 8px; }
 .links a { min-height: 44px; display: inline-flex; align-items: center; }
+
+.modes { display: flex; gap: 8px; margin: 0 0 12px; }
+.modes button { flex: 1; }
+.modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }

@@ -5,12 +5,14 @@
   import { monthView, UNCATEGORISED, type CategoryRow } from '../month'
   import type { Entry } from '../rows'
   import CategoryIcon from './CategoryIcon.svelte'
+  import DayList from './DayList.svelte'
   import EntrySheet from './EntrySheet.svelte'
   import { dateLabel, fmt, monthLabel, shiftMonth } from './format'
 
   let { app }: { app: AppState } = $props()
 
   const view = $derived(monthView({ entries: app.displayed, lists: app.lists, rates: app.rates, month: app.month }))
+  let mode = $state<'category' | 'day'>('category')
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -34,6 +36,14 @@
 </div>
 <p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
 
+<div class="modes" role="group" aria-label={messages.viewBy}>
+  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
+  <button class="secondary" aria-pressed={mode === 'day'} onclick={() => (mode = 'day')} data-testid="by-day">{messages.byDay}</button>
+</div>
+
+{#if mode === 'day'}
+  <DayList entries={app.displayed} month={app.month} onedit={(e) => (editing = e)} />
+{:else}
 <section class="card">
   <h3>{messages.expenses}</h3>
   <div class="stat"><span>{messages.planned}</span><b>{fmt(view.expenses.planned)}</b></div>
@@ -74,4 +84,5 @@
 
 {#if view.approx}<p class="muted">{messages.approx}</p>{/if}
 {#each view.missingRates as c (c)}<Alert>{messages.ratesMissing(c)}</Alert>{/each}
+{/if}
 {#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}
