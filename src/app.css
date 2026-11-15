@@ -153,3 +153,10 @@ details.fold { margin-top: 12px; }
 details.fold summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); }
 .links { display: flex; gap: 16px; margin-top: 8px; }
 .links a { min-height: 44px; display: inline-flex; align-items: center; }
+
+.iconpick { position: relative; display: inline-block; }
+.iconbtn { min-width: 2.2rem; padding: 2px 6px; }
+.iconmenu { position: absolute; z-index: 5; left: 0; top: 100%; display: flex; flex-wrap: wrap; gap: 4px; width: 15rem; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.iconmenu input { flex: 1 1 100%; }
+.ci-custom { display: inline-block; width: 18px; text-align: center; line-height: 1; }
+.acct { gap: 8px; flex-wrap: wrap; }

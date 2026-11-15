@@ -1,5 +1,6 @@
 <script lang="ts">
   import Alert from './Alert.svelte'
+  import IconPicker from './IconPicker.svelte'
   import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
   import type { Theme } from '../config'
@@ -11,6 +12,12 @@
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
   const linked = $derived(Boolean(app.sheetId))
+  const sheetAccount = (name: string) => app.sheetLists.accounts.find((a) => a.name === name)
+  const differs = (a: { name: string; inMonthly: boolean; inAnnual: boolean }) => {
+    const s = sheetAccount(a.name)
+    return Boolean(s) && (s!.inMonthly !== a.inMonthly || s!.inAnnual !== a.inAnnual)
+  }
+  const categoryNames = $derived([...new Set(app.lists.categories.filter((c) => c.active).map((c) => c.name))])
   // The name and tab ids: from the device, then once signed in. Reading signedIn here makes the effect re-run on sign-in.
   $effect(() => { if (app.sheetId && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
 </script>
@@ -49,6 +56,28 @@
   </div>
 {/if}
 {#if app.message}<Alert>{app.message}</Alert>{/if}
+
+{#if linked && app.lists.accounts.length}
+  <section class="card" data-testid="shared-settings">
+    <h3>{messages.settingsAccounts}</h3>
+    <p class="muted">{messages.sharedSettingsNote}</p>
+    {#each app.lists.accounts.filter((a) => a.active) as a (a.name)}
+      <div class="stat acct" data-testid="account-row">
+        <span><IconPicker label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small>{/if}</span>
+        <span class="row" style="flex: 0 0 auto">
+          <label><input type="checkbox" checked={a.inMonthly} disabled={!app.canWrite} onchange={(e) => app.setAccountToggle(a.name, 'inMonthly', e.currentTarget.checked)} data-testid="toggle-monthly" /> {messages.inMonth}</label>
+          <label><input type="checkbox" checked={a.inAnnual} disabled={!app.canWrite} onchange={(e) => app.setAccountToggle(a.name, 'inAnnual', e.currentTarget.checked)} data-testid="toggle-annual" /> {messages.inYear}</label>
+        </span>
+      </div>
+    {/each}
+  </section>
+  <section class="card">
+    <h3>{messages.settingsCategories}</h3>
+    {#each categoryNames as n (n)}
+      <div class="stat"><span><IconPicker label={n} current={app.categoryCustom(n) ?? '•'} onpick={(e) => app.setIcon('category', n, e)} /> {n}</span></div>
+    {/each}
+  </section>
+{/if}
 
 <section class="card">
   <label class="field">
