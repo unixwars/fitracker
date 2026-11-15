@@ -22,8 +22,10 @@ for data. Do not add one.
 - **Schema is versioned.** The book carries version 3 as developer metadata (`fitracker.schemaVersion`). The
   app has no migrations. A newer version is read-only; an unrecognised layout aborts before any write; a lost
   tag is re-stamped only when the `Ledger` and `Snapshots` headers match.
-- **The app writes only `Ledger` columns A-I, `Snapshots` and the `Rates` maintenance rows;** never `J`, a view
-  or another reference tab.
+- **The app writes only `Ledger` columns A-I, `Snapshots`, the `Rates` maintenance rows and its own `fitracker.*`
+  developer-metadata entries** (schema version, shared settings: icon choices and account include toggles, one entry
+  per name); never `J`, a view, another reference tab or a cell of `Accounts`. A shared setting overrides the sheet
+  inside the app only and is never written to a cell.
 - **Offline-first.** Writes (append, edit, delete) go to an IndexedDB outbox and are
   replayed in order. A replay on a missing row is dropped and flagged, not retried.
   Last write wins per row; keep the overwritten values so the user can undo.
