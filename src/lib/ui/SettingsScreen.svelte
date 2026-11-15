@@ -3,6 +3,7 @@
   import type { AppState } from '../app.svelte'
   import type { Theme } from '../config'
   import { messages } from '../messages'
+  import { APP_VERSION_LABEL } from '../buildInfo'
   import { BOOK_VERSION } from '../schema'
 
   let { app }: { app: AppState } = $props()
@@ -57,5 +58,6 @@
     </select>
   </label>
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
+  <div class="stat"><span>{messages.appVersion}</span><span data-testid="app-version">{APP_VERSION_LABEL}</span></div>
   <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
 </section>

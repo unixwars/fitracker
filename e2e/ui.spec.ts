@@ -78,3 +78,9 @@ test('every dock tab shows an icon and category options carry an emoji', async (
   expect(shown[0]).not.toBe('none')
   expect(shown[1]).toBe('none')
 })
+
+test('Settings shows the app version and the commit it was built from', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('app-version')).toHaveText(/^\d+\.\d+\.\d+ \([0-9a-f]{7}\)$/)
+})

@@ -6,11 +6,16 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-11-15
+
 ### Changed
 - One multi-year ledger sheet (`Ledger`, `Snapshots`, `Accounts`, `Categories`, `Budgets`, `Rates`, `Settings` and view tabs) replaces one sheet per year. A sheet from 0.1.0 is refused with a clear message; older yearly sheets are converted with the import tool, see `docs/template.md`.
 - Each account has one currency; an entry in another currency asks you to confirm a conversion at that month's rate before saving.
 - The Month screen counts only accounts ticked `In Monthly` and converts every entry with the rate of its own month.
 - The app links one spreadsheet. First run creates it from the public template with the Google picker (`drive.file` only), or links an existing one.
+- Settings shows the app version and the commit it was built from.
 - Rows are written to an explicit free row and read back; the app never writes column `J`, a view or another reference tab.
 
 ### Added
@@ -51,4 +56,5 @@ First release.
 ### Notes
 - The budget template is `assets/FIRE-TEMPLATE.xlsx`; see `docs/deploy-your-own.md` to run your own copy.
 
-[0.1.0]: https://github.com/unixwars/fitraker/releases/tag/v0.1.0
+[0.2.0]: https://github.com/unixwars/fitracker/releases/tag/v0.2.0
+[0.1.0]: https://github.com/unixwars/fitracker/releases/tag/v0.1.0

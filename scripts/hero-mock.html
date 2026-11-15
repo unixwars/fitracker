@@ -1,0 +1,15 @@
+<!doctype html><meta charset=utf-8><style>
+html,body{margin:0;width:2172px;height:1086px;overflow:hidden;background:#05080b}
+body{background:radial-gradient(ellipse 60% 70% at 62% 55%,rgba(0,172,225,.30),transparent 70%),radial-gradient(ellipse 40% 50% at 15% 90%,rgba(0,172,225,.10),transparent 70%),#05080b;perspective:2600px;display:flex;align-items:center;justify-content:center}
+.phone{position:relative;width:520px;height:1125px;border-radius:84px;background:linear-gradient(145deg,#3a424c,#12161b 40%,#262c34);padding:14px;box-sizing:border-box;
+transform:scale(.8) rotateX(12deg) rotateY(-26deg) rotateZ(6deg);transform-style:preserve-3d;
+box-shadow:0 0 0 2px #0a0d10, 0 0 120px rgba(0,172,225,.35), 60px 90px 120px rgba(0,0,0,.7), inset 0 0 6px rgba(255,255,255,.25)}
+.bezel{width:100%;height:100%;border-radius:72px;background:#000;padding:10px;box-sizing:border-box}
+.screen{width:100%;height:100%;border-radius:62px;overflow:hidden;position:relative}
+.screen img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.island{position:absolute;top:14px;left:50%;width:120px;height:34px;margin-left:-60px;border-radius:20px;background:#000}
+.glare{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.12) 0,transparent 35%)}
+.btn{position:absolute;right:-5px;width:6px;border-radius:3px;background:#20262d}
+</style>
+<div class=phone><div class=btn style="top:240px;height:110px"></div>
+<div class=bezel><div class=screen><img src="{{SCREEN}}"><div class=island></div><div class=glare></div></div></div></div>

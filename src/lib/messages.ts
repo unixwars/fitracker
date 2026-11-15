@@ -127,4 +127,5 @@ export const messages = {
   syncIdle: 'Up to date',
   syncPending: (n: number) => `${n} waiting to sync`,
   version: 'Schema version',
+  appVersion: 'App version',
 }
