@@ -84,3 +84,46 @@ test('Settings shows the app version and the commit it was built from', async ({
   await page.getByTestId('tab-settings').click()
   await expect(page.getByTestId('app-version')).toHaveText(/^\d+\.\d+\.\d+ \([0-9a-f]{7}\)$/)
 })
+
+test('Settings links to the project releases page', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  const link = page.getByTestId('releases-link')
+  await expect(link).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
+  await expect(link).toHaveAttribute('rel', /noopener/)
+})
+
+test('a first-time visitor (signed out, no sheet) sees what the app is and the first button without scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 560 })
+  await page.goto('/?unlinked&signedout')
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await expect(page.getByText('Expenses', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Google Sheet that you own/)).toBeVisible()
+  const first = page.locator('[data-testid=first-run] button').first()
+  const box = (await first.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(560)
+  await expect(page.getByTestId('project-link')).toHaveAttribute('href', 'https://github.com/unixwars/fitracker')
+  await expect(page.getByTestId('how-it-works')).not.toHaveAttribute('open', '')
+})
+
+test('someone already signed in with no sheet gets the short first-run screen', async ({ page }) => {
+  await page.goto('/?unlinked')
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await expect(page.getByTestId('hero')).toHaveCount(0)
+  await expect(page.getByTestId('create-from-template')).toBeVisible()
+})
+
+test('the first-run screen has cookie help for a blocked Google picker, closed until needed', async ({ page }) => {
+  await page.goto('/?unlinked')
+  const help = page.getByTestId('trouble-linking')
+  await expect(help).not.toHaveAttribute('open', '')
+  await help.getByText('Trouble linking?').click()
+  await expect(page.getByText(/third-party cookies for the Google picker/)).toBeVisible()
+})
+
+test('the cookie help opens by itself after a link attempt that ends without a sheet', async ({ page }) => {
+  await page.goto('/?unlinked&pickcancel')
+  await expect(page.getByTestId('trouble-linking')).not.toHaveAttribute('open', '')
+  await page.getByTestId('link-existing').click()
+  await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
+})

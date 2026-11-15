@@ -12,6 +12,18 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ---
 
+## [0.2.1] - 2026-11-15
+
+### Added
+- A clearer first screen for new users: what the app does (expenses, budgets, net worth, in a Google Sheet you own), what to do next, a "Trouble linking?" help for browsers that block the Google picker's third-party cookies, and links to the project and its releases.
+- An "Install app" button (Settings and the first screen) where the browser can install the app, and a Share-button hint on iOS.
+- Settings links to the release notes.
+
+### Fixed
+- Clearing the place that GPS filled in no longer refills it immediately.
+
+---
+
 ## [0.2.0] - 2026-11-15
 
 ### Changed
@@ -60,5 +72,6 @@ First release.
 ### Notes
 - The budget template is `assets/FIRE-TEMPLATE.xlsx`; see `docs/deploy-your-own.md` to run your own copy.
 
+[0.2.1]: https://github.com/unixwars/fitracker/releases/tag/v0.2.1
 [0.2.0]: https://github.com/unixwars/fitracker/releases/tag/v0.2.0
 [0.1.0]: https://github.com/unixwars/fitracker/releases/tag/v0.1.0

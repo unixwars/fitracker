@@ -1,4 +1,4 @@
-// Regenerates assets/hero.webp: the Add screen (demo data, ?hero) on an oblique phone. Run: pnpm hero
+// Regenerates public/hero.webp: the Add screen (demo data, ?hero) on an oblique phone. Run: pnpm hero
 // Builds the app in the offline demo mode, screenshots it with Playwright, renders scripts/hero-mock.html, saves a webp.
 import { execFileSync, spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -37,8 +37,8 @@ try {
   await mock.waitForTimeout(500)
   const png = await mock.screenshot()
   await browser.close()
-  const info = await sharp(png).webp({ quality: 88 }).toFile(join(root, 'assets/hero.webp'))
-  console.log(`assets/hero.webp written (${info.size} bytes)`)
+  const info = await sharp(png).webp({ quality: 88 }).toFile(join(root, 'public/hero.webp'))
+  console.log(`public/hero.webp written (${info.size} bytes)`)
 } finally {
   preview?.kill()
   rmSync(tmp, { recursive: true, force: true })

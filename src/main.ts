@@ -10,6 +10,10 @@ import { copyTemplate } from './lib/driveCopy'
 import { messages } from './lib/messages'
 import { createSheetsApi } from './lib/sheets/api'
 import { TEMPLATE_COPY_URL, templateFileId } from './lib/templateCopy'
+import { installer } from './lib/installPrompt.svelte'
+
+// First thing, before anything is awaited: Chrome fires the install event once, early.
+installer.attach()
 
 async function makeEnv(): Promise<Env> {
   if (import.meta.env.VITE_FAKE_SHEETS === '1') {

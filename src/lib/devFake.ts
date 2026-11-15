@@ -30,7 +30,9 @@ export function createFakeEnv(): Env {
     reference: { ...DEFAULT_REFERENCE, ...(hero ? { accounts: [account('Joint'), account('Revolut'), account('Monzo')] } : {}), budgets: DEFAULT_REFERENCE.budgets.map((b) => ({ ...b, year })) },
   })
   fake.book(FAKE_ID).title = 'Fitracker (demo)'
-  const auth: Auth = { token: () => 'fake', signIn: async () => undefined, silentSignIn: async () => true, signOut: () => undefined, onExpired: () => undefined, onExpiring: () => undefined }
+  // ?signedout starts without a token (as a first-time visitor); signing in gives one.
+  let token: string | null = window.location.search.includes('signedout') ? null : 'fake'
+  const auth: Auth = { token: () => token, signIn: async () => { token = 'fake' }, silentSignIn: async () => token !== null, signOut: () => undefined, onExpired: () => undefined, onExpiring: () => undefined }
   // ?unlinked starts on the first-run screen; otherwise the fake sheet is linked unless the device already stored a link.
   const linkedByDefault = !window.location.search.includes('unlinked')
   const storage = {
@@ -38,5 +40,5 @@ export function createFakeEnv(): Env {
     setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
   }
   ;(window as unknown as { __fake: unknown }).__fake = fake
-  return { storage, idb: indexedDB, api: fake, auth, account: async () => 'demo@example.test', pick: async () => FAKE_ID, copyTemplate: async () => FAKE_ID, fake: true, ttlMs: 0 }
+  return { storage, idb: indexedDB, api: fake, auth, account: async () => 'demo@example.test', pick: async () => (window.location.search.includes('pickcancel') ? null : FAKE_ID), copyTemplate: async () => FAKE_ID, fake: true, ttlMs: 0 }
 }

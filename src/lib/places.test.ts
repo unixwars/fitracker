@@ -31,4 +31,9 @@ describe('shouldAutoLocate', () => {
     expect(shouldAutoLocate('granted', [])).toBe(false)
     expect(shouldAutoLocate(undefined, known)).toBe(false)
   })
+  it('runs once per blank form: not again after a lookup already ran', () => {
+    const known = [{ name: 'A', lat: 1, lng: 1 }]
+    expect(shouldAutoLocate('granted', known, false)).toBe(true)
+    expect(shouldAutoLocate('granted', known, true)).toBe(false)
+  })
 })

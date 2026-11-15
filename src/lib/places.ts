@@ -25,7 +25,8 @@ export function nearestPlace(pos: LatLng, known: KnownPlace[], maxMeters = 150):
 }
 
 // Auto-locate on opening the form only when the browser already granted access (no surprise prompt)
-// and there is a known place to match against.
-export function shouldAutoLocate(permission: string | undefined, known: KnownPlace[]): boolean {
-  return permission === 'granted' && known.length > 0
+// and there is a known place to match against. It runs once per blank form (`alreadyTried`), so clearing the
+// suggested place to type another one does not refill it.
+export function shouldAutoLocate(permission: string | undefined, known: KnownPlace[], alreadyTried = false): boolean {
+  return permission === 'granted' && known.length > 0 && !alreadyTried
 }
