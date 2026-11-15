@@ -14,6 +14,8 @@ import { ensureVersion } from './sheets/version'
 import type { EntryStore } from './store'
 import { TEMPLATE_COPY_URL } from './templateCopy'
 import { messages } from './messages'
+import { accountEmoji } from './accountIcon'
+import { accountIconKey, accountKey, categoryIconKey, isEmoji, applyOverrides, parseOverrides, toggleValue } from './overrides'
 import type { RateRow, Reference, Snapshot, Unreadable } from './types'
 
 export type Tab = 'add' | 'month' | 'activity' | 'settings'
@@ -29,7 +31,7 @@ export type Env = {
   ttlMs?: number // overrides the book refresh interval (the offline end-to-end mode uses 0)
   fake?: boolean
 }
-type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[] }
+type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[]; overrides?: Record<string, string> }
 
 const EMPTY_LISTS: Reference = { base: 'EUR', accounts: [], categories: [], budgets: [] }
 const BLOCKED: Status[] = ['unlinked', 'newer', 'unrecognised']
@@ -54,7 +56,8 @@ export class AppState {
   month = $state(currentMonth())
   sheetId = $state<string | null>(null)
   entries = $state<Entry[]>([])
-  lists = $state<Reference>(EMPTY_LISTS)
+  sheetLists = $state<Reference>(EMPTY_LISTS) // the reference tabs as the sheet holds them
+  overrideEntries = $state<Record<string, string>>({}) // shared settings, raw fitracker.* metadata
   rates = $state<RateRow[]>([])
   snapshots = $state<Snapshot[]>([])
   unreadable = $state<Unreadable[]>([])
@@ -77,6 +80,8 @@ export class AppState {
   templateCopyUrl = TEMPLATE_COPY_URL
   private again = false // a change arrived while a sync was running
 
+  overrides = $derived(parseOverrides(this.overrideEntries))
+  lists = $derived(applyOverrides(this.sheetLists, this.overrides)) // what every screen uses: the sheet's lists with the shared settings on top
   displayed = $derived(applyPending(this.entries, this.ops))
   attention = $derived(this.ops.filter((o) => o.status === 'flagged'))
   needsAttention = $derived(this.attention.length + this.unreadable.length)
@@ -167,14 +172,16 @@ export class AppState {
     const book = this.sheetId ? await this.kv.get<Book>(CACHE_KEY) : undefined
     if (book) {
       this.entries = book.entries
-      this.lists = book.lists
+      this.sheetLists = book.lists
+      this.overrideEntries = book.overrides ?? {}
       this.rates = book.rates
       this.snapshots = book.snapshots ?? []
       this.unreadable = book.unreadable ?? []
       this.status = 'ok'
     } else {
       this.entries = []
-      this.lists = EMPTY_LISTS
+      this.sheetLists = EMPTY_LISTS
+      this.overrideEntries = {}
       this.rates = []
       this.snapshots = []
       this.unreadable = []
@@ -219,14 +226,15 @@ export class AppState {
   }
 
   private async readBook(store: EntryStore) {
-    const [entries, lists, rates, snapshots, unreadable] = [await store.list(), await store.lists(), await store.rates(), await store.snapshots(), await store.unreadable()]
+    const [entries, lists, rates, snapshots, unreadable, overrides] = [await store.list(), await store.lists(), await store.rates(), await store.snapshots(), await store.unreadable(), await store.overrides()]
     if (store !== this.store) return // the sheet was unlinked or replaced while this ran
     this.entries = entries
-    this.lists = lists
+    this.sheetLists = lists
+    this.overrideEntries = overrides
     this.rates = rates
     this.snapshots = snapshots
     this.unreadable = unreadable
-    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable }))
+    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable, overrides }))
   }
 
   // Month-roll of the Rates tab (spec 3.4). Best effort: a failure here must not hide the data that was read.
@@ -271,6 +279,41 @@ export class AppState {
     this.device = this.config.getDevice()
     applyTheme(this.device.theme)
   }
+
+  // Shared settings (spec 2026-11-15): written straight to the sheet's metadata, not queued, so they need a connection.
+  // The change shows at once and is rolled back with a message when the write fails.
+  private async writeSetting(key: string, value: string): Promise<boolean> {
+    const store = this.store
+    if (!store || !this.canWrite) return false
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return false }
+    const before = this.overrideEntries
+    this.overrideEntries = { ...before, [key]: value }
+    try {
+      await store.setOverride(key, value)
+      this.message = ''
+      await this.kv.set(CACHE_KEY, $state.snapshot({ entries: this.entries, lists: this.sheetLists, rates: this.rates, snapshots: this.snapshots, unreadable: this.unreadable, overrides: this.overrideEntries }))
+      return true
+    } catch (err) {
+      this.overrideEntries = before
+      if (err instanceof AuthExpired) this.authExpired = true
+      else this.message = messages.settingNotSaved
+      return false
+    }
+  }
+  async setAccountToggle(name: string, field: 'inMonthly' | 'inAnnual', value: boolean) {
+    const sheet = this.sheetLists.accounts.find((a) => a.name === name)
+    if (!sheet) return
+    await this.writeSetting(accountKey(name), toggleValue(this.overrides.accounts.get(name), field, value, sheet[field]))
+  }
+  /** '' resets to the icon the app guesses from the name. */
+  async setIcon(kind: 'account' | 'category', name: string, emoji: string) {
+    if (emoji !== '' && !isEmoji(emoji)) return
+    await this.writeSetting(kind === 'account' ? accountIconKey(name) : categoryIconKey(name), emoji)
+  }
+  accountEmoji(name: string): string { return this.overrides.accountIcons.get(name) ?? accountEmoji(name) }
+  /** The emoji chosen for a category, if any; otherwise the built-in glyph is drawn. */
+  categoryCustom(name: string): string | undefined { return this.overrides.categoryIcons.get(name) }
+  accountCustom(name: string): string | undefined { return this.overrides.accountIcons.get(name) }
 
   async save(entry: Entry, remember: Partial<DeviceSettings>) {
     if (!this.canWrite) throw new Error('read-only')
