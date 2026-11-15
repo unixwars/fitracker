@@ -6,11 +6,19 @@
   import type { Entry } from '../rows'
   import CategoryIcon from './CategoryIcon.svelte'
   import EntrySheet from './EntrySheet.svelte'
+  import YearScreen from './YearScreen.svelte'
+  import BarChart from './charts/BarChart.svelte'
+  import Donut from './charts/Donut.svelte'
+  import { monthBudgetChart, monthShareChart } from '../chartData'
   import { dateLabel, fmt, monthLabel, shiftMonth } from './format'
 
   let { app }: { app: AppState } = $props()
 
   const view = $derived(monthView({ entries: app.displayed, lists: app.lists, rates: app.rates, month: app.month }))
+  let scope = $state<'month' | 'year'>('month')
+  const budget = $derived(monthBudgetChart(view))
+  const share = $derived(monthShareChart(view))
+  const money = (minor: number): string => fmt({ minor, currency: app.lists.base })
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -27,6 +35,14 @@
   const visible = (c: CategoryRow) => c.planned.minor > 0 || c.actual.minor > 0
 </script>
 
+<div class="modes" role="group" aria-label={messages.viewScope}>
+  <button class="secondary" aria-pressed={scope === 'month'} onclick={() => (scope = 'month')} data-testid="scope-month">{messages.scopeMonth}</button>
+  <button class="secondary" aria-pressed={scope === 'year'} onclick={() => (scope = 'year')} data-testid="scope-year">{messages.scopeYear}</button>
+</div>
+
+{#if scope === 'year'}
+  <YearScreen {app} />
+{:else}
 <div class="monthnav">
   <button aria-label={messages.prevMonth} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
   <h2>{monthLabel(app.month)}</h2>
@@ -72,6 +88,12 @@
   {/each}
 </section>
 
+<section class="card">
+  <BarChart title={messages.chartBudget} labels={budget.labels} series={budget.series} format={money} />
+  <Donut title={messages.chartShare} labels={share.labels} values={share.values} format={money} />
+</section>
+
 {#if view.approx}<p class="muted">{messages.approx}</p>{/if}
 {#each view.missingRates as c (c)}<Alert>{messages.ratesMissing(c)}</Alert>{/each}
+{/if}
 {#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}

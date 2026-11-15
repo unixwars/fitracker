@@ -137,3 +137,15 @@ test('a balance can be recorded in Activity and lands in Snapshots', async ({ pa
   await expect(page.getByTestId('snapshot-saved')).toBeVisible()
   await expect.poll(() => cell(page, 'Snapshots!D2')).toBe(1250.4)
 })
+
+test('Month has a Year view with totals and charts, and Month shows its charts', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('chart').first()).toBeVisible()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear()))
+  await expect(page.getByTestId('year-totals')).toBeVisible()
+  expect(await page.getByTestId('chart').count()).toBe(5)
+  await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear() - 1))
+})

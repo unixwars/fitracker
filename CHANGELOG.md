@@ -8,6 +8,8 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Added
+- A Year view on the Month screen (accounts ticked In Annual): totals, savings rate and per-category figures, with charts for income vs expenses, spending by category and month, expense proportions, net worth by account and inflows/outflows; the Month screen has budget vs actual and expense proportions charts. Charts are drawn in the app (no chart library) with a table alternative under each.
+- Record an account balance (a snapshot) in Activity; it works offline and Undo removes it.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
 
 ---

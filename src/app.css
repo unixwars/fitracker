@@ -153,3 +153,17 @@ details.fold { margin-top: 12px; }
 details.fold summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); }
 .links { display: flex; gap: 16px; margin-top: 8px; }
 .links a { min-height: 44px; display: inline-flex; align-items: center; }
+
+.chart { margin: 0 0 16px; }
+.chart figcaption { font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .tick { font-size: 8px; fill: var(--muted); }
+.chart .donut { max-width: 220px; margin: 0 auto; }
+.chart .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8rem; margin: 6px 0; }
+.chart .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.chart .legend i.dash { background: none; border-top: 2px dashed var(--ink); height: 0; }
+.chart .caption { min-height: 1.2em; margin: 0; font-size: 0.85rem; }
+.chart table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
+.chart th, .chart td { text-align: right; padding: 2px 4px; }
+.chart th:first-child { text-align: left; }
