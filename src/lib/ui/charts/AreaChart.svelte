@@ -29,15 +29,15 @@
         <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} class="grid" />
         <text x={L - 4} y={y(t) + 3} text-anchor="end" class="tick">{shortMoney(t)}</text>
       {/each}
-      {#each series as s, k (s.name)}<path d={area(k)} fill={seriesColor(k)} fill-opacity="0.85" />{/each}
+      {#each series as _s, k (k)}<path d={area(k)} fill={seriesColor(k)} fill-opacity="0.85" />{/each}
       {#each labels as label, i (i)}<text x={x(i)} y={H - 8} text-anchor="middle" class="tick">{label}</text>{/each}
     </svg>
-    <p class="legend">{#each series as s, k (s.name)}<span><i style="background: {seriesColor(k)}"></i>{s.name}</span>{/each}</p>
+    <p class="legend">{#each series as s, k (k)}<span><i style="background: {seriesColor(k)}"></i>{s.name}</span>{/each}</p>
     <details>
       <summary>{messages.chartTable}</summary>
       <table>
-        <thead><tr><th></th>{#each series as s (s.name)}<th>{s.name}</th>{/each}</tr></thead>
-        <tbody>{#each labels as label, i (i)}<tr><th>{label}</th>{#each series as s (s.name)}<td>{s.values[i] === null ? '' : format(s.values[i]!)}</td>{/each}</tr>{/each}</tbody>
+        <thead><tr><th></th>{#each series as s, k (k)}<th>{s.name}</th>{/each}</tr></thead>
+        <tbody>{#each labels as label, i (i)}<tr><th>{label}</th>{#each series as s, k (k)}<td>{s.values[i] === null ? '' : format(s.values[i]!)}</td>{/each}</tr>{/each}</tbody>
       </table>
     </details>
   {:else}<p class="muted">{messages.noChartData}</p>{/if}

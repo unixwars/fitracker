@@ -50,6 +50,16 @@ export function applyPending(entries: Entry[], ops: Op[]): Entry[] {
   return out
 }
 
+// The same for snapshots: a pending add shows (after the existing rows, so the last-row-wins tie rule holds), a pending delete hides.
+export function applyPendingSnapshots(snapshots: Snapshot[], ops: Op[]): Snapshot[] {
+  let out = [...snapshots]
+  for (const op of [...ops].filter((o) => o.status === 'pending' && o.subject === 'snapshot').sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))) {
+    if (op.type === 'delete') out = out.filter((s) => s.id !== op.entryId)
+    else if (op.snapshot && !out.some((s) => s.id === op.entryId)) out = [...out, op.snapshot]
+  }
+  return out
+}
+
 // The inverse of a completed op, as a fresh pending op.
 export function undo(op: Op): Op {
   if (op.subject === 'snapshot') {

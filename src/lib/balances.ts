@@ -1,4 +1,4 @@
-import { convertMoney, toBase } from './rates'
+import { rateFor, toBase } from './rates'
 import type { Entry } from './rows'
 import type { Currency, Money, RateRow, Reference, Snapshot } from './types'
 
@@ -37,7 +37,7 @@ export function balancesView({ entries, snapshots, lists, rates, year, today }: 
       let snapDate = ''
       let balance = 0
       for (const s of own) if (s.date <= end && s.date >= snapDate) { snapDate = s.date; balance = s.balance.minor } // >= : the last row wins a tie
-      let minor = balance
+      let minor = balance // a float: transfers in are not rounded until the month-end conversion, as in the sheet
       for (const x of entries) {
         if (x.date <= snapDate || x.date > end) continue
         if (x.kind === 'income' && x.account === acc.name) minor += x.money.minor
@@ -45,15 +45,17 @@ export function balancesView({ entries, snapshots, lists, rates, year, today }: 
         else if (x.kind === 'transfer') {
           if (x.account === acc.name) minor -= x.money.minor
           if (x.toAccount === acc.name) {
-            const incoming = convertMoney(x.money, acc.currency, rates, base, x.date.slice(0, 7))
-            if (incoming) minor += incoming.minor
-            else missing.add(x.money.currency)
+            const month = x.date.slice(0, 7)
+            const from = rateFor(rates, x.money.currency, base, month)
+            const to = rateFor(rates, acc.currency, base, month)
+            if (from !== null && to !== null) minor += (x.money.minor * from) / to
+            else missing.add(from === null ? x.money.currency : acc.currency)
           }
         }
       }
-      const inBase = convertMoney({ minor, currency: acc.currency }, base, rates, base, end.slice(0, 7))
-      if (!inBase) { missing.add(acc.currency); return null }
-      return inBase
+      const rate = rateFor(rates, acc.currency, base, end.slice(0, 7))
+      if (rate === null) { missing.add(acc.currency); return null }
+      return { minor: Math.round(minor * rate), currency: base }
     })
     return { name: acc.name, currency: acc.currency, byMonth }
   })

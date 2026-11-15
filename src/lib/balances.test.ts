@@ -34,7 +34,7 @@ describe('balancesView month-end balances', () => {
     expect(joint(view([e('a', '2025-12-01', 1000), e('b', '2026-02-02', 500, { kind: 'income' })], []))[1]).toBe(-500)
   })
   it('the last snapshot row wins on a tie', () => {
-    expect(joint(view([], [snap('a', '2026-01-09', 'Joint', 1), snap('b', '2026-01-09', 'Joint', 2)]))[0]).toBe(2)
+    expect(joint(view([], [snap('a', '2026-01-09', 'Joint', 2), snap('b', '2026-01-09', 'Joint', 1)]))[0]).toBe(1)
   })
   it('transfers leave the source and arrive converted at the entry month rate', () => {
     const t = e('t', '2026-03-05', 10000, { kind: 'transfer', category: undefined, toAccount: 'Pound' }) // 100.00 EUR out, Mar GBP rate 1.5 -> 66.67 GBP in
@@ -43,7 +43,7 @@ describe('balancesView month-end balances', () => {
     const pound = v.accounts.find((a) => a.name === 'Pound')!
     expect(pound.currency).toBe('GBP')
     expect(pound.byMonth[1]?.minor).toBe(0)
-    expect(pound.byMonth[2]?.minor).toBe(Math.round(6667 * 1.5)) // 6667 GBP minor, shown in base at the month-end rate
+    expect(pound.byMonth[2]?.minor).toBe(10000) // not rounded to 6667 GBP first, so no half-cent drift against the sheet
   })
   it('leaves months after the current one empty and sums the net worth of the months that have a value', () => {
     const v = view([], [snap('s', '2026-01-01', 'Joint', 5000)], '2026-02-10')
@@ -54,6 +54,26 @@ describe('balancesView month-end balances', () => {
     const v = balancesView({ entries: [], snapshots: [snap('s', '2026-01-01', 'Pound', 5000, 'GBP')], lists, rates: [], year: 2026, today: '2026-12-31' })
     expect(v.missingRates).toEqual(['GBP'])
     expect(v.accounts.find((a) => a.name === 'Pound')!.byMonth[0]).toBeNull()
+  })
+})
+
+describe('balancesView transfers without a rate', () => {
+  it('a transfer between two accounts of the same non-base currency needs the month rate: it leaves the source and is not counted in, like the sheet', () => {
+    const l: Reference = { ...lists, accounts: [{ name: 'A', currency: 'GBP', active: true, inMonthly: true, inAnnual: true }, { name: 'B', currency: 'GBP', active: true, inMonthly: true, inAnnual: true }] }
+    const v = balancesView({ entries: [e('t', '2026-03-05', 1000, { kind: 'transfer', account: 'A', toAccount: 'B', money: { minor: 1000, currency: 'GBP' }, category: undefined })], snapshots: [], lists: l, rates: [], year: 2026, today: '2026-12-31' })
+    expect(v.missingRates).toEqual(['GBP'])
+  })
+})
+
+describe('balancesView edge cases', () => {
+  it('month ends in a leap year and an empty book', () => {
+    const v = balancesView({ entries: [], snapshots: [snap('s', '2028-02-29', 'Joint', 100)], lists, rates, year: 2028, today: '2028-12-31' })
+    expect(v.accounts[0].byMonth[1]?.minor).toBe(100) // snapshot on Feb 29 counts in February
+    expect(balancesView({ entries: [], snapshots: [], lists: { ...lists, accounts: [] }, rates, year: 2026, today: '2026-12-31' }).netWorth.every((n) => n === null)).toBe(true)
+  })
+  it('a snapshot dated in the future is ignored until its month', () => {
+    const v = view([], [snap('s', '2026-06-15', 'Joint', 900)], '2026-12-31')
+    expect(joint(v).slice(4, 7)).toEqual([0, 900, 900])
   })
 })
 

@@ -15,9 +15,15 @@
     ev.preventDefault()
     errors = validateSnapshot(form, app.lists)
     if (Object.keys(errors).length) return
-    await app.addSnapshot(toSnapshot(form, crypto.randomUUID(), app.lists))
-    form = { ...initialSnapshotForm(app.lists, todayLocal()), account: form.account }
-    saved = true
+    const snapshot = toSnapshot(form, crypto.randomUUID(), app.lists)
+    form = { ...initialSnapshotForm(app.lists, todayLocal()), account: form.account } // cleared at once: a second tap has nothing to save
+    try {
+      await app.addSnapshot(snapshot)
+      saved = true
+    } catch {
+      saved = false
+      app.message = messages.snapshotSaveFailed
+    }
   }
 </script>
 
@@ -25,7 +31,7 @@
   <summary><h3 style="display: inline">{messages.recordBalance}</h3></summary>
   <form onsubmit={submit}>
     <label class="field"><span>{messages.account}</span>
-      <select bind:value={form.account} data-testid="snapshot-account">{#each accounts as a (a.name)}<option value={a.name}>{a.name} ({a.currency})</option>{/each}</select>
+      <select bind:value={form.account} data-testid="snapshot-account">{#each accounts as a, i (i)}<option value={a.name}>{a.name} ({a.currency})</option>{/each}</select>
       {#if errors.account}<span class="err">{messages.snapshotErrors.account}</span>{/if}
     </label>
     <label class="field"><span>{messages.snapshotDate}</span>

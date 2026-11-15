@@ -25,6 +25,7 @@
   const linePoints = $derived((line?.values ?? []).map((v, i) => (v === null ? null : [L + band * (i + 0.5), T + plotH - (Math.max(0, v) / lineMax) * plotH] as [number, number])))
   const lineD = $derived(linePoints.reduce((d, p, i, all) => (p ? `${d}${i === 0 || !all[i - 1] ? 'M' : 'L'}${p[0].toFixed(1)} ${p[1].toFixed(1)} ` : d), ''))
   let focus = $state<number | null>(null)
+  $effect(() => { if (focus !== null && focus >= labels.length) focus = null }) // the data changed under a highlighted bar
   const caption = $derived(focus === null ? '' : `${labels[focus]}: ${series.map((s) => `${s.name} ${format(s.values[focus!] ?? 0)}`).join(', ')}${line && line.values[focus] != null ? `, ${line.name} ${Math.round(line.values[focus]! * 100)}%` : ''}`)
 </script>
 
@@ -61,8 +62,8 @@
   <details>
     <summary>{messages.chartTable}</summary>
     <table>
-      <thead><tr><th></th>{#each series as s (s.name)}<th>{s.name}</th>{/each}{#if line}<th>{line.name}</th>{/if}</tr></thead>
-      <tbody>{#each labels as label, i (i)}<tr><th>{label}</th>{#each series as s (s.name)}<td>{format(s.values[i] ?? 0)}</td>{/each}{#if line}<td>{line.values[i] == null ? '' : Math.round(line.values[i]! * 100) + '%'}</td>{/if}</tr>{/each}</tbody>
+      <thead><tr><th></th>{#each series as s, k (k)}<th>{s.name}</th>{/each}{#if line}<th>{line.name}</th>{/if}</tr></thead>
+      <tbody>{#each labels as label, i (i)}<tr><th>{label}</th>{#each series as s, k (k)}<td>{format(s.values[i] ?? 0)}</td>{/each}{#if line}<td>{line.values[i] == null ? '' : Math.round(line.values[i]! * 100) + '%'}</td>{/if}</tr>{/each}</tbody>
     </table>
   </details>
 </figure>

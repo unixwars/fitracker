@@ -3,7 +3,7 @@ import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
 import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
-import { applyPending, makeOp, makeRepairOp, makeSnapshotOp, pendingCount, undo, type Op } from './outbox'
+import { applyPendingSnapshots, applyPending, makeOp, makeRepairOp, makeSnapshotOp, pendingCount, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
@@ -78,6 +78,7 @@ export class AppState {
   private again = false // a change arrived while a sync was running
 
   displayed = $derived(applyPending(this.entries, this.ops))
+  displayedSnapshots = $derived(applyPendingSnapshots(this.snapshots, this.ops))
   attention = $derived(this.ops.filter((o) => o.status === 'flagged'))
   needsAttention = $derived(this.attention.length + this.unreadable.length)
   pendingCount = $derived(pendingCount(this.ops))

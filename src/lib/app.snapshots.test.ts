@@ -32,6 +32,7 @@ describe('recording a balance', () => {
     const { fake, app } = await setup(false)
     await app.addSnapshot(snap)
     expect(app.pendingCount).toBe(1)
+    expect(app.displayedSnapshots.map((x) => x.id)).toEqual(['snap1']) // visible while waiting
     expect(fake.book('S1').get('Snapshots!A2')?.v).toBeUndefined()
     app.online = true
     await app.sync()

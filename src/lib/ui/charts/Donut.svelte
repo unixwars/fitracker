@@ -6,6 +6,7 @@
   const slices = $derived(donutSlices(values))
   const total = $derived(values.reduce((a, v) => a + (v > 0 ? v : 0), 0))
   let focus = $state<number | null>(null)
+  $effect(() => { if (focus !== null && !(values[focus] > 0)) focus = null }) // the data changed under a highlighted slice
 </script>
 
 <figure class="chart" data-testid="chart">

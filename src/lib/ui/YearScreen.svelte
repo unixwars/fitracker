@@ -15,7 +15,7 @@
   let { app }: { app: AppState } = $props()
   const year = $derived(Number(app.month.slice(0, 4)))
   const view = $derived(annualView({ entries: app.displayed, lists: app.lists, rates: app.rates, year }))
-  const balances = $derived(balancesView({ entries: app.displayed, snapshots: app.snapshots, lists: app.lists, rates: app.rates, year, today: todayLocal() }))
+  const balances = $derived(balancesView({ entries: app.displayed, snapshots: app.displayedSnapshots, lists: app.lists, rates: app.rates, year, today: todayLocal() }))
   const money = (minor: number): string => fmt({ minor, currency: app.lists.base })
   const m = (v: Money) => fmt(v)
   const incomeExpense = $derived(yearIncomeExpenseChart(view))
