@@ -26,6 +26,7 @@ export const messages = {
   settingNotSaved: 'The setting could not be saved. It is unchanged.',
   settingsAccounts: 'Accounts',
   settingsCategories: 'Category icons',
+  countIn: 'Count in:',
   inMonth: 'Month',
   inYear: 'Year',
   differsFromSheet: 'Differs from the sheet',
