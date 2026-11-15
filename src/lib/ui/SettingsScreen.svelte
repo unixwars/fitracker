@@ -5,6 +5,7 @@
   import { messages } from '../messages'
   import { APP_VERSION_LABEL } from '../buildInfo'
   import { BOOK_VERSION } from '../schema'
+  import { RELEASES_URL } from '../projectLinks'
 
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
@@ -59,5 +60,6 @@
   </label>
   <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
   <div class="stat"><span>{messages.appVersion}</span><span data-testid="app-version">{APP_VERSION_LABEL}</span></div>
+  <div class="stat"><span>{messages.releases}</span><a href={RELEASES_URL} target="_blank" rel="noopener" data-testid="releases-link">{messages.releasesLink}</a></div>
   <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
 </section>

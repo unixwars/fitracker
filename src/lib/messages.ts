@@ -128,4 +128,6 @@ export const messages = {
   syncPending: (n: number) => `${n} waiting to sync`,
   version: 'Schema version',
   appVersion: 'App version',
+  releases: 'Releases',
+  releasesLink: 'Release notes on GitHub',
 }

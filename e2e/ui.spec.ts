@@ -84,3 +84,11 @@ test('Settings shows the app version and the commit it was built from', async ({
   await page.getByTestId('tab-settings').click()
   await expect(page.getByTestId('app-version')).toHaveText(/^\d+\.\d+\.\d+ \([0-9a-f]{7}\)$/)
 })
+
+test('Settings links to the project releases page', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  const link = page.getByTestId('releases-link')
+  await expect(link).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
+  await expect(link).toHaveAttribute('rel', /noopener/)
+})
