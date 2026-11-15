@@ -18,7 +18,10 @@ describe('groupByDay', () => {
   })
   it('lists income and transfers too, and entries of any account', () => {
     const days = groupByDay([e('a', '2026-11-02', { kind: 'income' }), e('b', '2026-11-02', { kind: 'transfer', toAccount: 'Cash' }), e('c', '2026-11-02', { account: 'Elsewhere' })], '2026-11')
-    expect(days[0].entries).toHaveLength(3)
+    expect(days[0].entries.map((x) => x.id)).toEqual(['a', 'b', 'c'])
+  })
+  it('drops an entry with an empty or malformed date', () => {
+    expect(groupByDay([e('a', ''), e('b', 'garbage')], '2026-11')).toEqual([])
   })
   it('returns no days for an empty month', () => {
     expect(groupByDay([], '2026-11')).toEqual([])

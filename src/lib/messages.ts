@@ -73,6 +73,7 @@ export const messages = {
   entriesFor: (name: string) => `Entries: ${name}`,
   noEntries: 'No entries',
   viewBy: 'View by',
+  transferRow: (from: string, to: string) => `${from} → ${to}`,
   byCategory: 'By category',
   byDay: 'By day',
   prevMonth: 'Previous month',

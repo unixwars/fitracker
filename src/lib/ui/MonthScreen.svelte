@@ -34,7 +34,6 @@
   <h2>{monthLabel(app.month)}</h2>
   <button aria-label={messages.nextMonth} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
 </div>
-<p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
 
 <div class="modes" role="group" aria-label={messages.viewBy}>
   <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
@@ -44,6 +43,7 @@
 {#if mode === 'day'}
   <DayList entries={app.displayed} month={app.month} onedit={(e) => (editing = e)} />
 {:else}
+<p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
 <section class="card">
   <h3>{messages.expenses}</h3>
   <div class="stat"><span>{messages.planned}</span><b>{fmt(view.expenses.planned)}</b></div>
