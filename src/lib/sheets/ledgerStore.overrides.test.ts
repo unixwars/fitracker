@@ -45,4 +45,26 @@ describe('shared settings', () => {
     await expect(store.refresh({ force: true })).rejects.toBeInstanceOf(AuthExpired)
     fake.listMetadata = original
   })
+  it('reports unknown (null), not empty, when the read fails on a store with nothing cached yet', async () => {
+    const { fake, store } = setup()
+    fake.listMetadata = async () => { throw new Error('boom') }
+    expect(await store.overrides()).toBeNull()
+  })
+  it('a refresh that read before a write does not undo it', async () => {
+    const { fake, store } = setup()
+    await store.lists()
+    const real = fake.listMetadata.bind(fake)
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    fake.listMetadata = async (...a) => { const old = await real(...a); await gate; return old }
+    const refreshing = store.refresh({ force: true })
+    await store.setOverride(accountKey('Joint'), '{"m":false}')
+    release()
+    await refreshing
+    expect((await store.overrides())![accountKey('Joint')]).toBe('{"m":false}')
+  })
+  it('refuses the schema version tag and other keys', async () => {
+    const { store } = setup()
+    await expect(store.setOverride('fitracker.schemaVersion', '9')).rejects.toThrow()
+  })
 })

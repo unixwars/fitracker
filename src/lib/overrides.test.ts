@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountKey, applyOverrides, categoryIconKey, accountIconKey, isEmoji, parseOverrides, toggleValue, OVERRIDE_PREFIX } from './overrides'
+import { isSettingKey, accountKey, applyOverrides, categoryIconKey, accountIconKey, isEmoji, parseOverrides, toggleValue, OVERRIDE_PREFIX } from './overrides'
 import type { Reference } from './types'
 
 const ref: Reference = {
@@ -20,6 +20,16 @@ describe('keys', () => {
   })
   it('refuses a key that would exceed the 256-byte limit', () => {
     expect(() => accountKey('x'.repeat(300))).toThrow()
+  })
+})
+
+describe('isSettingKey', () => {
+  it('accepts the three setting kinds and refuses the version tag and foreign keys', () => {
+    expect(isSettingKey(accountKey('A'))).toBe(true)
+    expect(isSettingKey(accountIconKey('A'))).toBe(true)
+    expect(isSettingKey(categoryIconKey('A'))).toBe(true)
+    expect(isSettingKey('fitracker.schemaVersion')).toBe(false)
+    expect(isSettingKey('other')).toBe(false)
   })
 })
 

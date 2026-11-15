@@ -139,6 +139,7 @@ test('an account toggle in Settings changes the Month count, is stored as metada
   await box.click()
   await expect(row).toContainText('Differs from the sheet')
   expect(await cell(page, 'Accounts!D2')).toBe(sheetCell)
+  await expect.poll(() => page.evaluate(() => [...(window as unknown as { __fake: { book(id: string): { metadata: Map<string, string> } } }).__fake.book('fake-sheet').metadata.keys()].filter((k) => k.startsWith('fitracker.account.')).length)).toBe(1)
   await page.getByTestId('tab-month').click()
   expect(await page.getByTestId('accounts-included').innerText()).not.toBe(before)
 })

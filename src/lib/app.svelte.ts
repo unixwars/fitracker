@@ -230,11 +230,11 @@ export class AppState {
     if (store !== this.store) return // the sheet was unlinked or replaced while this ran
     this.entries = entries
     this.sheetLists = lists
-    this.overrideEntries = overrides
+    if (overrides) this.overrideEntries = overrides // null: the read failed, keep the settings already known
     this.rates = rates
     this.snapshots = snapshots
     this.unreadable = unreadable
-    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable, overrides }))
+    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable, overrides: this.overrideEntries }))
   }
 
   // Month-roll of the Rates tab (spec 3.4). Best effort: a failure here must not hide the data that was read.
@@ -281,34 +281,53 @@ export class AppState {
   }
 
   // Shared settings (spec 2026-11-15): written straight to the sheet's metadata, not queued, so they need a connection.
-  // The change shows at once and is rolled back with a message when the write fails.
-  private async writeSetting(key: string, value: string): Promise<boolean> {
+  // The change shows at once and only its own key is rolled back, with a message, when the write fails. Writes run one
+  // after another so two changes to the same new key cannot both create it.
+  private settingsQueue: Promise<unknown> = Promise.resolve()
+  private writeSetting(makeKey: () => string, value: string): Promise<boolean> {
+    const run = this.settingsQueue.then(() => this.writeSettingNow(makeKey, value))
+    this.settingsQueue = run.catch(() => undefined)
+    return run
+  }
+  private async writeSettingNow(makeKey: () => string, value: string): Promise<boolean> {
     const store = this.store
     if (!store || !this.canWrite) return false
     if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return false }
-    const before = this.overrideEntries
-    this.overrideEntries = { ...before, [key]: value }
+    let key: string
+    try { key = makeKey() } catch { this.message = messages.settingNotSaved; return false } // a name too long to store
+    const previous = this.overrideEntries[key]
+    this.overrideEntries = { ...this.overrideEntries, [key]: value }
     try {
       await store.setOverride(key, value)
       this.message = ''
       await this.kv.set(CACHE_KEY, $state.snapshot({ entries: this.entries, lists: this.sheetLists, rates: this.rates, snapshots: this.snapshots, unreadable: this.unreadable, overrides: this.overrideEntries }))
       return true
     } catch (err) {
-      this.overrideEntries = before
+      if (this.overrideEntries[key] === value) {
+        const rest = { ...this.overrideEntries }
+        if (previous === undefined) delete rest[key]
+        else rest[key] = previous
+        this.overrideEntries = rest
+      }
       if (err instanceof AuthExpired) this.authExpired = true
       else this.message = messages.settingNotSaved
       return false
     }
   }
-  async setAccountToggle(name: string, field: 'inMonthly' | 'inAnnual', value: boolean) {
+  /** True when the setting was saved. */
+  async setAccountToggle(name: string, field: 'inMonthly' | 'inAnnual', value: boolean): Promise<boolean> {
     const sheet = this.sheetLists.accounts.find((a) => a.name === name)
-    if (!sheet) return
-    await this.writeSetting(accountKey(name), toggleValue(this.overrides.accounts.get(name), field, value, sheet[field]))
+    if (!sheet) return false
+    return this.writeSetting(() => accountKey(name), toggleValue(this.overrides.accounts.get(name), field, value, sheet[field]))
+  }
+  /** Back to the sheet's own In Monthly / In Annual ticks. */
+  async resetAccountToggles(name: string): Promise<boolean> {
+    return this.writeSetting(() => accountKey(name), '')
   }
   /** '' resets to the icon the app guesses from the name. */
-  async setIcon(kind: 'account' | 'category', name: string, emoji: string) {
-    if (emoji !== '' && !isEmoji(emoji)) return
-    await this.writeSetting(kind === 'account' ? accountIconKey(name) : categoryIconKey(name), emoji)
+  async setIcon(kind: 'account' | 'category', name: string, emoji: string): Promise<boolean> {
+    if (emoji !== '' && !isEmoji(emoji)) return false
+    return this.writeSetting(() => (kind === 'account' ? accountIconKey(name) : categoryIconKey(name)), emoji)
   }
   accountEmoji(name: string): string { return this.overrides.accountIcons.get(name) ?? accountEmoji(name) }
   /** The emoji chosen for a category, if any; otherwise the built-in glyph is drawn. */

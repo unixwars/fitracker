@@ -8,6 +8,7 @@ import { accountKey, accountIconKey } from './overrides'
 import { todayLocal } from './rows'
 import { createFakeSheets } from './sheets/fakeSheets'
 import { seedLedger } from './sheets/fixtures'
+import { createLedgerStore } from './sheets/ledgerStore'
 
 const auth: Auth = { token: () => 'tok', signIn: async () => undefined, silentSignIn: async () => true, signOut: () => undefined, onExpired: () => undefined, onExpiring: () => undefined }
 
@@ -72,6 +73,39 @@ describe('shared settings in the app', () => {
     await app.setAccountToggle('Joint', 'inMonthly', !joint(app).inMonthly)
     expect(app.message).toBe(messages.settingNeedsConnection)
     expect(fake.count('setMetadata')).toBe(0)
+  })
+  it('a failed read on a fresh store keeps the settings already known instead of wiping them', async () => {
+    const { fake, app } = await setup()
+    await fake.setMetadata('S1', accountKey('Joint'), '{"m":false}')
+    await app.store!.refresh({ force: true })
+    await app.sync()
+    expect(joint(app).inMonthly).toBe(false)
+    fake.listMetadata = async () => { throw new Error('boom') }
+    app.store = createLedgerStore(fake, 'S1') // as after a reload: nothing cached in the store
+    await app.sync()
+    expect(joint(app).inMonthly).toBe(false)
+  })
+  it('a failed write rolls back only its own key', async () => {
+    const { fake, app } = await setup()
+    await app.setIcon('account', 'Cash', '🐷')
+    const real = fake.setMetadata.bind(fake)
+    fake.setMetadata = async (id, k, v) => { if (k === accountKey('Joint')) throw new Error('boom'); return real(id, k, v) }
+    const [a, b] = await Promise.all([app.setAccountToggle('Joint', 'inMonthly', !joint(app).inMonthly), app.setIcon('account', 'Cash', '🏦')])
+    expect([a, b]).toEqual([false, true])
+    expect(app.accountEmoji('Cash')).toBe('🏦')
+  })
+  it('reset returns the account to the sheet ticks', async () => {
+    const { fake, app } = await setup()
+    const sheet = joint(app).inMonthly
+    await app.setAccountToggle('Joint', 'inMonthly', !sheet)
+    await app.resetAccountToggles('Joint')
+    expect(joint(app).inMonthly).toBe(sheet)
+    expect(await fake.getMetadata('S1', accountKey('Joint'))).toBe('')
+  })
+  it('a name too long to store is refused with a message, not an exception', async () => {
+    const { app } = await setup()
+    await expect(app.setIcon('account', 'x'.repeat(300), '🐷')).resolves.toBe(false)
+    expect(app.message).toBe(messages.settingNotSaved)
   })
   it('ignores a toggle for an account the sheet does not have', async () => {
     const { fake, app } = await setup()

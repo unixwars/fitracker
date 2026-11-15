@@ -30,7 +30,8 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
   async function metadataValue(id: string, key: string): Promise<string | null> {
     const r = await request<{ matchedDeveloperMetadata?: { developerMetadata: { metadataValue: string } }[] }>(
       'POST', `${BASE}/${id}/developerMetadata:search`, { dataFilters: [lookup(key)] })
-    return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
+    const hit = r.matchedDeveloperMetadata?.[0]
+    return hit ? (hit.developerMetadata.metadataValue ?? '') : null // an empty value may be left out of the JSON: the entry still exists
   }
 
   async function listMetadata(id: string, prefix: string): Promise<Record<string, string>> {
@@ -40,7 +41,7 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     const out: Record<string, string> = {}
     for (const m of r.matchedDeveloperMetadata ?? []) {
       const { metadataKey: k, metadataValue: v } = m.developerMetadata
-      if (k.startsWith(prefix)) out[k] = v ?? ''
+      if (k.startsWith(prefix) && (v || !(k in out))) out[k] = v ?? '' // if a key has duplicates, a non-empty value wins
     }
     return out
   }

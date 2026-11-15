@@ -63,10 +63,10 @@
     <p class="muted">{messages.sharedSettingsNote}</p>
     {#each app.lists.accounts.filter((a) => a.active) as a (a.name)}
       <div class="stat acct" data-testid="account-row">
-        <span><IconPicker label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small>{/if}</span>
+        <span><IconPicker label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small> <button class="secondary" disabled={!app.canWrite} onclick={() => app.resetAccountToggles(a.name)} data-testid="reset-toggles">{messages.resetToSheet}</button>{/if}</span>
         <span class="row" style="flex: 0 0 auto">
-          <label><input type="checkbox" checked={a.inMonthly} disabled={!app.canWrite} onchange={(e) => app.setAccountToggle(a.name, 'inMonthly', e.currentTarget.checked)} data-testid="toggle-monthly" /> {messages.inMonth}</label>
-          <label><input type="checkbox" checked={a.inAnnual} disabled={!app.canWrite} onchange={(e) => app.setAccountToggle(a.name, 'inAnnual', e.currentTarget.checked)} data-testid="toggle-annual" /> {messages.inYear}</label>
+          <label><input type="checkbox" checked={a.inMonthly} disabled={!app.canWrite} onchange={async (e) => { const box = e.currentTarget; const was = a.inMonthly; if (!(await app.setAccountToggle(a.name, 'inMonthly', box.checked))) box.checked = was }} data-testid="toggle-monthly" /> {messages.inMonth}</label>
+          <label><input type="checkbox" checked={a.inAnnual} disabled={!app.canWrite} onchange={async (e) => { const box = e.currentTarget; const was = a.inAnnual; if (!(await app.setAccountToggle(a.name, 'inAnnual', box.checked))) box.checked = was }} data-testid="toggle-annual" /> {messages.inYear}</label>
         </span>
       </div>
     {/each}

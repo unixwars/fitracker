@@ -16,6 +16,9 @@ export type Overrides = {
   categoryIcons: Map<string, string>
 }
 
+/** Only the three kinds of shared setting may be written: never fitracker.schemaVersion or anything else. */
+export const isSettingKey = (k: string): boolean => k.startsWith(ACCOUNT) || k.startsWith(ACCOUNT_ICON) || k.startsWith(CATEGORY_ICON)
+
 export const NO_OVERRIDES = (): Overrides => ({ accounts: new Map(), accountIcons: new Map(), categoryIcons: new Map() })
 
 function key(prefix: string, name: string): string {
