@@ -158,3 +158,20 @@ test('the Year view warns about accounts with no balance and the button opens th
   await page.getByTestId('record-balance').click()
   await expect(page.getByTestId('snapshot-balance')).toBeVisible()
 })
+
+test('Month can be browsed by day and an entry opens for editing', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('amount').fill('12.34') // dated today, so the test does not depend on the day of the month
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('accounts-included')).toBeVisible()
+  await page.getByTestId('by-day').click()
+  await expect(page.getByTestId('accounts-included')).toHaveCount(0)
+  const row = page.getByTestId('day').first().locator('.entry').filter({ hasText: '12.34' })
+  await expect(row).toBeVisible()
+  await row.click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+})

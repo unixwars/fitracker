@@ -20,3 +20,19 @@ test('Year view, charts and the balance form fit a 360px screen with touch sized
   await expect(page.getByTestId('snapshot-balance')).toHaveValue('25')
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 })
+
+test('the By day switch and rows are touch sized and fit a 360px screen', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('amount').fill('7.50') // dated today: the test must not depend on the day of the month
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await page.getByTestId('tab-month').click()
+  for (const t of ['by-category', 'by-day']) expect((await page.getByTestId(t).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.getByTestId('by-day').click()
+  const row = page.getByTestId('day').first().locator('.entry').first()
+  await expect(row).toBeVisible()
+  expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
+})

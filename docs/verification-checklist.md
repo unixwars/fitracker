@@ -55,6 +55,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 29. Fresh Android Chrome profile with third-party cookies blocked: open the app, tap **I already have a sheet: link it**, close the Picker. *Pass:* **Trouble linking?** opens by itself with the per-browser steps; following the Chrome steps makes the Picker list your sheets. Then open the app signed out with no sheet at phone width. *Pass:* the title, the three tiles and the first button are visible without scrolling.
 30. Open Month, switch to **Year** for the year of your real book. *Pass:* income, expenses and savings rate equal the sheet's `Annual Summary` for the same year (accounts ticked `In Annual`); the Net worth chart's table matches the sheet's `Balances` month-end matrix (within a cent).
 31. Activity, **Record a balance**: save one with the phone offline. *Pass:* it appears under Pending, the Year net worth shows it at once, and after reconnecting a row `id, date, account, balance, note` is in `Snapshots`. **Undo** removes the row.
+32. Month, **By day**: on a phone, open an entry from the day list, edit it, then Undo from Activity; add a transfer and find it in the list. *Pass:* edit, delete and undo behave as from **By category**.
 
 ## Could be automated if you give me credentials
 

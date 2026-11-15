@@ -101,6 +101,10 @@ export const messages = {
   snapshotSign: 'Switch between money you have and money you owe',
   snapshotSaved: 'Saved. You can undo it under Recent changes.',
   snapshotErrors: { account: 'Choose an account', date: 'Enter a valid date', balance: 'Enter a number, for example 1250.40 or -80' },
+  viewBy: 'View by',
+  transferRow: (from: string, to: string) => `${from} → ${to}`,
+  byCategory: 'By category',
+  byDay: 'By day',
   prevMonth: 'Previous month',
   nextMonth: 'Next month',
 
