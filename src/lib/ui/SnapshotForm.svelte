@@ -28,7 +28,7 @@
 </script>
 
 <details class="card" data-testid="snapshot-card">
-  <summary><h3 style="display: inline">{messages.recordBalance}</h3></summary>
+  <summary><h3>{messages.recordBalance}</h3></summary>
   <form onsubmit={submit}>
     <label class="field"><span>{messages.account}</span>
       <select bind:value={form.account} data-testid="snapshot-account">{#each accounts as a, i (i)}<option value={a.name}>{a.name} ({a.currency})</option>{/each}</select>
@@ -39,7 +39,10 @@
       {#if errors.date}<span class="err">{messages.snapshotErrors.date}</span>{/if}
     </label>
     <label class="field"><span>{messages.snapshotBalance}</span>
-      <input inputmode="decimal" autocomplete="off" bind:value={form.balance} oninput={() => (form.balance = cleanBalanceInput(form.balance))} data-testid="snapshot-balance" />
+      <span class="balrow">
+        <input inputmode="decimal" autocomplete="off" bind:value={form.balance} oninput={() => (form.balance = cleanBalanceInput(form.balance))} data-testid="snapshot-balance" />
+        <button type="button" class="secondary" aria-label={messages.snapshotSign} onclick={() => (form.balance = form.balance.startsWith('-') ? form.balance.slice(1) : '-' + form.balance)} data-testid="snapshot-sign">±</button>
+      </span>
       {#if errors.balance}<span class="err">{messages.snapshotErrors.balance}</span>{/if}
     </label>
     <label class="field"><span>{messages.snapshotNote}</span><input bind:value={form.note} data-testid="snapshot-note" /></label>

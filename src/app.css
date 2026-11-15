@@ -158,7 +158,7 @@ details.fold summary { min-height: 44px; display: flex; align-items: center; cur
 .chart figcaption { font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
 .chart svg { width: 100%; height: auto; display: block; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
-.chart .tick { font-size: 8px; fill: var(--muted); }
+.chart .tick { font-size: 10px; fill: var(--muted); }
 .chart .donut { max-width: 220px; margin: 0 auto; }
 .chart .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8rem; margin: 6px 0; }
 .chart .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
@@ -167,3 +167,8 @@ details.fold summary { min-height: 44px; display: flex; align-items: center; cur
 .chart table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
 .chart th, .chart td { text-align: right; padding: 2px 4px; }
 .chart th:first-child { text-align: left; }
+details.card > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+details.card > summary h3 { margin: 0; }
+.balrow { display: flex; gap: 8px; }
+.balrow button { flex: none; min-width: 44px; }
+input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: var(--accent); }

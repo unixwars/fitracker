@@ -96,6 +96,7 @@ export const messages = {
   snapshotNote: 'Note (optional)',
   snapshotSave: 'Save balance',
   snapshotSaveFailed: 'Could not save the balance.',
+  snapshotSign: 'Switch between money you have and money you owe',
   snapshotSaved: 'Saved. You can undo it under Recent changes.',
   snapshotErrors: { account: 'Choose an account', date: 'Enter a valid date', balance: 'Enter a number, for example 1250.40 or -80' },
   prevMonth: 'Previous month',
