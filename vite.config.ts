@@ -25,7 +25,7 @@ export default defineConfig({
       manifest: {
         name: 'fitracker',
         short_name: 'fitracker',
-        description: 'Fast mobile entry for your budget ledger',
+        description: 'Track expenses, budgets and net worth in a Google Sheet you own',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,
