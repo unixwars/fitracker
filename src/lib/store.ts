@@ -12,6 +12,10 @@ export interface EntryStore {
   snapshots(): Promise<Snapshot[]>
   /** Rows the app does not understand (spec 3.2): never listed, never written, shown under Needs attention. */
   unreadable(): Promise<Unreadable[]>
+  /** Shared settings (`fitracker.*` developer metadata), raw key to value; see overrides.ts. */
+  overrides(): Promise<Record<string, string>>
+  /** Writes one shared setting; '' clears it. Needs a connection: it is not queued. */
+  setOverride(key: string, value: string): Promise<void>
   addMany(entries: Entry[]): Promise<AddResult[]>
   /** `repair` fixes or removes a row the app could not read (found by its id, which must occur once). */
   edit(entry: Entry, expectedPrevious?: Entry, opts?: { repair?: boolean }): Promise<{ previous: Entry }>

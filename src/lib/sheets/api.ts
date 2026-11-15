@@ -33,6 +33,18 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
   }
 
+  async function listMetadata(id: string, prefix: string): Promise<Record<string, string>> {
+    const r = await request<{ matchedDeveloperMetadata?: { developerMetadata: { metadataKey: string; metadataValue?: string } }[] }>(
+      'POST', `${BASE}/${id}/developerMetadata:search`,
+      { dataFilters: [{ developerMetadataLookup: { visibility: 'DOCUMENT', locationType: 'SPREADSHEET' } }] })
+    const out: Record<string, string> = {}
+    for (const m of r.matchedDeveloperMetadata ?? []) {
+      const { metadataKey: k, metadataValue: v } = m.developerMetadata
+      if (k.startsWith(prefix)) out[k] = v ?? ''
+    }
+    return out
+  }
+
   // DOCUMENT-level developer metadata: update the entry when the key exists, otherwise create it.
   async function setMetadata(id: string, key: string, value: string): Promise<void> {
     const req = (await metadataValue(id, key)) !== null
@@ -79,5 +91,6 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
     },
     setMetadata,
     getMetadata: metadataValue,
+    listMetadata,
   }
 }
