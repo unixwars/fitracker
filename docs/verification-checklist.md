@@ -53,6 +53,9 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 27. Sort `Ledger` in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
 28. Untick `In Monthly` for one account in `Accounts`, then refresh the app. *Pass:* the Month totals drop that account's entries and the screen says "2 of 3 accounts included" (for three accounts).
 29. Fresh Android Chrome profile with third-party cookies blocked: open the app, tap **I already have a sheet: link it**, close the Picker. *Pass:* **Trouble linking?** opens by itself with the per-browser steps; following the Chrome steps makes the Picker list your sheets. Then open the app signed out with no sheet at phone width. *Pass:* the title, the three tiles and the first button are visible without scrolling.
+30. Two Google accounts (or two browsers) on the same sheet. Settings: untick **Month** for one account on device 1, wait a minute and reopen device 2. *Pass:* device 2 shows the same account count on Month and **Differs from the sheet** in Settings; the sheet's `Accounts` cells and `Monthly Summary` are unchanged. **Use the sheet's value** returns both to the sheet's ticks.
+31. In the Sheets API (or Apps Script `SpreadsheetApp.getActive().createDeveloperMetadataFinder()`), after setting, clearing and setting the same icon three times. *Pass:* exactly one `fitracker.icon.account.<name>` entry exists (no duplicates), and `fitracker.schemaVersion` is untouched.
+32. Pick an emoji for an account and a category in Settings. *Pass:* it shows in Add (dropdowns), Month and Activity on both devices; **Use the default icon** restores the guessed one.
 
 ## Could be automated if you give me credentials
 
