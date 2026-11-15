@@ -153,6 +153,28 @@ describe('AppState', () => {
   })
 })
 
+describe('pickerHelp', () => {
+  it('is raised when a link attempt ends without a sheet (the Picker was closed or failed), and cleared by success', async () => {
+    let id: string | null = null
+    const { app, fake } = setup({ linked: false })
+    ;(app as unknown as { env: { pick: () => Promise<string | null> } }).env.pick = async () => id
+    seedLedger(fake, 'S1', { today, entries: [] })
+    await app.init()
+    expect(app.pickerHelp).toBe(false)
+    await app.link()
+    expect(app.pickerHelp).toBe(true)
+    id = 'S1'
+    await app.link()
+    expect(app.pickerHelp).toBe(false)
+  })
+  it('is raised when copying the template fails or is cancelled', async () => {
+    const { app } = setup({ linked: false, copy: async () => { throw new Error('x') } })
+    await app.init()
+    await app.createFromTemplate()
+    expect(app.pickerHelp).toBe(true)
+  })
+})
+
 describe('createFromTemplate', () => {
   it('links the copy and syncs', async () => {
     const { app, fake, data } = setup({ linked: false, copy: async () => 'COPY' })

@@ -112,3 +112,11 @@ test('someone already signed in with no sheet gets the short first-run screen', 
   await expect(page.getByTestId('hero')).toHaveCount(0)
   await expect(page.getByTestId('create-from-template')).toBeVisible()
 })
+
+test('the first-run screen has cookie help for a blocked Google picker, closed until needed', async ({ page }) => {
+  await page.goto('/?unlinked')
+  const help = page.getByTestId('trouble-linking')
+  await expect(help).not.toHaveAttribute('open', '')
+  await help.getByText('Trouble linking?').click()
+  await expect(page.getByText(/third-party cookies for the Google picker/)).toBeVisible()
+})

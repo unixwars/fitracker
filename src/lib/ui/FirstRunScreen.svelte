@@ -31,6 +31,11 @@
       <ol>{#each messages.howSteps as step (step)}<li>{step}</li>{/each}</ol>
     </details>
   {/if}
+  <details class="fold" open={app.pickerHelp} data-testid="trouble-linking">
+    <summary>{messages.troubleLinking}</summary>
+    <p class="muted">{messages.troubleLead}</p>
+    <ul class="muted">{#each messages.troubleBrowsers as b (b)}<li>{b}</li>{/each}</ul>
+  </details>
   <div class="links">
     <a href={PROJECT_URL} target="_blank" rel="noopener" data-testid="project-link">{messages.projectOnGitHub}</a>
     <a href={RELEASES_URL} target="_blank" rel="noopener">{messages.releasesLinkShort}</a>

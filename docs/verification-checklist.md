@@ -52,6 +52,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 26. The partner deletes a row in Sheets; before the app refreshes, you edit that entry. *Pass:* a badge on Activity says the row was removed; **Add as new row** recreates it.
 27. Sort `Ledger` in Sheets (Data → Sort), then edit an entry in the app. *Pass:* the edit lands on that entry, or Activity flags "now holds a different entry"; it never overwrites another entry silently.
 28. Untick `In Monthly` for one account in `Accounts`, then refresh the app. *Pass:* the Month totals drop that account's entries and the screen says "2 of 3 accounts included" (for three accounts).
+29. Fresh Android Chrome profile with third-party cookies blocked: open the app, tap **I already have a sheet: link it**, close the Picker. *Pass:* **Trouble linking?** opens by itself with the per-browser steps; following the Chrome steps makes the Picker list your sheets. Then open the app signed out with no sheet at phone width. *Pass:* the title, the three tiles and the first button are visible without scrolling.
 
 ## Could be automated if you give me credentials
 

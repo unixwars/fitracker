@@ -72,6 +72,7 @@ export class AppState {
   private silentBusy = false
   device = $state<DeviceSettings>({ kind: 'expense', places: [], lastCategory: {}, theme: 'system' })
   message = $state('')
+  pickerHelp = $state(false) // a link attempt ended with no sheet: the first-run screen opens the cookie help
   syncing = $state(false)
   templateCopyUrl = TEMPLATE_COPY_URL
   private again = false // a change arrived while a sync was running
@@ -372,6 +373,7 @@ export class AppState {
 
   async link() {
     this.message = ''
+    this.pickerHelp = false
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
@@ -380,7 +382,9 @@ export class AppState {
       void this.refreshAccount()
       const id = await this.env.pick()
       if (id) await this.linkId(id)
+      else this.pickerHelp = true
     } catch {
+      this.pickerHelp = true
       this.message = messages.linkFailed
     }
   }
@@ -388,6 +392,7 @@ export class AppState {
   // Makes the user's own copy of the template (Picker with the template preselected, then Drive files.copy) and links it.
   async createFromTemplate() {
     this.message = ''
+    this.pickerHelp = false
     if (this.blockedByPending()) return
     try {
       if (!this.env.auth.token() && !this.env.fake) await this.env.auth.signIn()
@@ -396,7 +401,9 @@ export class AppState {
       void this.refreshAccount()
       const id = await this.env.copyTemplate()
       if (id) await this.linkId(id)
+      else this.pickerHelp = true
     } catch {
+      this.pickerHelp = true
       this.message = messages.copyFailed
     }
   }
