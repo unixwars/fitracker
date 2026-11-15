@@ -78,7 +78,9 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 - `J` still computes for every non-empty row, including the appended ones (check `J23` onward), and `J2` is still the only formula in column J.
 - Each call's `updatedRange` points to the rows that hold its own data, and no two calls share a row. Note if either simultaneous call lost a row or overwrote the other.
 
-**Result:** _(PASS / FAIL, the `updatedRange` values seen, any overwritten or missing rows)_
+**Result:** PASS WITH CAVEAT (2026-11-14, run by `s1-s3-harness.html`, RAW + INSERT_ROWS). A single row landed at `Ledger!A23:I23` and a three-row batch at `A24:I26`, after the last non-empty row and past the cleared row 12; every `updatedRange` held its own ids. Five pairs of simultaneous appends from one client: in two pairs both calls returned the SAME `updatedRange` (A29, A31) and the second write overwrote the first, so concurrent appends can lose a row. The `J` and old-row checks in this run are void (S2 was started while S1 ran). The app handles it: read-back of `updatedRange` after each append with up to 3 retries, one append at a time per device (Web Lock), and the 7-day verify pass flags a row that later disappears. Accepted corner case: two devices appending within about 100 ms.
+
+**Live-check addendum (2026-11-14, supersedes the PASS above for the app):** run against a real copy of the master template (hidden id column, frozen header, protected `J`), `values:append` with `Ledger!A:I` landed the first row at `Ledger!B2:J2` and a later row at `B3:J3`, one column to the right, over the `J2` array formula (`#REF!`). The scratch sheet of this spike did not show it. The app therefore writes rows with `values:batchUpdate` to an explicit free row and does not use `values:append` (see the app-core plan, live-check ruling).
 
 ---
 
@@ -115,7 +117,7 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 
 **Pass.** The current-month `GBP` and `USD` cells and the non-empty `Ledger!J` values come back as JSON numbers, and `J` resolves the older-month entries from the history rows. Record separately whether the history formula returned data or `#N/A`; either answer passes, but write it down.
 
-**Result:** _(PASS / FAIL; current-month row numeric yes/no; history formula: data or `#N/A`; J numeric yes/no; older-month J correct yes/no)_
+**Result:** PASS (2026-11-14). The current-month `Rates` row with live `GOOGLEFINANCE` formulas read back as JSON numbers (GBP 1.1988, USD 0.90715) and was still numeric on re-check; `Ledger!J` read as numbers for all 36 values; entries dated 2024-03-15 resolved from the history rows (J = 20 and 30); the `GOOGLEFINANCE` history formula returned data (not `#N/A`). Task 15 stays skipped: the app computes base amounts from `Rates`.
 
 ---
 
@@ -152,7 +154,7 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 
 **Pass.** Full recalculation of `Summary` and `BalancesTest` takes **under 10 seconds** in all three timings, and no cell shows an error.
 
-**Result:** _(PASS / FAIL; three timings in seconds; row count used; any errors. A pass measures speed only, not the transfer currency-conversion cost, because the Balances test omits it.)_
+**Result:** PASS (2026-11-14). 10,000 ledger rows, 15 accounts (12 ticked), `Summary` (180 SUMPRODUCT cells) and `BalancesTest` (540 LET cells): first calculation settled in 3 to 5 s with no errors; three single-row edits recalculated both views in 2.8, 3.6 and 2.7 s (2.5 s polling granularity). Speed only: the transfer currency conversion is not in the Balances test. The first attempt hit the 60 reads/minute quota because of fast polling; that is the app's refresh-interval rule at work.
 
 ---
 
@@ -187,4 +189,4 @@ Using the API Explorer (S1 and S2): open <https://developers.google.com/workspac
 
 **Pass.** Pass 1 and pass 2 both hold, and consent showed only `drive.file`, for both the Workspace and the personal account. If the preselected Picker fails but the Shared with me / Recent button works, record that (the flow still passes with a different Picker view). If copy fails, the spec falls back to the copy-link flow of 3.8.
 
-**Result:** _(PASS / FAIL; which Picker button worked; HTTP status and error text; consent scopes shown; Workspace and personal results; copy has no script and keeps the version tag yes/no)_
+**Result:** PASS (2026-11-14, `s5-scripted-harness.html`, option 2a: Picker with `setFileIds`). Run on the template owner's account and on a second, non-owner Google Workspace account (Free Legacy tier): consent showed ONLY `drive.file`; the Picker listed and returned the template; `files.copy` returned HTTP 200; the copy has `fitracker.schemaVersion` = 3 and the v3 Ledger and Snapshots headers, readable through the Sheets API with the same token; the copy was deleted (HTTP 204). Not run: the check for an attached script (a bound script is not copied, per the earlier Make-a-copy test). Finding: with third-party cookies blocked (fresh incognito, Safari, strict browser settings) the Picker fails with the misleading message "The API developer key is invalid"; allowing third-party cookies fixed it. The API key, its referrers and the Picker-only restriction were correct all along.
