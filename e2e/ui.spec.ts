@@ -99,7 +99,7 @@ test('a first-time visitor (signed out, no sheet) sees what the app is and the f
   await expect(page.getByTestId('first-run')).toBeVisible()
   await expect(page.getByText('Expenses', { exact: true })).toBeVisible()
   await expect(page.getByText(/Google Sheet that you own/)).toBeVisible()
-  const first = page.getByTestId('create-from-template')
+  const first = page.locator('[data-testid=first-run] button').first()
   const box = (await first.boundingBox())!
   expect(box.y + box.height).toBeLessThanOrEqual(560)
   await expect(page.getByTestId('project-link')).toHaveAttribute('href', 'https://github.com/unixwars/fitracker')
@@ -119,4 +119,11 @@ test('the first-run screen has cookie help for a blocked Google picker, closed u
   await expect(help).not.toHaveAttribute('open', '')
   await help.getByText('Trouble linking?').click()
   await expect(page.getByText(/third-party cookies for the Google picker/)).toBeVisible()
+})
+
+test('the cookie help opens by itself after a link attempt that ends without a sheet', async ({ page }) => {
+  await page.goto('/?unlinked&pickcancel')
+  await expect(page.getByTestId('trouble-linking')).not.toHaveAttribute('open', '')
+  await page.getByTestId('link-existing').click()
+  await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
 })

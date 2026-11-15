@@ -22,7 +22,7 @@ function setup(opts: { linked?: boolean; entries?: Entry[]; pick?: string | null
   seedLedger(fake, 'S1', { today, entries: opts.entries ?? [e('a')] })
   const data = new Map<string, string>(opts.linked === false ? [] : [['fitracker.sheet', 'S1']])
   const idb = new IDBFactory()
-  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth: opts.auth ?? auth, pick: async () => opts.pick ?? 'S1', copyTemplate: opts.copy ?? (async () => null) }
+  const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb, api: fake, auth: opts.auth ?? auth, pick: async () => ('pick' in opts ? opts.pick! : 'S1'), copyTemplate: opts.copy ?? (async () => null) }
   return { fake, env, data, idb, app: new AppState(env) }
 }
 const writes = (fake: FakeSheets) => ['valuesBatchUpdate', 'valuesBatchClear', 'setMetadata'].reduce((n, m) => n + fake.count(m), 0)
@@ -155,23 +155,25 @@ describe('AppState', () => {
 
 describe('pickerHelp', () => {
   it('is raised when a link attempt ends without a sheet (the Picker was closed or failed), and cleared by success', async () => {
-    let id: string | null = null
-    const { app, fake } = setup({ linked: false })
-    ;(app as unknown as { env: { pick: () => Promise<string | null> } }).env.pick = async () => id
-    seedLedger(fake, 'S1', { today, entries: [] })
-    await app.init()
-    expect(app.pickerHelp).toBe(false)
-    await app.link()
-    expect(app.pickerHelp).toBe(true)
-    id = 'S1'
-    await app.link()
-    expect(app.pickerHelp).toBe(false)
+    const cancelled = setup({ linked: false, pick: null })
+    await cancelled.app.init()
+    expect(cancelled.app.pickerHelp).toBe(false)
+    await cancelled.app.link()
+    expect(cancelled.app.pickerHelp).toBe(true)
+    const ok = setup({ linked: false, pick: 'S1' })
+    await ok.app.init()
+    await ok.app.link()
+    expect(ok.app.pickerHelp).toBe(false)
   })
-  it('is raised when copying the template fails or is cancelled', async () => {
-    const { app } = setup({ linked: false, copy: async () => { throw new Error('x') } })
-    await app.init()
-    await app.createFromTemplate()
-    expect(app.pickerHelp).toBe(true)
+  it('is raised when copying the template fails, and when its Picker is cancelled', async () => {
+    const failed = setup({ linked: false, copy: async () => { throw new Error('x') } })
+    await failed.app.init()
+    await failed.app.createFromTemplate()
+    expect(failed.app.pickerHelp).toBe(true)
+    const cancelled = setup({ linked: false, copy: async () => null })
+    await cancelled.app.init()
+    await cancelled.app.createFromTemplate()
+    expect(cancelled.app.pickerHelp).toBe(true)
   })
 })
 

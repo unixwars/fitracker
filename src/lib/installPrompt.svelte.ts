@@ -17,7 +17,7 @@ class Installer {
     const p = this.prompt
     if (!p) return
     this.prompt = null // the event can be used once
-    await p.prompt()
+    try { await p.prompt() } catch { /* the browser refused or the person closed it: the next install event brings the button back */ }
   }
 }
 

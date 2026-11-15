@@ -88,3 +88,49 @@ test('the first-run screen shows the install button too, folded with the steps',
   await page.getByTestId('how-it-works').getByText('How it works').click()
   await expect(page.getByTestId('install-app')).toBeVisible()
 })
+
+async function saveFirstPlace(page: import('@playwright/test').Page) {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByRole('button', { name: /location/i }).click()
+  await page.getByTestId('place').fill('Corner Cafe')
+  await page.getByTestId('amount').fill('3')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await expect(page.getByTestId('place')).toHaveValue('Corner Cafe')
+}
+
+test('a place typed before the GPS answers is kept', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: 51.5074, longitude: -0.1278 })
+  await saveFirstPlace(page)
+  await page.evaluate(() => {
+    const real = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation)
+    navigator.geolocation.getCurrentPosition = (ok, err, opts) => { setTimeout(() => real(ok, err, opts), 1200) }
+  })
+  await page.getByTestId('amount').fill('4')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click() // a new blank form starts a slow lookup
+  await page.getByTestId('place').fill('Bakery')
+  await page.waitForTimeout(1800) // the slow answer arrives meanwhile
+  await expect(page.getByTestId('place')).toHaveValue('Bakery')
+})
+
+test('opening an old entry that has no place does not fill one from GPS', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: 51.5074, longitude: -0.1278 })
+  await saveFirstPlace(page)
+  await page.getByTestId('place').fill('')
+  await page.getByTestId('amount').fill('7')
+  await page.getByTestId('description').fill('Noplace')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await page.getByTestId('tab-month').click()
+  await page.getByRole('button', { name: /Bills/ }).click()
+  await page.getByRole('button', { name: /Noplace/ }).first().click()
+  await page.waitForTimeout(800)
+  await expect(page.getByTestId('place')).toHaveValue('')
+})

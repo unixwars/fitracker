@@ -40,5 +40,5 @@ export function createFakeEnv(): Env {
     setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
   }
   ;(window as unknown as { __fake: unknown }).__fake = fake
-  return { storage, idb: indexedDB, api: fake, auth, account: async () => 'demo@example.test', pick: async () => FAKE_ID, copyTemplate: async () => FAKE_ID, fake: true, ttlMs: 0 }
+  return { storage, idb: indexedDB, api: fake, auth, account: async () => 'demo@example.test', pick: async () => (window.location.search.includes('pickcancel') ? null : FAKE_ID), copyTemplate: async () => FAKE_ID, fake: true, ttlMs: 0 }
 }

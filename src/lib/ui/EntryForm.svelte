@@ -55,7 +55,7 @@
   // when editing an existing entry. A plain variable on purpose: the effect must not track it.
   let locateTried = false
   $effect(() => {
-    if (lockKind || form.kind !== 'expense' || form.place || !navigator.permissions?.query) return
+    if (lockKind || locateTried || form.kind !== 'expense' || form.place || !navigator.permissions?.query) return
     navigator.permissions.query({ name: 'geolocation' }).then((st) => {
       if (shouldAutoLocate(st.state, device.places, locateTried) && !form.place) { locateTried = true; useLocation(true) }
     }, () => {})
