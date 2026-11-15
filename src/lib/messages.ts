@@ -19,6 +19,8 @@ export const messages = {
   heroAlt: 'Fitracker on a phone, adding an expense',
   howItWorks: 'How it works',
   howSteps: ['Sign in with Google.', 'Create your sheet from the template (one tap), or link one you have.', 'Add your first expense.'],
+  installApp: 'Install app',
+  installIosHint: 'To install: tap the Share button, then Add to Home Screen.',
   troubleLinking: 'Trouble linking?',
   troubleLead: 'A blank list, or "API developer key is invalid"? Your browser is blocking third-party cookies for the Google picker. Allow them for this site, then try again:',
   troubleBrowsers: [

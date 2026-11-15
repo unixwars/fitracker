@@ -68,3 +68,23 @@ test('a GPS-suggested place can be cleared and replaced without refilling itself
   await page.getByTestId('place').fill('Bakery')
   await expect(page.getByTestId('place')).toHaveValue('Bakery')
 })
+
+test('Settings offers Install app when the browser has an install prompt, and uses it once', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('install-app')).toHaveCount(0)
+  await page.evaluate(() => {
+    const ev = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => { (window as unknown as { __prompted: boolean }).__prompted = true } })
+    window.dispatchEvent(ev)
+  })
+  await page.getByTestId('install-app').click()
+  expect(await page.evaluate(() => (window as unknown as { __prompted?: boolean }).__prompted)).toBe(true)
+  await expect(page.getByTestId('install-app')).toHaveCount(0)
+})
+
+test('the first-run screen shows the install button too, folded with the steps', async ({ page }) => {
+  await page.goto('/?unlinked&signedout')
+  await page.evaluate(() => window.dispatchEvent(Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => undefined })))
+  await page.getByTestId('how-it-works').getByText('How it works').click()
+  await expect(page.getByTestId('install-app')).toBeVisible()
+})

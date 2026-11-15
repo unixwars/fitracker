@@ -1,5 +1,6 @@
 <script lang="ts">
   import Alert from './Alert.svelte'
+  import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
   import { PROJECT_URL, RELEASES_URL } from '../projectLinks'
@@ -29,6 +30,7 @@
     <details class="fold" data-testid="how-it-works">
       <summary>{messages.howItWorks}</summary>
       <ol>{#each messages.howSteps as step (step)}<li>{step}</li>{/each}</ol>
+      <InstallHelp />
     </details>
   {/if}
   <details class="fold" open={app.pickerHelp} data-testid="trouble-linking">
