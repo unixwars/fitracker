@@ -51,11 +51,13 @@
 
   $effect(() => { amountEl?.focus() })
 
-  // Quietly fill the place from GPS when permission was already granted on this device.
+  // Quietly fill the place from GPS when permission was already granted on this device: once per blank form, never
+  // when editing an existing entry. A plain variable on purpose: the effect must not track it.
+  let locateTried = false
   $effect(() => {
-    if (form.kind !== 'expense' || form.place || !navigator.permissions?.query) return
+    if (lockKind || form.kind !== 'expense' || form.place || !navigator.permissions?.query) return
     navigator.permissions.query({ name: 'geolocation' }).then((st) => {
-      if (shouldAutoLocate(st.state, device.places) && !form.place) useLocation(true)
+      if (shouldAutoLocate(st.state, device.places, locateTried) && !form.place) { locateTried = true; useLocation(true) }
     }, () => {})
   })
 
@@ -77,7 +79,7 @@
       (p) => {
         coords = { lat: p.coords.latitude, lng: p.coords.longitude }
         const name = nearestPlace(coords, device.places)
-        if (name) form = { ...form, place: name }
+        if (name && !(quiet && form.place)) form = { ...form, place: name }
         else if (!quiet) gpsNote = messages.locationNone
       },
       () => { if (!quiet) gpsNote = messages.locationDenied },
@@ -88,7 +90,13 @@
   function submit(ev: Event) {
     ev.preventDefault()
     errors = validate(form, lists, rates)
-    if (Object.keys(errors).length === 0) { onsubmit(form, coords); return }
+    if (Object.keys(errors).length === 0) {
+      onsubmit(form, coords)
+      // The parent has reset the form: the next blank form may auto-locate again, from a fresh position.
+      locateTried = false
+      coords = null
+      return
+    }
     tick().then(() => {
       if (errors.amount) amountEl?.focus()
       else document.querySelector('form .err')?.scrollIntoView({ block: 'center', behavior: 'smooth' })

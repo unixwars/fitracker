@@ -49,3 +49,22 @@ test('Use my location fills the place of an earlier entry saved at the same spot
   await here.click()
   await expect(page.getByTestId('place')).toHaveValue('Corner Cafe')
 })
+
+test('a GPS-suggested place can be cleared and replaced without refilling itself', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: 51.5074, longitude: -0.1278 })
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByRole('button', { name: /location/i }).click()
+  await page.getByTestId('place').fill('Corner Cafe')
+  await page.getByTestId('amount').fill('3')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await expect(page.getByTestId('place')).toHaveValue('Corner Cafe') // the fresh blank form auto-locates once
+  await page.getByTestId('place').fill('')
+  await page.waitForTimeout(800) // long enough for a refill, if there were one
+  await expect(page.getByTestId('place')).toHaveValue('')
+  await page.getByTestId('place').fill('Bakery')
+  await expect(page.getByTestId('place')).toHaveValue('Bakery')
+})
