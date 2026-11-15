@@ -149,3 +149,12 @@ test('Month has a Year view with totals and charts, and Month shows its charts',
   await page.getByRole('button', { name: 'Previous year' }).click()
   await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear() - 1))
 })
+
+test('the Year view warns about accounts with no balance and the button opens the balance form', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByTestId('no-snapshot')).toBeVisible()
+  await page.getByTestId('record-balance').click()
+  await expect(page.getByTestId('snapshot-balance')).toBeVisible()
+})

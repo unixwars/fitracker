@@ -12,6 +12,12 @@ export type BalancesView = {
   missingRates: Currency[]
 }
 
+/** Active accounts that have no balance snapshot at all: their Year balances start from zero, so they are only a sum of entries. */
+export function accountsWithoutSnapshot(lists: Reference, snapshots: Snapshot[]): string[] {
+  const have = new Set(snapshots.map((s) => s.account))
+  return lists.accounts.filter((a) => a.active && !have.has(a.name)).map((a) => a.name)
+}
+
 type Input = { entries: Entry[]; snapshots: Snapshot[]; lists: Reference; rates: RateRow[]; year: number; today: string }
 
 const pad = (n: number) => String(n).padStart(2, '0')

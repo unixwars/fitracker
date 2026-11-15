@@ -13,8 +13,10 @@ export function parseBalance(input: string): number | null {
   return negative && minor !== 0 ? -minor : minor
 }
 
-export function initialSnapshotForm(ref: Reference, today: string): SnapshotForm {
-  return { date: today, account: ref.accounts.find((a) => a.active)?.name ?? '', balance: '', note: '' }
+export function initialSnapshotForm(ref: Reference, today: string, lastAccount?: string): SnapshotForm {
+  const active = ref.accounts.filter((a) => a.active)
+  const account = active.find((a) => a.name === lastAccount) ?? active[0]
+  return { date: today, account: account?.name ?? '', balance: '', note: '' }
 }
 
 const validDate = (d: string): boolean => {

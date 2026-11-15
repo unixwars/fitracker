@@ -52,6 +52,7 @@ export class AppState {
 
   tab = $state<Tab>('add')
   month = $state(currentMonth())
+  snapshotFormOpen = $state(false) // set by the Year view's "record a balance" button; Activity opens its form
   sheetId = $state<string | null>(null)
   entries = $state<Entry[]>([])
   lists = $state<Reference>(EMPTY_LISTS)

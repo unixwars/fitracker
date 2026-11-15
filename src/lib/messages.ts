@@ -88,6 +88,8 @@ export const messages = {
   balancesNote: 'Balances start from your latest snapshot of each account. Money owed (a negative balance) is not drawn in the area chart; see the table.',
   inflows: 'inflows',
   outflows: 'outflows',
+  chartHint: 'Tap a bar or slice to see its value.',
+  noSnapshotWarning: (names: string[]) => `No balance recorded for ${names.join(', ')}: net worth counts only the entries, starting from zero.`,
   chartTable: 'Show as a table',
   noChartData: 'Nothing to show yet',
   recordBalance: 'Record a balance',

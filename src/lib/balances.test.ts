@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { balancesView } from './balances'
+import { accountsWithoutSnapshot, balancesView } from './balances'
 import type { Entry } from './rows'
 import type { RateRow, Reference, Snapshot } from './types'
 
@@ -91,5 +91,13 @@ describe('balancesView flows', () => {
     expect(f('Joint').outflow.minor).toBe(5000 + 3000)
     expect(f('Pound').inflow.minor).toBe(3000)
     expect(f('Pound').outflow.minor).toBe(1500)
+  })
+})
+
+describe('accountsWithoutSnapshot', () => {
+  it('lists active accounts that no snapshot mentions', () => {
+    const l: Reference = { ...lists, accounts: [...lists.accounts, { name: 'Closed', currency: 'EUR', active: false, inMonthly: false, inAnnual: false }] }
+    expect(accountsWithoutSnapshot(l, [snap('s', '2026-01-01', 'Joint', 1)])).toEqual(['Pound'])
+    expect(accountsWithoutSnapshot(l, [])).toEqual(['Joint', 'Pound'])
   })
 })

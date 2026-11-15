@@ -2,7 +2,7 @@
   import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import { annualView } from '../annual'
-  import { balancesView } from '../balances'
+  import { accountsWithoutSnapshot, balancesView } from '../balances'
   import { flowsChart, netWorthChart, yearByCategoryChart, yearIncomeExpenseChart, yearShareChart } from '../chartData'
   import { messages } from '../messages'
   import { todayLocal } from '../rows'
@@ -23,6 +23,7 @@
   const share = $derived(yearShareChart(view))
   const netWorth = $derived(netWorthChart(balances))
   const flows = $derived(flowsChart(balances))
+  const noSnapshot = $derived(accountsWithoutSnapshot(app.lists, app.displayedSnapshots))
   const missing = $derived([...new Set([...view.missingRates, ...balances.missingRates])].sort())
 </script>
 
@@ -41,6 +42,7 @@
 </section>
 
 <section class="card">
+  <p class="muted">{messages.chartHint}</p>
   <BarChart title={messages.chartIncomeExpenses} labels={incomeExpense.labels} series={incomeExpense.series} line={incomeExpense.line} format={money} />
   <BarChart title={messages.chartByCategory} labels={byCategory.labels} series={byCategory.series} stacked format={money} />
   <Donut title={messages.chartShare} labels={share.labels} values={share.values} format={money} />
@@ -49,6 +51,12 @@
 <section class="card">
   <AreaChart title={messages.chartNetWorth} labels={netWorth.labels} series={netWorth.series} format={money} />
   <BarChart title={messages.chartFlows} labels={flows.labels} series={flows.series} format={money} />
+  {#if noSnapshot.length}
+    <div class="banner" style="margin: 0 0 8px" data-testid="no-snapshot">
+      <span>{messages.noSnapshotWarning(noSnapshot)}</span>
+      <button class="secondary" onclick={() => { app.snapshotFormOpen = true; app.tab = 'activity' }} data-testid="record-balance">{messages.recordBalance}</button>
+    </div>
+  {/if}
   <p class="muted">{messages.balancesNote}</p>
 </section>
 

@@ -32,6 +32,11 @@ describe('initialSnapshotForm', () => {
   it('starts on today with the first active account', () => {
     expect(initialSnapshotForm(ref, '2026-11-15')).toEqual({ date: '2026-11-15', account: 'Joint', balance: '', note: '' })
   })
+  it('starts on the account used last when it is still active', () => {
+    expect(initialSnapshotForm(ref, '2026-11-15', 'Card').account).toBe('Card')
+    expect(initialSnapshotForm(ref, '2026-11-15', 'Old').account).toBe('Joint')
+    expect(initialSnapshotForm(ref, '2026-11-15', 'Gone').account).toBe('Joint')
+  })
   it('has no account when none is active', () => {
     expect(initialSnapshotForm({ ...ref, accounts: [] }, '2026-11-15').account).toBe('')
   })

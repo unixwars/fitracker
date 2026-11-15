@@ -5,7 +5,7 @@
   import { cleanBalanceInput, initialSnapshotForm, toSnapshot, validateSnapshot, type SnapshotErrors } from '../snapshotForm'
 
   let { app }: { app: AppState } = $props()
-  let form = $state(initialSnapshotForm(app.lists, todayLocal()))
+  let form = $state(initialSnapshotForm(app.lists, todayLocal(), app.device.lastCategory['snapshot:account']))
   let errors = $state<SnapshotErrors>({})
   let saved = $state(false)
   const accounts = $derived(app.lists.accounts.filter((a) => a.active))
@@ -15,6 +15,7 @@
     ev.preventDefault()
     errors = validateSnapshot(form, app.lists)
     if (Object.keys(errors).length) return
+    app.setDevice({ lastCategory: { ...app.device.lastCategory, 'snapshot:account': form.account } })
     const snapshot = toSnapshot(form, crypto.randomUUID(), app.lists)
     form = { ...initialSnapshotForm(app.lists, todayLocal()), account: form.account } // cleared at once: a second tap has nothing to save
     try {
@@ -27,7 +28,7 @@
   }
 </script>
 
-<details class="card" data-testid="snapshot-card">
+<details class="card" data-testid="snapshot-card" bind:open={app.snapshotFormOpen}>
   <summary><h3>{messages.recordBalance}</h3></summary>
   <form onsubmit={submit}>
     <label class="field"><span>{messages.account}</span>

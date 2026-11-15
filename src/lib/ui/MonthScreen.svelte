@@ -89,6 +89,7 @@
 </section>
 
 <section class="card">
+  <p class="muted">{messages.chartHint}</p>
   <BarChart title={messages.chartBudget} labels={budget.labels} series={budget.series} format={money} />
   <Donut title={messages.chartShare} labels={share.labels} values={share.values} format={money} />
 </section>
