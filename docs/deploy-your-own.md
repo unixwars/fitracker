@@ -38,9 +38,47 @@ pnpm install
 pnpm build            # output in dist/
 ```
 
-Any static host works. **GitHub Pages** is the simplest default; for a project site under
-`/<repo>/` build with `VITE_BASE=/<repo>/ pnpm build`. Serve over HTTPS (required for the service
-worker and sign-in).
+Any static host works. **Cloudflare Pages** and **GitHub Pages** are the simplest. Serve over HTTPS
+(required for the service worker and sign-in). `public/_headers` sets the cache headers on
+Cloudflare Pages (it is ignored elsewhere): the entry page and service worker revalidate, hashed
+files are cached for a year.
+
+### Cloudflare Pages
+
+**Manual upload** (what the reference deployment uses). Build on a machine that has your `.env`, since
+the `VITE_*` values are baked into the bundle, then upload `dist/`:
+
+```bash
+pnpm build
+pnpm dlx wrangler login            # once
+pnpm dlx wrangler pages deploy dist --project-name <name> --branch main
+```
+
+The first deploy creates the project. Then add your hostname under **Custom domains**, and add
+`https://<hostname>` to the OAuth client's *Authorized JavaScript origins* and `https://<hostname>/*`
+to the API key's HTTP referrers. To release, rebuild and run the same deploy command.
+
+Run Wrangler through `pnpm dlx`, not as a dependency, and leave pnpm's ignored build scripts
+for `esbuild` and `workerd` unapproved: neither is needed to upload static files.
+
+**Git-connected** (optional, builds on every push to `main`). Open the project's **Settings** tab,
+under *Build* click **Connect** next to *Git repository*, and authorize the repo. This works on a
+project first created with the manual upload. Then:
+
+- The dashboard can take a while to refresh after linking (it may even show the link twice or not at
+  all). Reload the Settings tab and wait: the build configuration (*Framework preset*, build command,
+  output directory) only appears once the link is shown.
+- Framework preset *None*, build command `pnpm build`, output directory `dist`.
+- Under *Variables and secrets* add `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` and
+  `VITE_GOOGLE_PROJECT_NUMBER` (public by nature) and `NODE_VERSION` = `24`. The repo pins no Node
+  version; 24 satisfies every dependency (use 22.22 or later if the image rejects 24).
+
+**Cache headers.** `public/_headers` is copied into `dist/` by the build, and Cloudflare Pages reads
+it from there on every deploy, manual or Git. There is nothing to set in the dashboard. To check
+after a deploy: `curl -sI https://<hostname>/sw.js | grep -i cache-control` should say `no-cache`.
+
+The OAuth *client secret* is never used by this app (sign-in runs in the browser with the client
+ID only). Do not put it in `.env` or in Cloudflare's variables.
 
 ## 4. First run
 
