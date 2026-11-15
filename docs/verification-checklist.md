@@ -56,6 +56,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 30. Two Google accounts (or two browsers) on the same sheet. Settings: untick **Month** for one account on device 1, wait a minute and reopen device 2. *Pass:* device 2 shows the same account count on Month and **Differs from the sheet** in Settings; the sheet's `Accounts` cells and `Monthly Summary` are unchanged. **Use the sheet's value** returns both to the sheet's ticks.
 31. In the Sheets API (or Apps Script `SpreadsheetApp.getActive().createDeveloperMetadataFinder()`), after setting, clearing and setting the same icon three times. *Pass:* exactly one `fitracker.icon.account.<name>` entry exists (no duplicates), and `fitracker.schemaVersion` is untouched.
 32. Pick an emoji for an account and a category in Settings. *Pass:* it shows in Add (dropdowns), Month and Activity on both devices; **Use the default icon** restores the guessed one.
+33. Month, **By day**: on a phone, open an entry from the day list, edit it, then Undo from Activity; add a transfer and find it in the list. *Pass:* edit, delete and undo behave as from **By category**.
 
 ## Could be automated if you give me credentials
 

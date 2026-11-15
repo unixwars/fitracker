@@ -163,3 +163,6 @@ details.fold summary { min-height: 44px; display: flex; align-items: center; cur
 .acct { gap: 8px; flex-wrap: wrap; align-items: center; }
 .acct label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: var(--accent); }
+.modes { display: flex; gap: 8px; margin: 0 0 12px; }
+.modes button { flex: 1; }
+.modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }

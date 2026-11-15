@@ -85,6 +85,10 @@ export const messages = {
   accountsIncluded: (included: number, total: number) => `${included} of ${total} accounts included`,
   entriesFor: (name: string) => `Entries: ${name}`,
   noEntries: 'No entries',
+  viewBy: 'View by',
+  transferRow: (from: string, to: string) => `${from} → ${to}`,
+  byCategory: 'By category',
+  byDay: 'By day',
   prevMonth: 'Previous month',
   nextMonth: 'Next month',
 
