@@ -6,6 +6,10 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ## [Unreleased]
 
+---
+
+## [0.2.1] - 2026-11-15
+
 ### Added
 - A clearer first screen for new users: what the app does (expenses, budgets, net worth, in a Google Sheet you own), what to do next, a "Trouble linking?" help for browsers that block the Google picker's third-party cookies, and links to the project and its releases.
 - An "Install app" button (Settings and the first screen) where the browser can install the app, and a Share-button hint on iOS.
