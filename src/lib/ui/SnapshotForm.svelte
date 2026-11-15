@@ -1,0 +1,43 @@
+<script lang="ts">
+  import type { AppState } from '../app.svelte'
+  import { messages } from '../messages'
+  import { todayLocal } from '../rows'
+  import { cleanBalanceInput, initialSnapshotForm, toSnapshot, validateSnapshot, type SnapshotErrors } from '../snapshotForm'
+
+  let { app }: { app: AppState } = $props()
+  let form = $state(initialSnapshotForm(app.lists, todayLocal()))
+  let errors = $state<SnapshotErrors>({})
+  let saved = $state(false)
+  const accounts = $derived(app.lists.accounts.filter((a) => a.active))
+  $effect(() => { if (!form.account && accounts.length) form.account = accounts[0].name })
+
+  async function submit(ev: SubmitEvent) {
+    ev.preventDefault()
+    errors = validateSnapshot(form, app.lists)
+    if (Object.keys(errors).length) return
+    await app.addSnapshot(toSnapshot(form, crypto.randomUUID(), app.lists))
+    form = { ...initialSnapshotForm(app.lists, todayLocal()), account: form.account }
+    saved = true
+  }
+</script>
+
+<details class="card" data-testid="snapshot-card">
+  <summary><h3 style="display: inline">{messages.recordBalance}</h3></summary>
+  <form onsubmit={submit}>
+    <label class="field"><span>{messages.account}</span>
+      <select bind:value={form.account} data-testid="snapshot-account">{#each accounts as a (a.name)}<option value={a.name}>{a.name} ({a.currency})</option>{/each}</select>
+      {#if errors.account}<span class="err">{messages.snapshotErrors.account}</span>{/if}
+    </label>
+    <label class="field"><span>{messages.snapshotDate}</span>
+      <input type="date" bind:value={form.date} data-testid="snapshot-date" />
+      {#if errors.date}<span class="err">{messages.snapshotErrors.date}</span>{/if}
+    </label>
+    <label class="field"><span>{messages.snapshotBalance}</span>
+      <input inputmode="decimal" autocomplete="off" bind:value={form.balance} oninput={() => (form.balance = cleanBalanceInput(form.balance))} data-testid="snapshot-balance" />
+      {#if errors.balance}<span class="err">{messages.snapshotErrors.balance}</span>{/if}
+    </label>
+    <label class="field"><span>{messages.snapshotNote}</span><input bind:value={form.note} data-testid="snapshot-note" /></label>
+    <button type="submit" disabled={!app.canWrite} data-testid="snapshot-save">{messages.snapshotSave}</button>
+    {#if saved}<p class="muted" data-testid="snapshot-saved">{messages.snapshotSaved}</p>{/if}
+  </form>
+</details>

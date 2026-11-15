@@ -72,6 +72,13 @@ export const messages = {
   accountsIncluded: (included: number, total: number) => `${included} of ${total} accounts included`,
   entriesFor: (name: string) => `Entries: ${name}`,
   noEntries: 'No entries',
+  recordBalance: 'Record a balance',
+  snapshotDate: 'Date',
+  snapshotBalance: 'Balance (a minus sign for money owed)',
+  snapshotNote: 'Note (optional)',
+  snapshotSave: 'Save balance',
+  snapshotSaved: 'Saved. You can undo it under Recent changes.',
+  snapshotErrors: { account: 'Choose an account', date: 'Enter a valid date', balance: 'Enter a number, for example 1250.40 or -80' },
   prevMonth: 'Previous month',
   nextMonth: 'Next month',
 

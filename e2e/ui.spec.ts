@@ -127,3 +127,13 @@ test('the cookie help opens by itself after a link attempt that ends without a s
   await page.getByTestId('link-existing').click()
   await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
 })
+
+test('a balance can be recorded in Activity and lands in Snapshots', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-activity').click()
+  await page.getByTestId('snapshot-card').locator('summary').click()
+  await page.getByTestId('snapshot-balance').fill('1250,40')
+  await page.getByTestId('snapshot-save').click()
+  await expect(page.getByTestId('snapshot-saved')).toBeVisible()
+  await expect.poll(() => cell(page, 'Snapshots!D2')).toBe(1250.4)
+})
