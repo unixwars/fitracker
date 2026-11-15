@@ -92,3 +92,23 @@ test('Settings links to the project releases page', async ({ page }) => {
   await expect(link).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
   await expect(link).toHaveAttribute('rel', /noopener/)
 })
+
+test('a first-time visitor (signed out, no sheet) sees what the app is and the first button without scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 560 })
+  await page.goto('/?unlinked&signedout')
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await expect(page.getByText('Expenses', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Google Sheet that you own/)).toBeVisible()
+  const first = page.getByTestId('create-from-template')
+  const box = (await first.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(560)
+  await expect(page.getByTestId('project-link')).toHaveAttribute('href', 'https://github.com/unixwars/fitracker')
+  await expect(page.getByTestId('how-it-works')).not.toHaveAttribute('open', '')
+})
+
+test('someone already signed in with no sheet gets the short first-run screen', async ({ page }) => {
+  await page.goto('/?unlinked')
+  await expect(page.getByTestId('first-run')).toBeVisible()
+  await expect(page.getByTestId('hero')).toHaveCount(0)
+  await expect(page.getByTestId('create-from-template')).toBeVisible()
+})
