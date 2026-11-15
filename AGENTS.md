@@ -5,7 +5,7 @@ read and written straight from the browser through the Sheets API v4. No backend
 for data. Do not add one.
 
 ## Commands
-- `pnpm dev` / `pnpm build` / `pnpm preview`; `pnpm hero` regenerates `assets/hero.webp` (README picture) before a release
+- `pnpm dev` / `pnpm build` / `pnpm preview`; `pnpm hero` regenerates `public/hero.webp` (README picture and first-run screen) before a release
 - `pnpm exec tsc --noEmit` (or `svelte-check`), `pnpm lint`, `pnpm test`, `pnpm exec playwright test`
 - Before calling work finished: types, lint, unit tests, then Playwright.
 
