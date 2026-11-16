@@ -40,8 +40,8 @@ Columns: `id` (hidden, leave empty; the app fills it), `date`, `type` (`expense`
 
 ## Accounts
 
-- Tick `active`, `In Monthly` and `In Annual` for each account (new rows start unticked).
-- `In Monthly` and `In Annual` decide which accounts count in the two summaries.
+- Tick `active`, `In Monthly` and `In Annual` for each account (rows typed by hand start unticked; an account added from the app's Settings is written active and ticked).
+- `In Monthly` and `In Annual` decide which accounts count in the sheet's two summaries. The app can override them per account in Settings; that choice is shared through the sheet's metadata and never changes these cells, so the app and the sheet's own summaries can differ until it is reset.
 - Each account has one currency (EUR, GBP or USD). Set it once; changing it reinterprets its history.
 - List each account name once.
 

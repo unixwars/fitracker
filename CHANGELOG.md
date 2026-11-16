@@ -6,6 +6,9 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ## [Unreleased]
 
+### Changed
+- README and docs brought up to date with 0.3.0: Overview, Year view, balances, shared settings, adding accounts and categories, Undo and Redo, the current design doc and the verification checklist.
+
 
 ### Changed
 - The Month tab is now called Overview, since it covers months and years. The previous and next arrows (month and year) stop at the oldest and newest months that can have records: the present, unless the ledger has entries before or after it. In Settings the version number links to the release notes, and a new "Report issues" entry opens a GitHub issue with the app version prefilled. Appearance is now an icon menu (System, Light, Dark) fixed at the top right of every screen, with the sync pill to its left; the read-only facts in Settings (sync, app version, feedback, schema version) are their own tile. "N of M accounts included" is a small centered info pill.
