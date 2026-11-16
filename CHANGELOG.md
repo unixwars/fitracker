@@ -8,7 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Changed
-- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings.
+- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings. The screen is now the same whether or not you are signed in, with both folds always shown.
 
 ### Fixed
 - The header status pill is smaller, uses the info colour, and only appears while changes are waiting to sync ("Up to date" is no longer shown; Settings still lists the sync status). The first-run footer pill no longer restyles it.
