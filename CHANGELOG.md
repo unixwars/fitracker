@@ -12,6 +12,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings.
 
 ### Fixed
+- The header status pill is smaller, uses the info colour, and only appears while changes are waiting to sync ("Up to date" is no longer shown; Settings still lists the sync status). The first-run footer pill no longer restyles it.
 - Undo no longer grows the log: an undone change shows **Redo** on its own row, and Undo and Redo toggle that row instead of adding new entries to Recent changes.
 - Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
 

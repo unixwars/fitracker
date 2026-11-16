@@ -25,7 +25,7 @@
 <div class="shell">
   <header class="top">
     <span class="brand"><img class="logo" src={import.meta.env.BASE_URL + 'favicon.svg'} alt="" width="28" height="28" /><strong><span class="fi">{messages.appName.slice(0, 2)}</span>{messages.appName.slice(2)}</strong></span>
-    <span class="pill" data-testid="status-pill">{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span>
+    {#if app.pendingCount}<span class="pill info" role="status" data-testid="status-pill">{messages.syncPending(app.pendingCount)}</span>{/if}
   </header>
 
   {#if !app.online}<div class="banner" role="status" data-testid="offline">{messages.offline}</div>{/if}

@@ -37,7 +37,7 @@ test('entries added offline are replayed once when the connection returns', asyn
   await expect.poll(() => cell(page, 'Ledger!E5')).toBe('Offline one')
   await expect.poll(() => cell(page, 'Ledger!E6')).toBe('Offline two')
   expect(await cell(page, 'Ledger!A7')).toBeNull() // exactly once each
-  await expect(page.getByTestId('status-pill')).not.toContainText('waiting')
+  await expect(page.getByTestId('status-pill')).toHaveCount(0) // nothing pending: no pill
 })
 
 test('an edit of a row that was removed in the sheet shows up under Needs attention', async ({ page }) => {

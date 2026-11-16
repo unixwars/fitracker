@@ -218,3 +218,9 @@ test('Settings icon pickers: one open at a time, categories show their default i
   await page.getByRole('heading', { name: 'Settings' }).click() // a tap outside closes it
   await expect(page.locator('.iconmenu')).toHaveCount(0)
 })
+
+test('the status pill is hidden when nothing is pending', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await expect(page.getByTestId('status-pill')).toHaveCount(0)
+})
