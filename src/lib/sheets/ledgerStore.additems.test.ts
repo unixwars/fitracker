@@ -57,6 +57,13 @@ describe('addAccount', () => {
     expect(r.ok && r.added.row).toBe(4 + n)
     expect(rowOf(fake, `Accounts!B${3 + n}:B${3 + n}`)).toEqual(['EUR'])
   })
+  it('accepts the converted spelling of the headers (in_monthly, in_annual, other capitals) but not other columns', async () => {
+    const { fake, store } = setup()
+    fake.book('S1').write('Accounts!A1:E1', [['Name', 'currency', 'ACTIVE', 'in_monthly', 'in_annual']])
+    expect(await store.addAccount({ name: 'Converted', currency: 'EUR' })).toMatchObject({ ok: true })
+    fake.book('S1').write('Categories!A1:C1', [['name', 'type', 'is active']])
+    await expect(store.addCategory({ name: 'Nope', type: 'expense' })).rejects.toBeInstanceOf(ReferenceLayoutMismatch) // 'isactive' is not 'active'
+  })
   it('refuses with ReferenceLayoutMismatch (naming what it found), before any write, when the headers are not the layout', async () => {
     const { fake, store } = setup()
     fake.book('S1').write('Accounts!A1:E1', [['name', 'extra', 'currency', 'active', 'In Monthly']])

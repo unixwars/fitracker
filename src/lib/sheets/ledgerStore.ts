@@ -248,7 +248,10 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS; attempt++) {
       const [header, rows] = await read([spec.headerRange, spec.rowsRange, ...TAB_GUARD], 'FORMULA')
       const h = header?.[0] ?? []
-      if (h.length !== spec.headers.length || !spec.headers.every((x, i) => str(h[i]) === x)) {
+      // The order and number of columns must be the layout; the spelling may differ in case, spaces and underscores (a converted
+      // sheet has in_monthly where the template has In Monthly).
+      const key = (x: unknown) => str(x).toLowerCase().replace(/[\s_]+/g, '')
+      if (h.length !== spec.headers.length || !spec.headers.every((x, i) => key(h[i]) === key(x))) {
         throw new ReferenceLayoutMismatch(spec.tab, h.map((x) => str(x)), spec.headers)
       }
       const list = rows ?? []
