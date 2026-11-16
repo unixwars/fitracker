@@ -132,6 +132,38 @@ test('the cookie help opens by itself after a link attempt that ends without a s
   await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
 })
 
+test('a balance can be recorded in Activity and lands in Snapshots', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-activity').click()
+  await page.getByTestId('snapshot-card').locator('summary').click()
+  await page.getByTestId('snapshot-balance').fill('1250,40')
+  await page.getByTestId('snapshot-save').click()
+  await expect(page.getByTestId('snapshot-saved')).toBeVisible()
+  await expect.poll(() => cell(page, 'Snapshots!D2')).toBe(1250.4)
+})
+
+test('Month has a Year view with totals and charts, and Month shows its charts', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click()
+  await expect(page.getByTestId('chart').first()).toBeVisible()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear()))
+  await expect(page.getByTestId('year-totals')).toBeVisible()
+  expect(await page.getByTestId('chart').count()).toBe(5)
+  await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear() - 1))
+})
+
+test('the Year view warns about accounts with no balance and the button opens the balance form', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByTestId('no-snapshot')).toBeVisible()
+  await page.getByTestId('record-balance').click()
+  await expect(page.getByTestId('snapshot-balance')).toBeVisible()
+})
+
 test('an account toggle in Settings changes the Month count, is stored as metadata and leaves the Accounts cells alone', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-month').click()
@@ -160,7 +192,7 @@ test('Month can be browsed by day and an entry opens for editing', async ({ page
   await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
   await expect(page.getByTestId('by-day')).toHaveAttribute('aria-pressed', 'true') // By day is the default and the first button
-  expect(await page.locator('.modes button').first().getAttribute('data-testid')).toBe('by-day')
+  expect(await page.getByRole('group', { name: 'View by' }).locator('button').first().getAttribute('data-testid')).toBe('by-day')
   await page.getByTestId('by-category').click()
   await expect(page.getByTestId('accounts-included')).toBeVisible()
   await page.getByTestId('by-day').click()

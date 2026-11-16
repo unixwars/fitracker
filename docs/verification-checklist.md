@@ -57,6 +57,8 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 31. Open the sheet, **Extensions > Apps Script**, paste `function listMetadata() { SpreadsheetApp.getActive().createDeveloperMetadataFinder().find().forEach(function (m) { Logger.log(m.getKey() + ' = ' + m.getValue()); }); }`, pick `listMetadata` in the function dropdown, **Run**, and read the **Execution log** (a bare expression without a function gives "unknown error"). After setting, clearing and setting the same icon three times in Settings. *Pass:* exactly one `fitracker.icon.account.<name>` line, and `fitracker.schemaVersion = 3` untouched.
 32. Pick an emoji for an account and a category in Settings. *Pass:* it shows in Add (dropdowns), Month and Activity on both devices; **Use the default icon** restores the guessed one.
 33. Month, **By day**: on a phone, open an entry from the day list, edit it, then Undo from Activity; add a transfer and find it in the list. *Pass:* edit, delete and undo behave as from **By category**.
+34. Open Month, switch to **Year** for the year of your real book. *Pass:* income, expenses and savings rate equal the sheet's `Annual Summary` for the same year (accounts ticked `In Annual`); the Net worth chart's table matches the sheet's `Balances` month-end matrix (within a cent).
+35. Activity, **Record a balance**: save one with the phone offline. *Pass:* it appears under Pending, the Year net worth shows it at once, and after reconnecting a row `id, date, account, balance, note` is in `Snapshots`. **Undo** removes the row.
 
 ## Could be automated if you give me credentials
 

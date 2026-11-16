@@ -10,6 +10,7 @@
   import type { Unreadable } from '../types'
   import CategoryIcon from './CategoryIcon.svelte'
   import EntrySheet from './EntrySheet.svelte'
+  import SnapshotForm from './SnapshotForm.svelte'
   import { dateLabel, fmt } from './format'
 
   let { app }: { app: AppState } = $props()
@@ -81,6 +82,8 @@
     {/each}
   </section>
 {/if}
+
+<SnapshotForm {app} />
 
 <section class="card">
   <h3>{messages.recentChanges}</h3>

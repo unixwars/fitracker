@@ -3,7 +3,7 @@ import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
 import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
-import { applyPending, makeOp, makeRepairOp, pendingCount, redo, undo, type Op } from './outbox'
+import { applyPendingSnapshots, applyPending, makeOp, makeRepairOp, makeSnapshotOp, pendingCount, redo, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
@@ -54,6 +54,7 @@ export class AppState {
 
   tab = $state<Tab>('add')
   month = $state(currentMonth())
+  snapshotFormOpen = $state(false) // set by the Year view's "record a balance" button; Activity opens its form
   sheetId = $state<string | null>(null)
   entries = $state<Entry[]>([])
   sheetLists = $state<Reference>(EMPTY_LISTS) // the reference tabs as the sheet holds them
@@ -83,6 +84,7 @@ export class AppState {
   overrides = $derived(parseOverrides(this.overrideEntries))
   lists = $derived(applyOverrides(this.sheetLists, this.overrides)) // what every screen uses: the sheet's lists with the shared settings on top
   displayed = $derived(applyPending(this.entries, this.ops))
+  displayedSnapshots = $derived(applyPendingSnapshots(this.snapshots, this.ops))
   attention = $derived(this.ops.filter((o) => o.status === 'flagged'))
   needsAttention = $derived(this.attention.length + this.unreadable.length)
   pendingCount = $derived(pendingCount(this.ops))
@@ -339,6 +341,11 @@ export class AppState {
     if (!this.canWrite) throw new Error('read-only')
     this.setDevice(remember)
     await this.enqueue(makeOp('add', entry))
+  }
+  // Records an account balance on a date: queued like an entry, so it works offline and Undo removes it.
+  async addSnapshot(snapshot: Snapshot) {
+    if (!this.canWrite) throw new Error('read-only')
+    await this.enqueue(makeSnapshotOp('add', snapshot))
   }
   async edit(entry: Entry, previous: Entry) {
     if (this.canWrite) await this.enqueue(makeOp('edit', entry, previous))
