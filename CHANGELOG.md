@@ -13,11 +13,13 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 - First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings. The screen is now the same whether or not you are signed in, with both folds always shown.
 
 ### Fixed
+- By day lists the entries of a day newest first (the entry added last on top), like the days themselves.
 - The header status pill is smaller, uses the info colour, and only appears while changes are waiting to sync ("Up to date" is no longer shown; Settings still lists the sync status). The first-run footer pill no longer restyles it.
 - Undo no longer grows the log: an undone change shows **Redo** on its own row, and Undo and Redo toggle that row instead of adding new entries to Recent changes.
 - Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
 
 ### Added
+- Add an account (name, currency) or a category (name, expense or income) from Settings. It is written to the first free row of the `Accounts` or `Categories` tab, with the checkboxes ticked for a new account. Names the sheet would misread (wildcards `* ? ~`, a leading `< > = + - @`), duplicates (capital letters ignored) and lists past the template's capacity (40 accounts, 30 expense and 15 income categories) are refused with a reason. An "Undo" is offered until you leave Settings. Rename and delete stay in the sheet.
 - A Year view on the Month screen (accounts ticked In Annual): totals, savings rate and per-category figures, with charts for income vs expenses, spending by category and month, expense proportions, net worth by account and inflows/outflows; the Month screen has budget vs actual and expense proportions charts. Charts are drawn in the app (no chart library) with a table alternative under each.
 - Record an account balance (a snapshot) in Activity; it works offline and Undo removes it.
 - Shared settings in Settings: choose per account whether it counts in Month and in Year, and pick an emoji for any account or category. Both are shared with everyone using the sheet, stored as the sheet's own developer metadata (`fitracker.*`), and never written to a cell. Settings marks accounts that differ from the sheet.

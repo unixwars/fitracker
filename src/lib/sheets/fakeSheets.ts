@@ -82,6 +82,8 @@ export type FakeSheets = SheetsApi & {
   injectWrite(id: string, range: string, values: unknown[][]): void
   /** Rows every tab has; a write past it is a 400 "exceeds grid limits" like the real API (default: unlimited). */
   maxRows: number
+  /** Per-tab row limits that override `maxRows` (a 41-row Accounts next to a 1000-row Ledger). growTab raises the limit of a tab that has one. */
+  tabMaxRows: Record<string, number>
 }
 
 export function createFakeSheets(): FakeSheets {
@@ -127,6 +129,7 @@ export function createFakeSheets(): FakeSheets {
     liveRates: { EUR: 1, GBP: 1.17, USD: 0.94 },
     strictTabs: false,
     maxRows: Infinity,
+    tabMaxRows: {},
     injectWrite: (id, range, values) => book(id).write(range, values),
 
     async batchGet(id, ranges, render = 'UNFORMATTED_VALUE') {
@@ -141,7 +144,7 @@ export function createFakeSheets(): FakeSheets {
     },
     async valuesBatchUpdate(id, data, input = 'RAW') {
       enter('valuesBatchUpdate', id, data, input)
-      for (const d of data) if (parseRange(d.range).r2 > fake.maxRows) throw new ApiError(400, `Range (${d.range}) exceeds grid limits.`)
+      for (const d of data) if (parseRange(d.range).r2 > (fake.tabMaxRows[parseRange(d.range).sheet] ?? fake.maxRows)) throw new ApiError(400, `Range (${d.range}) exceeds grid limits.`)
       fireBeforeWrite()
       for (const d of data) {
         const values = input === 'USER_ENTERED' ? d.values.map((row) => row.map((v) => userEntered(v, fake.liveRates))) : d.values
@@ -155,7 +158,11 @@ export function createFakeSheets(): FakeSheets {
     },
     async growTab(id, tab, rows) {
       enter('growTab', id, tab, rows)
-      fake.maxRows = Math.max(fake.maxRows, rows)
+      if (tab in fake.tabMaxRows) fake.tabMaxRows[tab] = Math.max(fake.tabMaxRows[tab], rows)
+      else fake.maxRows = Math.max(fake.maxRows, rows)
+    },
+    async copyRowStyle(id, tab, fromRow, toRow, columns) {
+      enter('copyRowStyle', id, tab, fromRow, toRow, columns) // the fake keeps values only; the call is recorded for the tests
     },
     async valuesBatchClear(id, ranges) {
       enter('valuesBatchClear', id, ranges)

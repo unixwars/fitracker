@@ -13,6 +13,8 @@ export interface SheetsApi {
   growTab(spreadsheetId: string, tab: string, rows: number): Promise<void>
   /** Creates or updates one DOCUMENT developer metadata entry. */
   setMetadata(spreadsheetId: string, key: string, value: string): Promise<void>
+  /** Gives one row the number formats and data validation (checkboxes, dropdowns) of another row of the same tab, columns A to `columns`. Cosmetic: two requests. */
+  copyRowStyle(spreadsheetId: string, tab: string, fromRow: number, toRow: number, columns: number): Promise<void>
   valuesBatchClear(spreadsheetId: string, ranges: string[]): Promise<void>
   getMetadata(spreadsheetId: string, key: string): Promise<string | null>
   /** Every DOCUMENT developer metadata entry whose key starts with `prefix`, as key to value. One request. */

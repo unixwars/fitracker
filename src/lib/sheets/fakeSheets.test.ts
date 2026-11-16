@@ -45,6 +45,15 @@ describe('fake writes and hooks', () => {
     expect(await fake.listMetadata(id, 'fitracker.')).toMatchObject({ 'fitracker.account.A': '1' })
     expect(Object.keys(await fake.listMetadata(id, 'fitracker.'))).not.toContain('zzz')
   })
+  it('a per-tab row limit applies to that tab only, and growTab raises just that tab', async () => {
+    const { fake, id } = ledgerWith(1)
+    fake.tabMaxRows.Accounts = 41
+    await expect(fake.valuesBatchUpdate(id, [{ range: 'Accounts!A42:E42', values: [['x']] }])).rejects.toThrow(/grid limits/)
+    await fake.valuesBatchUpdate(id, [{ range: 'Ledger!A900:A900', values: [['x']] }]) // no limit on other tabs
+    await fake.growTab(id, 'Accounts', 50)
+    await fake.valuesBatchUpdate(id, [{ range: 'Accounts!A42:E42', values: [['x']] }])
+    expect(fake.maxRows).toBe(Infinity)
+  })
   it('beforeNextWrite runs before the write lands and afterNextWrite after', async () => {
     const { fake, id } = ledgerWith(1)
     const seen: string[] = []

@@ -264,6 +264,38 @@ test('the status pill is hidden when nothing is pending', async ({ page }) => {
   await expect(page.getByTestId('status-pill')).toHaveCount(0)
 })
 
+test('Settings can add an account and a category, refuses a duplicate or invalid name, and Undo clears the last add', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 })
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('tab-settings').click()
+  await page.getByTestId('accounts-fold').locator('summary').click()
+  await page.getByTestId('add-account-name').fill('Piggy bank')
+  await page.getByTestId('add-account-currency').selectOption('GBP')
+  expect((await page.getByTestId('add-account-submit').boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.getByTestId('add-account-submit').click()
+  await expect(page.getByTestId('added')).toContainText('Added Piggy bank')
+  await expect(page.getByTestId('account-row').filter({ hasText: 'Piggy bank' })).toBeVisible()
+  await expect.poll(() => cell(page, 'Accounts!A5')).toBe('Piggy bank') // the sheet's next free row
+  await page.getByTestId('add-account-name').fill('piggy BANK')
+  await page.getByTestId('add-account-submit').click()
+  await expect(page.getByTestId('add-reason')).toContainText('already exists')
+  await page.getByTestId('add-account-name').fill('Car*')
+  await page.getByTestId('add-account-submit').click()
+  await expect(page.getByTestId('add-reason')).toContainText('cannot contain')
+  await page.getByTestId('categories-fold').locator('summary').click()
+  await page.getByTestId('add-category-name').fill('Hobbies')
+  await page.getByTestId('add-category-type').selectOption('income')
+  await page.getByTestId('add-category-submit').click()
+  await expect(page.getByTestId('categories-fold').getByTestId('added')).toContainText('Added Hobbies')
+  await page.getByTestId('undo-add').last().click()
+  const hobbies = () => page.evaluate(() => (window as unknown as { __fake: { book(id: string): { read(r: string, m: string): unknown[][] } } }).__fake.book('fake-sheet').read('Categories!A2:A', 'UNFORMATTED_VALUE').flat().includes('Hobbies'))
+  await expect.poll(hobbies).toBe(false) // Undo cleared the row it wrote
+  await page.getByTestId('tab-add').click()
+  await page.getByTestId('accounts').selectOption('Piggy bank') // the new account is offered in Add
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
+})
+
 test('the Month tab is called Overview, and Month and Year stop at the first and last months that can have records', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('tab-month')).toContainText('Overview')
@@ -303,4 +335,21 @@ test('Settings has the read-only facts in their own tile, and the theme icon sit
   expect(theme.width).toBeGreaterThanOrEqual(44)
   for (const id of ['app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
+})
+
+test('By day lists the entry added last at the top of its day', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  for (const amount of ['11.11', '22.22']) {
+    await page.getByTestId('amount').fill(amount)
+    await page.getByTestId('categories').selectOption('Bills')
+    await page.getByTestId('accounts').selectOption('Joint')
+    await page.getByTestId('save').click()
+    await expect.poll(() => page.getByTestId('amount').inputValue()).toBe('') // saved and the form reset
+  }
+  await page.getByTestId('tab-month').click()
+  const today = page.getByTestId('day').first().locator('.entry')
+  await expect(today.filter({ hasText: '22.22' })).toBeVisible()
+  const texts = await today.allInnerTexts()
+  expect(texts.findIndex((t) => t.includes('22.22'))).toBeLessThan(texts.findIndex((t) => t.includes('11.11')))
 })

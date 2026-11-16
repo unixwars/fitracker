@@ -80,6 +80,19 @@ describe('metadata with empty values', () => {
   })
 })
 
+describe('copyRowStyle', () => {
+  it('copies format and data validation of one row onto another of the same tab (rows are 1-based)', async () => {
+    const { calls, fetchImpl } = stub([json({ sheets: [{ properties: { sheetId: 11, title: 'Accounts' } }] }), json({})])
+    await createSheetsApi(() => 'tok', fetchImpl).copyRowStyle('S1', 'Accounts', 39, 40, 5)
+    const requests = JSON.parse(calls[1].init!.body as string).requests
+    const rows = (r: number) => ({ sheetId: 11, startRowIndex: r - 1, endRowIndex: r, startColumnIndex: 0, endColumnIndex: 5 })
+    expect(requests).toEqual([
+      { copyPaste: { source: rows(39), destination: rows(40), pasteType: 'PASTE_FORMAT' } },
+      { copyPaste: { source: rows(39), destination: rows(40), pasteType: 'PASTE_DATA_VALIDATION' } },
+    ])
+  })
+})
+
 describe('listMetadata', () => {
   it('searches all document metadata in one request and keeps the keys with the prefix', async () => {
     const { calls, fetchImpl } = stub([json({ matchedDeveloperMetadata: [

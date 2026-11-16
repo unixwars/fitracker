@@ -2,12 +2,13 @@ import { backfillId } from '../ids'
 import { isSettingKey, OVERRIDE_PREFIX } from '../overrides'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
-import { AccountChanged, ApiError, AuthExpired, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
+import { AccountChanged, ApiError, AuthExpired, ReferenceLayoutMismatch, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
 import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
 import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
-import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
-import type { AddResult, EntryStore, RefreshOpts } from '../store'
-import type { RateRow, Reference, Snapshot, Unreadable } from '../types'
+import { normaliseName, validateNewAccount, validateNewCategory, type NameProblem } from '../newItem'
+import { ACCOUNTS, CATEGORIES, LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
+import type { AddItemResult, AddResult, AddedItem, EntryStore, RefreshOpts, UndoItemResult } from '../store'
+import type { Currency, EntryType, RateRow, Reference, Snapshot, Unreadable } from '../types'
 import type { SheetsApi } from './types'
 import { ensureVersion } from './version'
 
@@ -221,6 +222,128 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return items.map((e) => results.get(e.id)!)
   }
 
+  // Cosmetic and best effort: the new row gets the checkboxes and dropdowns of the row above (or below, for the first row), so a
+  // Table or a validated column shows it like the rest. A failure here never fails the add (except a lost sign-in).
+  async function styleLikeNeighbour(tab: string, firstRow: number, row: number, columns: number): Promise<void> {
+    try {
+      await api.copyRowStyle(spreadsheetId, tab, row > firstRow ? row - 1 : row + 1, row, columns)
+    } catch (err) {
+      if (err instanceof AuthExpired) throw err
+    }
+  }
+
+  // Adds one row to a reference tab (Accounts or Categories). Rules, in order: the headers must be the layout (a person may
+  // have inserted a column), the name must pass the checks against what the sheet holds right now, then the row goes to the
+  // first free row (the last row holding anything in A or B, plus one; Accounts reuses an empty row inside its fixed 41 rows
+  // and is never grown), is read back, and if another device wrote a different name to that row, the next row is tried.
+  async function addReferenceItem(spec: {
+    kind: 'account' | 'category'
+    tab: string
+    firstRow: number
+    lastRow?: number // a tab with a fixed size is never grown
+    lastCol: string
+    headerRange: string
+    rowsRange: string
+    headers: readonly string[]
+    name: string
+    cells: unknown[]
+    check: (rows: unknown[][]) => NameProblem | null
+  }): Promise<AddItemResult> {
+    await checkVersion()
+    // The rows are read as FORMULA, so a cell that holds a formula (even one that shows nothing) is never mistaken for a free
+    // one and overwritten (AGENTS.md: never overwrite a formula cell).
+    const isFormula = (v: unknown) => typeof v === 'string' && v.trim().startsWith('=')
+    const filled = (r: unknown[] | undefined) => str(r?.[0]) !== '' || str(r?.[1]) !== ''
+    const free = (r: unknown[] | undefined) => !filled(r) && !(r ?? []).some(isFormula)
+    for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS; attempt++) {
+      const [header, rows] = await read([spec.headerRange, spec.rowsRange, ...TAB_GUARD], 'FORMULA')
+      const h = header?.[0] ?? []
+      // The order and number of columns must be the layout; the spelling may differ in case, spaces and underscores (a converted
+      // sheet has in_monthly where the template has In Monthly).
+      const key = (x: unknown) => str(x).toLowerCase().replace(/[\s_]+/g, '')
+      if (h.length !== spec.headers.length || !spec.headers.every((x, i) => key(h[i]) === key(x))) {
+        throw new ReferenceLayoutMismatch(spec.tab, h.map((x) => str(x)), spec.headers)
+      }
+      const list = rows ?? []
+      const problem = spec.check(list)
+      if (problem) return { ok: false, reason: problem }
+      let used = 0
+      list.forEach((r, i) => { if (filled(r)) used = i + 1 })
+      let first = spec.firstRow + used
+      while (!free(list[first - spec.firstRow]) && (spec.lastRow === undefined || first <= spec.lastRow)) first++ // skip a row with a formula
+      if (spec.lastRow !== undefined && first > spec.lastRow) {
+        const gap = Array.from({ length: spec.lastRow - spec.firstRow + 1 }, (_, i) => i).find((i) => free(list[i]))
+        if (gap === undefined) return { ok: false, reason: 'full' }
+        first = spec.firstRow + gap
+      }
+      const range = `${spec.tab}!A${first}:${spec.lastCol}${first}`
+      try {
+        await api.valuesBatchUpdate(spreadsheetId, [{ range, values: [spec.cells] }])
+      } catch (err) {
+        if (err instanceof AuthExpired) throw err
+        if (spec.lastRow === undefined && err instanceof ApiError && err.status === 400 && /grid limits/i.test(err.message)) {
+          await api.growTab(spreadsheetId, spec.tab, first + 100) // Categories is not fixed in size: add rows, once
+          await api.valuesBatchUpdate(spreadsheetId, [{ range, values: [spec.cells] }])
+        } else {
+          // A lost response does not mean a lost write: if the row now holds exactly what was written, it landed.
+          const [now] = await read([range]).catch(() => [undefined])
+          const row = now?.[0] ?? []
+          if (row.length === spec.cells.length && spec.cells.every((c, i) => row[i] === c)) { markDirty(); return { ok: true, added: { kind: spec.kind, row: first, cells: spec.cells, name: spec.name } } }
+          throw err
+        }
+      }
+      const [back] = await read([range])
+      if (normaliseName(str(back?.[0]?.[0])) === spec.name) {
+        await styleLikeNeighbour(spec.tab, spec.firstRow, first, spec.headers.length)
+        markDirty()
+        return { ok: true, added: { kind: spec.kind, row: first, cells: spec.cells, name: spec.name } }
+      }
+      // another device wrote a different name to this row at the same moment: read again and take the next free row
+    }
+    return { ok: false, reason: 'tryAgain' }
+  }
+
+  async function addAccount(a: { name: string; currency: Currency }): Promise<AddItemResult> {
+    const name = normaliseName(a.name)
+    return addReferenceItem({
+      kind: 'account', tab: ACCOUNTS.tab, firstRow: ACCOUNTS.firstRow, lastRow: ACCOUNTS.lastRow, lastCol: ACCOUNTS.lastCol,
+      headerRange: ACCOUNTS.ranges.header, rowsRange: ACCOUNTS.ranges.rows, headers: ACCOUNTS.headers, name,
+      cells: [name, a.currency, true, true, true],
+      check: (rows) => validateNewAccount(name, rows.map((r) => r?.[0])),
+    })
+  }
+
+  async function addCategory(c: { name: string; type: EntryType }): Promise<AddItemResult> {
+    const name = normaliseName(c.name)
+    return addReferenceItem({
+      kind: 'category', tab: CATEGORIES.tab, firstRow: CATEGORIES.firstRow, lastCol: CATEGORIES.lastCol,
+      headerRange: CATEGORIES.ranges.header, rowsRange: CATEGORIES.ranges.rows, headers: CATEGORIES.headers, name,
+      cells: [name, c.type, true],
+      check: (rows) => validateNewCategory(name, c.type, rows),
+    })
+  }
+
+  // Session-only Undo of an add: clears the row (never deletes it), but only while it still holds exactly what was written and
+  // no entry or snapshot uses the name.
+  async function undoAddItem(added: AddedItem): Promise<UndoItemResult> {
+    await checkVersion()
+    const tab = added.kind === 'account' ? ACCOUNTS : CATEGORIES
+    const range = `${tab.tab}!A${added.row}:${tab.lastCol}${added.row}`
+    // Ledger C:I is [type, amount, place, description, category, account, to_account].
+    const [current, ledger, snapshots, budgets] = await read([range, LEDGER.ranges.typesToAccounts, SNAPSHOTS.ranges.accounts, REFERENCE.budgets, ...TAB_GUARD])
+    const row = current?.[0] ?? []
+    if (row.length !== added.cells.length || !added.cells.every((c, i) => row[i] === c)) return { ok: false, reason: 'changed' }
+    const sameName = (v: unknown) => normaliseName(str(v)).toLowerCase() === added.name.toLowerCase()
+    const type = str(added.cells[1]).toLowerCase() // a category's type; the ledger and the budgets name it per type
+    const used = added.kind === 'account'
+      ? (ledger ?? []).some((r) => sameName(r?.[5]) || sameName(r?.[6])) || (snapshots ?? []).some((r) => sameName(r?.[0]))
+      : (ledger ?? []).some((r) => str(r?.[0]).toLowerCase() === type && sameName(r?.[4])) || (budgets ?? []).some((r) => str(r?.[1]).toLowerCase() === type && sameName(r?.[2]))
+    if (used) return { ok: false, reason: 'inUse' }
+    await api.valuesBatchClear(spreadsheetId, [range])
+    markDirty()
+    return { ok: true }
+  }
+
   const accountMatches = (e: Entry, accounts: Reference['accounts']): boolean => {
     const from = accounts.find((a) => a.name === e.account)
     const toKnown = e.kind !== 'transfer' || accounts.some((a) => a.name === e.toAccount && a.name !== e.account)
@@ -411,6 +534,9 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     clearRowAt,
     addSnapshot,
     deleteSnapshot,
+    addAccount,
+    addCategory,
+    undoAddItem,
     maintainRates,
   }
   return Object.assign(store, { _internals: { api, spreadsheetId, load, markDirty, checkVersion, newId, now } as Internals })
