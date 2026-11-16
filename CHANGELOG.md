@@ -8,6 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Changed
+- The Month tab is now called Overview, since it covers months and years. The previous and next arrows (month and year) stop at the oldest and newest months that can have records: the present, unless the ledger has entries before or after it. In Settings the version number links to the release notes, and a new "Report issues" entry opens a GitHub issue with the app version prefilled. Appearance is now an icon menu (System, Light, Dark) fixed at the top right of every screen, with the sync pill to its left; the read-only facts in Settings (sync, app version, feedback, schema version) are their own tile. "N of M accounts included" is a small centered info pill.
 - Settings: Accounts and Categories are collapsible sections; only one icon picker is open at a time (it closes on Escape or a tap outside), and categories show their built-in icon instead of a dot.
 - First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings. The screen is now the same whether or not you are signed in, with both folds always shown.
 

@@ -206,3 +206,24 @@ input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: 
 .additem { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .additem .secondary { width: 100%; }
 .additem p .secondary { width: auto; margin-left: 8px; }
+.monthnav button:disabled { opacity: 0.35; cursor: default; }
+.center { text-align: center; margin: 0 0 12px; }
+
+/* Header: the status pill and the appearance menu sit together at the top right, the pill to the left of the icon. */
+.top-right { display: flex; align-items: center; gap: 8px; }
+.thememenu { position: relative; }
+.themebtn { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: none; color: var(--ink); } /* 44px tap area, smaller visible circle */
+.themebtn::before { content: ''; position: absolute; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.themebtn svg { position: relative; width: 20px; height: 20px; }
+.themelist { position: absolute; z-index: 20; right: 0; top: calc(100% + 6px); display: flex; flex-direction: column; min-width: 10rem; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); }
+.themelist button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; text-align: left; }
+.themelist button[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
+
+/* Settings: the read-only facts are their own tile, quiet and muted. */
+.about { font-size: 0.88rem; color: var(--muted); }
+.about dl { margin: 0; padding: 0; }
+.about dl > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.about dl > div:last-child { border-bottom: 0; }
+.about dt { margin: 0; }
+.about dd { margin: 0; text-align: right; color: var(--ink); }
+.about a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; text-decoration: underline; text-underline-offset: 3px; }

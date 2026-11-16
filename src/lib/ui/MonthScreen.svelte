@@ -2,6 +2,8 @@
   import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
+  import { canGoNext, canGoPrev, earliestMonth, latestMonth } from '../navLimit'
+  import { todayLocal } from '../rows'
   import { monthView, UNCATEGORISED, type CategoryRow } from '../month'
   import type { Entry } from '../rows'
   import CategoryIcon from './CategoryIcon.svelte'
@@ -21,6 +23,8 @@
   const share = $derived(monthShareChart(view))
   const money = (minor: number): string => fmt({ minor, currency: app.lists.base })
   let mode = $state<'category' | 'day'>('day')
+  const latest = $derived(latestMonth(app.displayed, todayLocal()))
+  const earliest = $derived(earliestMonth(app.displayed, todayLocal()))
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -46,9 +50,9 @@
   <YearScreen {app} />
 {:else}
 <div class="monthnav">
-  <button aria-label={messages.prevMonth} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
+  <button aria-label={messages.prevMonth} disabled={!canGoPrev(app.month, 1, earliest)} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
   <h2>{monthLabel(app.month)}</h2>
-  <button aria-label={messages.nextMonth} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
+  <button aria-label={messages.nextMonth} disabled={!canGoNext(app.month, 1, latest)} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
 </div>
 
 <div class="modes" role="group" aria-label={messages.viewBy}>
@@ -59,7 +63,7 @@
 {#if mode === 'day'}
   <DayList entries={app.displayed} month={app.month} onedit={(e) => (editing = e)} />
 {:else}
-<p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
+<p class="center"><span class="pill info" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</span></p>
 <section class="card">
   <h3>{messages.expenses}</h3>
   <div class="stat"><span>{messages.planned}</span><b>{fmt(view.expenses.planned)}</b></div>
