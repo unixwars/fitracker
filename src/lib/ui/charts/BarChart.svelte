@@ -12,8 +12,10 @@
     format: (minor: number) => string
   } = $props()
 
-  const W = 320, H = 190, L = 34, R = line ? 30 : 6, T = 8, B = 22
-  const plotW = W - L - R, plotH = H - T - B
+  const W = 320, H = 190, L = 34, T = 8, B = 22
+  const R = $derived(line ? 30 : 6) // room for the right-hand axis only when there is a line
+  const plotW = $derived(W - L - R)
+  const plotH = H - T - B
   const clamp = (v: number) => (v > 0 ? v : 0)
   const totals = $derived(labels.map((_, i) => (stacked ? series.reduce((a, s) => a + clamp(s.values[i] ?? 0), 0) : Math.max(0, ...series.map((s) => clamp(s.values[i] ?? 0))))))
   const max = $derived(niceMax(Math.max(0, ...totals)))

@@ -5,11 +5,12 @@
   import { cleanBalanceInput, initialSnapshotForm, toSnapshot, validateSnapshot, type SnapshotErrors } from '../snapshotForm'
 
   let { app }: { app: AppState } = $props()
-  let form = $state(initialSnapshotForm(app.lists, todayLocal(), app.device.lastCategory['snapshot:account']))
+  let form = $state({ date: todayLocal(), account: '', balance: '', note: '' }) // the account is chosen below, once the lists are there
   let errors = $state<SnapshotErrors>({})
   let saved = $state(false)
   const accounts = $derived(app.lists.accounts.filter((a) => a.active))
-  $effect(() => { if (!form.account && accounts.length) form.account = accounts[0].name })
+  // Starts on the account used last (or the first active one), as soon as the lists have loaded.
+  $effect(() => { if (!form.account && accounts.length) form.account = initialSnapshotForm(app.lists, todayLocal(), app.device.lastCategory['snapshot:account']).account })
 
   async function submit(ev: SubmitEvent) {
     ev.preventDefault()
