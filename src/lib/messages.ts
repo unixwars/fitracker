@@ -17,6 +17,7 @@ export const messages = {
   introTiles: ['Expenses', 'Budgets', 'Net worth'],
   introOwnership: 'Everything is stored in a normal Google Sheet that you own and control. Open it, edit it, take it with you.',
   heroAlt: 'Fitracker on a phone, adding an expense',
+  or: 'or',
   howItWorks: 'How it works',
   howSteps: ['Sign in with Google.', 'Create your sheet from the template (one tap), or link one you have.', 'Add your first expense.'],
   installApp: 'Install app',

@@ -160,3 +160,22 @@ test('Month can be browsed by day and an entry opens for editing', async ({ page
   await row.click()
   await expect(page.getByRole('dialog')).toBeVisible()
 })
+
+test('first-run choices are equal width with an "or" between them, folds have chevrons and footer links are right-aligned pills', async ({ page }) => {
+  await page.goto('/?unlinked&signedout')
+  const a = (await page.getByTestId('create-from-template').boundingBox())!
+  const b = (await page.getByTestId('link-existing').boundingBox())!
+  const or = (await page.getByTestId('or').boundingBox())!
+  expect(Math.abs(a.width - b.width)).toBeLessThan(1)
+  expect(or.y).toBeGreaterThan(a.y + a.height - 1)
+  expect(or.y + or.height).toBeLessThanOrEqual(b.y + 1)
+  const summary = page.getByTestId('how-it-works').locator('summary')
+  expect(await summary.evaluate((el) => getComputedStyle(el).fontWeight)).toBe('700')
+  expect(await summary.evaluate((el) => getComputedStyle(el, '::after').content)).not.toBe('none')
+  const link = (await page.getByTestId('project-link').boundingBox())!
+  const rel = (await page.getByTestId('releases-link-short').boundingBox())!
+  const vw = page.viewportSize()!.width
+  expect(rel.x + rel.width).toBeGreaterThan(vw - 40)
+  expect(link.x).toBeLessThan(rel.x)
+  expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
+})

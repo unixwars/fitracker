@@ -7,6 +7,12 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ## [Unreleased]
 
 
+### Changed
+- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the GitHub and Releases links are icon pills aligned right.
+
+### Fixed
+- Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
+
 ### Added
 - Shared settings in Settings: choose per account whether it counts in Month and in Year, and pick an emoji for any account or category. Both are shared with everyone using the sheet, stored as the sheet's own developer metadata (`fitracker.*`), and never written to a cell. Settings marks accounts that differ from the sheet.
 - Browse by day: a "By day" switch on the Month screen lists the month's entries newest day first, including transfers, and opens the same edit sheet.
