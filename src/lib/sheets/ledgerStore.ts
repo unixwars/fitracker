@@ -2,7 +2,7 @@ import { backfillId } from '../ids'
 import { isSettingKey, OVERRIDE_PREFIX } from '../overrides'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
-import { AccountChanged, ApiError, AuthExpired, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
+import { AccountChanged, ApiError, AuthExpired, ReferenceLayoutMismatch, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
 import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
 import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { normaliseName, validateNewAccount, validateNewCategory, type NameProblem } from '../newItem'
@@ -249,7 +249,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       const [header, rows] = await read([spec.headerRange, spec.rowsRange, ...TAB_GUARD], 'FORMULA')
       const h = header?.[0] ?? []
       if (h.length !== spec.headers.length || !spec.headers.every((x, i) => str(h[i]) === x)) {
-        throw new UnrecognisedLayout(`${spec.tab} headers do not match the layout`)
+        throw new ReferenceLayoutMismatch(spec.tab, h.map((x) => str(x)), spec.headers)
       }
       const list = rows ?? []
       const problem = spec.check(list)

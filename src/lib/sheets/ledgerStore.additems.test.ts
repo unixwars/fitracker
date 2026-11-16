@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, NewerThanApp, UnrecognisedLayout } from '../errors'
+import { ApiError, NewerThanApp, ReferenceLayoutMismatch, UnrecognisedLayout } from '../errors'
 import { META_KEY } from '../schema'
 import type { Entry } from '../rows'
 import { createFakeSheets } from './fakeSheets'
@@ -57,12 +57,12 @@ describe('addAccount', () => {
     expect(r.ok && r.added.row).toBe(4 + n)
     expect(rowOf(fake, `Accounts!B${3 + n}:B${3 + n}`)).toEqual(['EUR'])
   })
-  it('refuses with UnrecognisedLayout, before any write, when the headers are not the layout', async () => {
+  it('refuses with ReferenceLayoutMismatch (naming what it found), before any write, when the headers are not the layout', async () => {
     const { fake, store } = setup()
     fake.book('S1').write('Accounts!A1:E1', [['name', 'extra', 'currency', 'active', 'In Monthly']])
-    await expect(store.addAccount({ name: 'X', currency: 'EUR' })).rejects.toBeInstanceOf(UnrecognisedLayout)
+    await expect(store.addAccount({ name: 'X', currency: 'EUR' })).rejects.toMatchObject({ tab: 'Accounts', found: ['name', 'extra', 'currency', 'active', 'In Monthly'] })
     fake.book('S1').clear('Accounts!A1:E1')
-    await expect(store.addAccount({ name: 'X', currency: 'EUR' })).rejects.toBeInstanceOf(UnrecognisedLayout)
+    await expect(store.addAccount({ name: 'X', currency: 'EUR' })).rejects.toBeInstanceOf(ReferenceLayoutMismatch)
     expect(writes(fake)).toHaveLength(0)
   })
   it('writes only A:E of the Accounts tab, in two reads and one write, and does not grow it', async () => {
@@ -121,7 +121,7 @@ describe('addCategory', () => {
     expect(await store.addCategory({ name: 'Beyond', type: 'expense' })).toMatchObject({ ok: true })
     expect(fake.count('growTab')).toBe(1)
     fake.book('S1').write('Categories!A1:C1', [['type', 'name', 'active']])
-    await expect(store.addCategory({ name: 'Nope', type: 'expense' })).rejects.toBeInstanceOf(UnrecognisedLayout)
+    await expect(store.addCategory({ name: 'Nope', type: 'expense' })).rejects.toBeInstanceOf(ReferenceLayoutMismatch)
   })
   it('writes nothing to any other tab', async () => {
     const { fake, store } = setup()

@@ -1,7 +1,7 @@
 // Application state. Components render this; the rules live in the modules it composes.
 import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
-import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
+import { ApiError, AuthExpired, NewerThanApp, ReferenceLayoutMismatch, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
 import { applyPendingSnapshots, applyPending, makeOp, makeRepairOp, makeSnapshotOp, pendingCount, redo, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
@@ -336,7 +336,8 @@ export class AppState {
         void this.sync().then(() => this.checkListed(kind, r.added.name))
         return { ok: true } as const
       } catch (err) {
-        if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
+        if (err instanceof ReferenceLayoutMismatch) this.message = messages.referenceLayout(err.tab, err.found, err.expected) // local to this add: the book stays usable
+        else if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
         else this.message = messages.settingNotSaved
         return { ok: false, reason: 'failed' } as const
       }

@@ -89,6 +89,14 @@ describe('adding accounts and categories', () => {
     await vi.waitFor(() => expect(app.lists.accounts.some((x) => x.name === 'Next')).toBe(true))
     expect(fake.book('S1').read('Accounts!A2:A', 'UNFORMATTED_VALUE').flat()).toContain('Next')
   })
+  it('a changed header row of Accounts refuses only the add and names what was found; the book stays usable', async () => {
+    const { fake, app } = await setup()
+    fake.book('S1').write('Accounts!A1:E1', [['Name', 'Currency', 'Active', 'Monthly', 'Annual']])
+    expect(await app.addAccount('Blocked', 'EUR')).toEqual({ ok: false, reason: 'failed' })
+    expect(app.message).toBe(messages.referenceLayout('Accounts', ['Name', 'Currency', 'Active', 'Monthly', 'Annual'], ['name', 'currency', 'active', 'In Monthly', 'In Annual']))
+    expect(app.status).toBe('ok')
+    expect(app.canWrite).toBe(true)
+  })
   it('two adds at once run one after the other and both land', async () => {
     const { app } = await setup()
     const [a, b] = await Promise.all([app.addAccount('First', 'EUR'), app.addAccount('Second', 'EUR')])

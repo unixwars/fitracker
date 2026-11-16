@@ -31,6 +31,7 @@ export const messages = {
   addItem: 'Add',
   addedItem: (name: string) => `Added ${name}.`,
   undoAdd: 'Undo',
+  referenceLayout: (tab: string, found: string[], expected: readonly string[]) => `Nothing was added: the first row of the ${tab} tab reads "${found.join(', ') || '(empty)'}" but the app expects "${expected.join(', ')}". Fix the header row in the sheet, or add it there by hand.`,
   itemVanished: (name: string) => `${name} is not in the sheet: another device wrote to the same row at the same moment. Add it again.`,
   undoRefused: { changed: 'That row was changed in the sheet, so it was left as it is.', inUse: 'Entries already use this name, so it was kept.', failed: 'Could not undo.' },
   itemReasons: {
