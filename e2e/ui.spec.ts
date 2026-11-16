@@ -155,7 +155,6 @@ test('Month can be browsed by day and an entry opens for editing', async ({ page
   await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
-  await page.getByTestId('by-category').click() // Month opens By day
   await expect(page.getByTestId('by-day')).toHaveAttribute('aria-pressed', 'true') // By day is the default and the first button
   expect(await page.locator('.modes button').first().getAttribute('data-testid')).toBe('by-day')
   await page.getByTestId('by-category').click()
