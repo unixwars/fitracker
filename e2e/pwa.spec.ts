@@ -129,6 +129,7 @@ test('opening an old entry that has no place does not fill one from GPS', async 
   await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   await page.getByRole('button', { name: /Bills/ }).click()
   await page.getByRole('button', { name: /Noplace/ }).first().click()
   await page.waitForTimeout(800)

@@ -7,7 +7,16 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ## [Unreleased]
 
 
+### Changed
+- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings. The screen is now the same whether or not you are signed in, with both folds always shown.
+
+### Fixed
+- The header status pill is smaller, uses the info colour, and only appears while changes are waiting to sync ("Up to date" is no longer shown; Settings still lists the sync status). The first-run footer pill no longer restyles it.
+- Undo no longer grows the log: an undone change shows **Redo** on its own row, and Undo and Redo toggle that row instead of adding new entries to Recent changes.
+- Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
+
 ### Added
+- Browse by day (the default view of Month, before By category): a "By day" switch on the Month screen lists the month's entries newest day first, including transfers, and opens the same edit sheet.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
 
 ---

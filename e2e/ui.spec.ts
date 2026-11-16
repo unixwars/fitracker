@@ -106,11 +106,15 @@ test('a first-time visitor (signed out, no sheet) sees what the app is and the f
   await expect(page.getByTestId('how-it-works')).not.toHaveAttribute('open', '')
 })
 
-test('someone already signed in with no sheet gets the short first-run screen', async ({ page }) => {
-  await page.goto('/?unlinked')
-  await expect(page.getByTestId('first-run')).toBeVisible()
-  await expect(page.getByTestId('hero')).toHaveCount(0)
-  await expect(page.getByTestId('create-from-template')).toBeVisible()
+test('the first-run screen looks the same signed in or out, with both folds', async ({ page }) => {
+  for (const url of ['/?unlinked&signedout', '/?unlinked']) {
+    await page.goto(url)
+    await expect(page.getByTestId('first-run')).toBeVisible()
+    await expect(page.getByTestId('hero')).toHaveCount(1)
+    await expect(page.getByTestId('create-from-template')).toBeVisible()
+    await expect(page.getByTestId('how-it-works')).toBeVisible()
+    await expect(page.getByTestId('trouble-linking')).toBeVisible()
+  }
 })
 
 test('the first-run screen has cookie help for a blocked Google picker, closed until needed', async ({ page }) => {
@@ -126,4 +130,50 @@ test('the cookie help opens by itself after a link attempt that ends without a s
   await expect(page.getByTestId('trouble-linking')).not.toHaveAttribute('open', '')
   await page.getByTestId('link-existing').click()
   await expect(page.getByTestId('trouble-linking')).toHaveAttribute('open', '')
+})
+
+test('Month can be browsed by day and an entry opens for editing', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('amount').fill('12.34') // dated today, so the test does not depend on the day of the month
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.getByTestId('save').click()
+  await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('by-day')).toHaveAttribute('aria-pressed', 'true') // By day is the default and the first button
+  expect(await page.locator('.modes button').first().getAttribute('data-testid')).toBe('by-day')
+  await page.getByTestId('by-category').click()
+  await expect(page.getByTestId('accounts-included')).toBeVisible()
+  await page.getByTestId('by-day').click()
+  await expect(page.getByTestId('accounts-included')).toHaveCount(0)
+  const row = page.getByTestId('day').first().locator('.entry').filter({ hasText: '12.34' })
+  await expect(row).toBeVisible()
+  await row.click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('first-run choices are equal width with an "or" between them, folds have chevrons and the footer link is a compact right-aligned pill', async ({ page }) => {
+  await page.goto('/?unlinked&signedout')
+  const a = (await page.getByTestId('create-from-template').boundingBox())!
+  const b = (await page.getByTestId('link-existing').boundingBox())!
+  const or = (await page.getByTestId('or').boundingBox())!
+  expect(Math.abs(a.width - b.width)).toBeLessThan(1)
+  expect(or.y).toBeGreaterThan(a.y + a.height - 1)
+  expect(or.y + or.height).toBeLessThanOrEqual(b.y + 1)
+  const summary = page.getByTestId('how-it-works').locator('summary')
+  expect(await summary.evaluate((el) => getComputedStyle(el).fontWeight)).toBe('700')
+  expect(await summary.evaluate((el) => getComputedStyle(el, '::after').content)).not.toBe('none')
+  const link = (await page.getByTestId('project-link').boundingBox())!
+  const vw = page.viewportSize()!.width
+  expect(link.x + link.width).toBeGreaterThan(vw - 40) // right-aligned
+  expect(link.height).toBeLessThan(36) // compact, not button sized
+  await expect(page.getByTestId('project-link')).toContainText(/^\s*fitracker (v\d+\.\d+\.\d+|\(\w+\))/)
+  await expect(page.getByTestId('releases-link-short')).toHaveCount(0)
+  expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
+})
+
+test('the status pill is hidden when nothing is pending', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await expect(page.getByTestId('status-pill')).toHaveCount(0)
 })
