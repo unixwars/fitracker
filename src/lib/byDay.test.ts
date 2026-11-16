@@ -7,18 +7,18 @@ const e = (id: string, date: string, o: Partial<Entry> = {}): Entry => ({
 })
 
 describe('groupByDay', () => {
-  it('groups the month newest day first and keeps ledger order inside a day', () => {
+  it('groups the month newest day first, and newest entry first inside a day (the later ledger row)', () => {
     const days = groupByDay([e('a', '2026-11-03'), e('b', '2026-11-10'), e('c', '2026-11-03'), e('d', '2026-11-10')], '2026-11')
     expect(days.map((d) => d.date)).toEqual(['2026-11-10', '2026-11-03'])
-    expect(days[0].entries.map((x) => x.id)).toEqual(['b', 'd'])
-    expect(days[1].entries.map((x) => x.id)).toEqual(['a', 'c'])
+    expect(days[0].entries.map((x) => x.id)).toEqual(['d', 'b'])
+    expect(days[1].entries.map((x) => x.id)).toEqual(['c', 'a'])
   })
   it('leaves out other months, even with the same day number', () => {
     expect(groupByDay([e('a', '2026-10-31'), e('b', '2026-12-01'), e('c', '2026-11-01')], '2026-11').flatMap((d) => d.entries.map((x) => x.id))).toEqual(['c'])
   })
   it('lists income and transfers too, and entries of any account', () => {
     const days = groupByDay([e('a', '2026-11-02', { kind: 'income' }), e('b', '2026-11-02', { kind: 'transfer', toAccount: 'Cash' }), e('c', '2026-11-02', { account: 'Elsewhere' })], '2026-11')
-    expect(days[0].entries.map((x) => x.id)).toEqual(['a', 'b', 'c'])
+    expect(days[0].entries.map((x) => x.id).sort()).toEqual(['a', 'b', 'c'])
   })
   it('drops an entry with an empty or malformed date', () => {
     expect(groupByDay([e('a', ''), e('b', 'garbage')], '2026-11')).toEqual([])
