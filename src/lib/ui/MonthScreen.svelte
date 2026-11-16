@@ -20,7 +20,7 @@
   const budget = $derived(monthBudgetChart(view))
   const share = $derived(monthShareChart(view))
   const money = (minor: number): string => fmt({ minor, currency: app.lists.base })
-  let mode = $state<'category' | 'day'>('category')
+  let mode = $state<'category' | 'day'>('day')
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -52,8 +52,8 @@
 </div>
 
 <div class="modes" role="group" aria-label={messages.viewBy}>
-  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
   <button class="secondary" aria-pressed={mode === 'day'} onclick={() => (mode = 'day')} data-testid="by-day">{messages.byDay}</button>
+  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
 </div>
 
 {#if mode === 'day'}

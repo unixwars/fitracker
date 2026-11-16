@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyPendingSnapshots, applyPending, makeOp, makeRepairOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
+import { redo, applyPendingSnapshots, applyPending, makeOp, makeRepairOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
 import type { Entry } from './rows'
 
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
@@ -91,5 +91,13 @@ describe('applyPendingSnapshots', () => {
   })
   it('does not add a snapshot that is already there', () => {
     expect(applyPendingSnapshots([s('a')], [makeSnapshotOp('add', s('a'))])).toHaveLength(1)
+  })
+})
+
+describe('redo', () => {
+  it('re-applies each kind of op as a fresh pending op', () => {
+    expect(redo({ ...makeOp('add', e('a')), status: 'done' as const })).toMatchObject({ type: 'add', status: 'pending', entryId: 'a' })
+    expect(redo({ ...makeOp('edit', e('a', { description: 'new' }), e('a')), status: 'done' as const })).toMatchObject({ type: 'edit', entry: { description: 'new' } })
+    expect(redo({ ...makeOp('delete', e('a'), e('a')), status: 'done' as const })).toMatchObject({ type: 'delete', entryId: 'a', previous: { id: 'a' } })
   })
 })

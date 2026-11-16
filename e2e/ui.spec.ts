@@ -141,6 +141,7 @@ test('a balance can be recorded in Activity and lands in Snapshots', async ({ pa
 test('Month has a Year view with totals and charts, and Month shows its charts', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click()
   await expect(page.getByTestId('chart').first()).toBeVisible()
   await page.getByTestId('scope-year').click()
   await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear()))
@@ -167,6 +168,9 @@ test('Month can be browsed by day and an entry opens for editing', async ({ page
   await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
+  await expect(page.getByTestId('by-day')).toHaveAttribute('aria-pressed', 'true') // By day is the default and the first button
+  expect(await page.getByRole('group', { name: 'View by' }).locator('button').first().getAttribute('data-testid')).toBe('by-day')
+  await page.getByTestId('by-category').click()
   await expect(page.getByTestId('accounts-included')).toBeVisible()
   await page.getByTestId('by-day').click()
   await expect(page.getByTestId('accounts-included')).toHaveCount(0)

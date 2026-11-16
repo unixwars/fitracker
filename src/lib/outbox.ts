@@ -15,7 +15,8 @@ export type Op = {
   previousSnapshot?: Snapshot // set once a snapshot delete has been sent: what the sheet held
   status: 'pending' | 'done' | 'flagged'
   reason?: OpReason
-  undone?: boolean // set once an Undo op has been queued for it
+  undone?: boolean // true while its Undo is in effect: the row then offers Redo; Undo and Redo toggle this and never add log entries
+  undoOf?: string // set on the op an Undo or Redo queued: it is hidden from Recent changes (the original row carries the state)
   repair?: boolean // fixes or removes a row the app could not read, found by its id (no undo)
   repairAt?: { row: number; raw: unknown[] } // a row without a usable id: found by row, only while it still holds `raw`
   doneAt?: number // when the sheet accepted it; the 7-day verification window counts from here
@@ -58,6 +59,12 @@ export function applyPendingSnapshots(snapshots: Snapshot[], ops: Op[]): Snapsho
     else if (op.snapshot && !out.some((s) => s.id === op.entryId)) out = [...out, op.snapshot]
   }
   return out
+}
+
+// Re-applies an undone op, as a fresh pending op.
+export function redo(op: Op): Op {
+  if (op.subject === 'snapshot') return makeSnapshotOp(op.type as 'add' | 'delete', op.snapshot!)
+  return makeOp(op.type, op.entry!, op.type === 'delete' ? op.entry : undefined)
 }
 
 // The inverse of a completed op, as a fresh pending op.
