@@ -31,6 +31,9 @@ test('entries added offline are replayed once when the connection returns', asyn
   await addExpense(page, '5', 'Offline one')
   await addExpense(page, '6', 'Offline two')
   await expect(page.getByTestId('status-pill')).toContainText('2 waiting to sync')
+  const pill = (await page.getByTestId('status-pill').boundingBox())!
+  const themeBtn = (await page.getByTestId('theme-menu').boundingBox())!
+  expect(pill.x + pill.width).toBeLessThanOrEqual(themeBtn.x) // the pill sits to the left of the theme icon
   expect(await cell(page, 'Ledger!A5')).toBeNull()
 
   await context.setOffline(false)

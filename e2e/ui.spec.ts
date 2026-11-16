@@ -8,20 +8,24 @@ test('the logo is shown in the header', async ({ page }) => {
   expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 })
 
-test('the appearance setting switches between system, light and dark and is remembered', async ({ page }) => {
+test('the appearance menu is an icon at the top right on every screen; it switches between system, light and dark and is remembered', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('tab-settings').click()
   const html = page.locator('html')
+  const choose = async (v: string) => { await page.getByTestId('theme-menu').click(); await page.getByTestId('theme-' + v).click() }
   await expect(html).not.toHaveAttribute('data-theme', /.+/) // follows the system by default
-  await page.getByTestId('theme').selectOption('dark')
+  await choose('dark')
   await expect(html).toHaveAttribute('data-theme', 'dark')
-  await page.getByTestId('theme').selectOption('light')
+  await choose('light')
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.getByTestId('tab-settings').click()
-  await page.getByTestId('theme').selectOption('system')
+  await expect(page.getByTestId('theme-menu')).toBeVisible() // still there on Settings
+  await choose('system')
   await expect(html).not.toHaveAttribute('data-theme', /.+/)
+  await page.getByTestId('theme-menu').click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('theme-dark')).toHaveCount(0)
 })
 
 test('an entry dated in an earlier year is saved', async ({ page }) => {
@@ -85,12 +89,13 @@ test('Settings shows the app version and the commit it was built from', async ({
   await expect(page.getByTestId('app-version')).toHaveText(/^\d+\.\d+\.\d+ \([0-9a-f]{7}\)$/)
 })
 
-test('Settings links to the project releases page', async ({ page }) => {
+test('the Settings version links to the releases page and there is a way to report a bug or request a feature', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  const link = page.getByTestId('releases-link')
-  await expect(link).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
-  await expect(link).toHaveAttribute('rel', /noopener/)
+  await expect(page.getByTestId('app-version')).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
+  const report = page.getByTestId('report-issue')
+  await expect(report).toHaveAttribute('href', /^https:\/\/github\.com\/unixwars\/fitracker\/issues\/new\?body=App%20version/)
+  await expect(report).toHaveAttribute('target', '_blank')
 })
 
 test('a first-time visitor (signed out, no sheet) sees what the app is and the first button without scrolling', async ({ page }) => {
@@ -151,8 +156,6 @@ test('Month has a Year view with totals and charts, and Month shows its charts',
   await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear()))
   await expect(page.getByTestId('year-totals')).toBeVisible()
   expect(await page.getByTestId('chart').count()).toBe(5)
-  await page.getByRole('button', { name: 'Previous year' }).click()
-  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear() - 1))
 })
 
 test('the Year view warns about accounts with no balance and the button opens the balance form', async ({ page }) => {
@@ -259,4 +262,45 @@ test('the status pill is hidden when nothing is pending', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
   await expect(page.getByTestId('status-pill')).toHaveCount(0)
+})
+
+test('the Month tab is called Overview, and Month and Year stop at the first and last months that can have records', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('tab-month')).toContainText('Overview')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('amount').fill('5')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.locator('input[type=date]').fill('2025-03-10') // an older entry opens the past; nothing opens the future
+  await page.getByTestId('save').click()
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click()
+  await expect(page.getByTestId('accounts-included')).toHaveClass(/pill/) // a small info pill
+  await expect(page.getByRole('button', { name: 'Next month' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Previous month' }).click()
+  await expect(page.getByRole('button', { name: 'Next month' })).toBeEnabled()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByRole('button', { name: 'Next year' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Previous year' })).toBeEnabled()
+  await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByRole('button', { name: 'Next year' })).toBeEnabled()
+  for (let y = new Date().getFullYear() - 1; y > 2025; y--) await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByTestId('year-title')).toHaveText('2025')
+  await expect(page.getByRole('button', { name: 'Previous year' })).toBeDisabled() // nothing before the oldest entry
+})
+
+test('Settings has the read-only facts in their own tile, and the theme icon sits in the top right corner', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 })
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  const about = page.getByTestId('about')
+  await expect(about).toHaveClass(/card/)
+  await expect(about).toContainText('Report issues')
+  await expect(about).toContainText('Schema version')
+  const theme = (await page.getByTestId('theme-menu').boundingBox())!
+  expect(theme.x + theme.width).toBeGreaterThan(360 - 24) // flush with the right edge
+  expect(theme.y).toBeLessThan(40) // in the header
+  expect(theme.width).toBeGreaterThanOrEqual(44)
+  for (const id of ['app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 })
