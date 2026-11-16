@@ -199,3 +199,9 @@ test('first-run choices are equal width with an "or" between them, folds have ch
   await expect(page.getByTestId('releases-link-short')).toHaveCount(0)
   expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
 })
+
+test('the status pill is hidden when nothing is pending', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await expect(page.getByTestId('status-pill')).toHaveCount(0)
+})
