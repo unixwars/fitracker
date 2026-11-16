@@ -8,20 +8,24 @@ test('the logo is shown in the header', async ({ page }) => {
   expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 })
 
-test('the appearance setting switches between system, light and dark and is remembered', async ({ page }) => {
+test('the appearance menu is an icon at the top right on every screen; it switches between system, light and dark and is remembered', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('tab-settings').click()
   const html = page.locator('html')
+  const choose = async (v: string) => { await page.getByTestId('theme-menu').click(); await page.getByTestId('theme-' + v).click() }
   await expect(html).not.toHaveAttribute('data-theme', /.+/) // follows the system by default
-  await page.getByTestId('theme-dark').click()
+  await choose('dark')
   await expect(html).toHaveAttribute('data-theme', 'dark')
-  await page.getByTestId('theme-light').click()
+  await choose('light')
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.getByTestId('tab-settings').click()
-  await page.getByTestId('theme-system').click()
+  await expect(page.getByTestId('theme-menu')).toBeVisible() // still there on Settings
+  await choose('system')
   await expect(html).not.toHaveAttribute('data-theme', /.+/)
+  await page.getByTestId('theme-menu').click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('theme-dark')).toHaveCount(0)
 })
 
 test('an entry dated in an earlier year is saved', async ({ page }) => {
@@ -285,18 +289,18 @@ test('the Month tab is called Overview, and Month and Year stop at the first and
   await expect(page.getByRole('button', { name: 'Previous year' })).toBeDisabled() // nothing before the oldest entry
 })
 
-test('Settings separates the Appearance control from the read-only facts, and the segmented control reflects the choice', async ({ page }) => {
+test('Settings has the read-only facts in their own tile, and the theme icon sits in the top right corner', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 })
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  await expect(page.getByTestId('preferences').getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'true')
-  await page.getByTestId('theme-dark').click()
-  await expect(page.getByTestId('theme-dark')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'false')
   const about = page.getByTestId('about')
+  await expect(about).toHaveClass(/card/)
   await expect(about).toContainText('Report issues')
   await expect(about).toContainText('Schema version')
-  await expect(page.getByTestId('preferences').getByTestId('app-version')).toHaveCount(0) // facts are not inside the controls card
-  for (const id of ['theme-system', 'theme-light', 'theme-dark', 'app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  const theme = (await page.getByTestId('theme-menu').boundingBox())!
+  expect(theme.x + theme.width).toBeGreaterThan(360 - 24) // flush with the right edge
+  expect(theme.y).toBeLessThan(40) // in the header
+  expect(theme.width).toBeGreaterThanOrEqual(44)
+  for (const id of ['app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 })

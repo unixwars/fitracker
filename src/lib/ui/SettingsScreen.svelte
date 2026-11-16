@@ -4,7 +4,6 @@
   import IconPicker from './IconPicker.svelte'
   import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
-  import type { Theme } from '../config'
   import { messages } from '../messages'
   import { APP_VERSION_LABEL } from '../buildInfo'
   import { BOOK_VERSION } from '../schema'
@@ -85,19 +84,12 @@
   </section>
 {/if}
 
-<section class="card" data-testid="preferences">
-  <h3>{messages.theme}</h3>
-  <div class="seg" role="group" aria-label={messages.theme} style="margin-bottom: 0">
-    {#each [['system', messages.themeSystem], ['light', messages.themeLight], ['dark', messages.themeDark]] as [value, label] (value)}
-      <button aria-pressed={app.device.theme === value} onclick={() => app.setDevice({ theme: value as Theme })} data-testid={'theme-' + value}>{label}</button>
-    {/each}
-  </div>
-  <InstallHelp />
-</section>
-
-<dl class="about" data-testid="about">
+<section class="card about" data-testid="about">
+<dl>
   <div><dt>{messages.syncStatus}</dt><dd>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</dd></div>
   <div><dt>{messages.appVersion}</dt><dd><a href={RELEASES_URL} target="_blank" rel="noopener" data-testid="app-version">{APP_VERSION_LABEL}</a></dd></div>
   <div><dt>{messages.feedback}</dt><dd><a href={newIssueUrl(APP_VERSION_LABEL)} target="_blank" rel="noopener" data-testid="report-issue">{messages.reportIssue}</a></dd></div>
   <div><dt>{messages.version}</dt><dd>{BOOK_VERSION}</dd></div>
 </dl>
+<InstallHelp />
+</section>

@@ -8,6 +8,7 @@
   import FirstRunScreen from './lib/ui/FirstRunScreen.svelte'
   import MonthScreen from './lib/ui/MonthScreen.svelte'
   import SettingsScreen from './lib/ui/SettingsScreen.svelte'
+  import ThemeMenu from './lib/ui/ThemeMenu.svelte'
 
   let { app }: { app: AppState } = $props()
   const tabs: Tab[] = ['add', 'month', 'activity', 'settings']
@@ -25,7 +26,10 @@
 <div class="shell">
   <header class="top">
     <span class="brand"><img class="logo" src={import.meta.env.BASE_URL + 'favicon.svg'} alt="" width="28" height="28" /><strong><span class="fi">{messages.appName.slice(0, 2)}</span>{messages.appName.slice(2)}</strong></span>
-    {#if app.pendingCount}<span class="pill info" role="status" data-testid="status-pill">{messages.syncPending(app.pendingCount)}</span>{/if}
+    <span class="top-right">
+      {#if app.pendingCount}<span class="pill info" role="status" data-testid="status-pill">{messages.syncPending(app.pendingCount)}</span>{/if}
+      <ThemeMenu {app} />
+    </span>
   </header>
 
   {#if !app.online}<div class="banner" role="status" data-testid="offline">{messages.offline}</div>{/if}
