@@ -304,3 +304,20 @@ test('Settings has the read-only facts in their own tile, and the theme icon sit
   for (const id of ['app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 })
+
+test('By day lists the entry added last at the top of its day', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  for (const amount of ['11.11', '22.22']) {
+    await page.getByTestId('amount').fill(amount)
+    await page.getByTestId('categories').selectOption('Bills')
+    await page.getByTestId('accounts').selectOption('Joint')
+    await page.getByTestId('save').click()
+    await expect.poll(() => page.getByTestId('amount').inputValue()).toBe('') // saved and the form reset
+  }
+  await page.getByTestId('tab-month').click()
+  const today = page.getByTestId('day').first().locator('.entry')
+  await expect(today.filter({ hasText: '22.22' })).toBeVisible()
+  const texts = await today.allInnerTexts()
+  expect(texts.findIndex((t) => t.includes('22.22'))).toBeLessThan(texts.findIndex((t) => t.includes('11.11')))
+})
