@@ -4,6 +4,8 @@ export const versionLabel = (version: string, sha: string) => {
   return short ? `${version} (${short})` : version
 }
 
+export const APP_VERSION = typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__
+
 export const APP_VERSION_LABEL = versionLabel(
   typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__,
   typeof __APP_SHA__ === 'undefined' ? '' : __APP_SHA__,

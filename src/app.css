@@ -170,3 +170,5 @@ details.fold[open] > summary::after { transform: rotate(-135deg); }
 .modes { display: flex; gap: 8px; margin: 0 0 12px; }
 .modes button { flex: 1; }
 .modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }
+.pill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.pill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
