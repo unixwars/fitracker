@@ -26,7 +26,7 @@ export const messages = {
   settingNeedsConnection: 'Changing this setting needs a connection. Try again when you are online and signed in.',
   settingNotSaved: 'The setting could not be saved. It is unchanged.',
   settingsAccounts: 'Accounts',
-  settingsCategories: 'Category icons',
+  settingsCategories: 'Categories',
   countIn: 'Count in:',
   inMonth: 'Month',
   inYear: 'Year',

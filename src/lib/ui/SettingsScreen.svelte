@@ -1,5 +1,6 @@
 <script lang="ts">
   import Alert from './Alert.svelte'
+  import CategoryIcon from './CategoryIcon.svelte'
   import IconPicker from './IconPicker.svelte'
   import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
@@ -64,7 +65,7 @@
     <p class="muted">{messages.sharedSettingsNote}</p>
     {#each app.lists.accounts.filter((a) => a.active) as a (a.name)}
       <div class="stat acct" data-testid="account-row">
-        <span><IconPicker label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small> <button class="secondary" disabled={!app.canWrite} onclick={() => app.resetAccountToggles(a.name)} data-testid="reset-toggles">{messages.resetToSheet}</button>{/if}</span>
+        <span><IconPicker id={'account:' + a.name} label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small> <button class="secondary" disabled={!app.canWrite} onclick={() => app.resetAccountToggles(a.name)} data-testid="reset-toggles">{messages.resetToSheet}</button>{/if}</span>
         <span class="row" style="flex: 0 0 auto" role="group" aria-label={messages.countIn}>
           <span class="muted">{messages.countIn}</span>
           <label><input type="checkbox" checked={a.inMonthly} disabled={!app.canWrite} onchange={async (e) => { const box = e.currentTarget; const was = a.inMonthly; if (!(await app.setAccountToggle(a.name, 'inMonthly', box.checked))) box.checked = was }} data-testid="toggle-monthly" /> {messages.inMonth}</label>
@@ -78,7 +79,7 @@
   <details class="fold" data-testid="categories-fold">
     <summary><span>{messages.settingsCategories}</span></summary>
     {#each categoryNames as n (n)}
-      <div class="stat"><span><IconPicker label={n} current={app.categoryCustom(n) ?? '•'} onpick={(e) => app.setIcon('category', n, e)} /> {n}</span></div>
+      <div class="stat"><span><IconPicker id={'category:' + n} label={n} current={app.categoryCustom(n) ?? ''} onpick={(e) => app.setIcon('category', n, e)}>{#snippet glyph()}<CategoryIcon name={n} custom={app.categoryCustom(n)} />{/snippet}</IconPicker> {n}</span></div>
     {/each}
   </details>
   </section>

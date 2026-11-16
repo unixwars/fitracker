@@ -198,3 +198,23 @@ test('Settings Accounts and Category icons are closed folds that open on tap', a
   }
   await expect(page.getByTestId('account-row').first()).toBeVisible()
 })
+
+test('Settings icon pickers: one open at a time, categories show their default icon', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('categories-fold').locator('summary')).toHaveText('Categories')
+  await page.getByTestId('categories-fold').locator('summary').click()
+  const buttons = page.getByTestId('categories-fold').getByRole('button', { name: /^Icon:/ })
+  expect(await buttons.count()).toBeGreaterThan(1)
+  await expect(buttons.first().locator('svg')).toHaveCount(1) // the built-in icon, not an empty dot
+  await buttons.nth(0).click()
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await buttons.nth(1).dispatchEvent('click') // the open menu covers the next row's button, so click it programmatically
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.iconmenu')).toHaveCount(0)
+  await buttons.nth(0).click()
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await page.getByRole('heading', { name: 'Settings' }).click() // a tap outside closes it
+  await expect(page.locator('.iconmenu')).toHaveCount(0)
+})

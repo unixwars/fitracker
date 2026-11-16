@@ -8,6 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Changed
+- Settings: Accounts and Categories are collapsible sections; only one icon picker is open at a time (it closes on Escape or a tap outside), and categories show their built-in icon instead of a dot.
 - First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings.
 
 ### Fixed
