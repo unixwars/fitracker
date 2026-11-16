@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { normaliseName, validateNewAccount, validateNewCategory } from './newItem'
 
 const names = (n: number) => Array.from({ length: n }, (_, i) => `Acc${i}`)
-const cat = (name: string, type: 'expense' | 'income', active = true) => ({ name, type, active })
+const cat = (name: string, type: string, active: unknown = true) => [name, type, active]
 
 describe('normaliseName', () => {
   it('trims and composes (NFC), so the stored text is what is compared', () => {
@@ -50,6 +50,18 @@ describe('validateNewCategory', () => {
     expect(validateNewCategory('New', 'expense', many('expense', 40, false))).toBeNull()
     expect(validateNewCategory('New', 'income', [...many('income', 15), ...many('expense', 3)])).toBe('full')
     expect(validateNewCategory('New', 'expense', many('income', 15))).toBeNull() // a full income list does not block expenses
+  })
+  it('reads the raw rows the way the sheet does: type without regard to case, active only when TRUE, booleans and numbers as names', () => {
+    expect(validateNewCategory('Food', 'expense', [cat('food', ' Expense ')])).toBe('duplicate')
+    expect(validateNewCategory('Food', 'expense', [cat('Food', 'income')])).toBeNull()
+    const many = Array.from({ length: 30 }, (_, i) => cat(`E${i}`, 'EXPENSE'))
+    expect(validateNewCategory('New', 'expense', many)).toBe('full') // a hand-typed upper-case type counts
+    expect(validateNewCategory('New', 'expense', many.map((r) => [r[0], r[1], 'TRUE']))).toBeNull() // the text TRUE is not a checked box
+    expect(validateNewCategory('2024', 'expense', [cat(2024 as unknown as string, 'expense')])).toBe('duplicate')
+  })
+  it('counts a boolean or number in the account name column toward the cap, like COUNTA', () => {
+    expect(validateNewAccount('New', [...names(39), true])).toBe('full')
+    expect(validateNewAccount('New', [...names(38), 7])).toBeNull()
   })
   it('applies the same name rules', () => {
     expect(validateNewCategory('', 'expense', [])).toBe('empty')

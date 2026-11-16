@@ -323,18 +323,20 @@ export class AppState {
   // connection and runs one at a time). Success means the read-back confirmed the row; the refresh that follows is in the
   // background, so a failed refresh never reads as "not saved".
   lastAdded = $state<AddedItem | null>(null) // what a session-only Undo would clear; cleared on leaving Settings
-  private async addItem(run: (store: EntryStore) => Promise<{ ok: true; added: AddedItem } | { ok: false; reason: NameProblem | 'tryAgain' }>): Promise<{ ok: true } | { ok: false; reason: NameProblem | 'tryAgain' | 'offline' | 'failed' }> {
+  private addItem(kind: 'account' | 'category', name: string, run: (store: EntryStore) => Promise<{ ok: true; added: AddedItem } | { ok: false; reason: NameProblem | 'tryAgain' }>): Promise<{ ok: true } | { ok: false; reason: NameProblem | 'tryAgain' | 'offline' | 'failed' }> {
     const store = this.store
-    if (!store || !this.canWrite) return { ok: false, reason: 'failed' }
-    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return { ok: false, reason: 'offline' } }
+    if (!store || !this.canWrite) return Promise.resolve({ ok: false, reason: 'failed' })
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return Promise.resolve({ ok: false, reason: 'offline' }) }
     const job = this.settingsQueue.then(async () => {
       try {
         const r = await run(store)
-        if (r.ok) { this.lastAdded = r.added; this.message = ''; void this.sync() }
-        return r.ok ? ({ ok: true } as const) : r
+        if (!r.ok) return r
+        this.message = ''
+        if (this.tab === 'settings') this.lastAdded = r.added // an add that finishes after Settings was left offers no Undo
+        void this.sync().then(() => this.checkListed(kind, r.added.name))
+        return { ok: true } as const
       } catch (err) {
-        if (err instanceof AuthExpired) this.authExpired = true
-        else if (err instanceof UnrecognisedLayout) this.message = err.message
+        if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
         else this.message = messages.settingNotSaved
         return { ok: false, reason: 'failed' } as const
       }
@@ -342,24 +344,35 @@ export class AppState {
     this.settingsQueue = job.catch(() => undefined)
     return job
   }
-  addAccount(name: string, currency: Currency) { return this.addItem((s) => s.addAccount({ name, currency })) }
-  addCategory(name: string, type: EntryType) { return this.addItem((s) => s.addCategory({ name, type })) }
-  /** Clears the row the last add wrote, when that is still safe (see EntryStore.undoAddItem). */
-  async undoLastAdd(): Promise<'ok' | 'changed' | 'inUse' | 'failed'> {
+  // Another device can write a different name to the same row a moment later and silently replace a confirmed add: the
+  // refresh that follows every add checks that the name is really in the sheet's list.
+  private checkListed(kind: 'account' | 'category', name: string) {
+    const lower = name.toLowerCase()
+    const listed = kind === 'account' ? this.sheetLists.accounts.some((a) => a.name.toLowerCase() === lower) : this.sheetLists.categories.some((c) => c.name.toLowerCase() === lower)
+    if (!listed && this.status === 'ok') this.message = messages.itemVanished(name)
+  }
+  addAccount(name: string, currency: Currency) { return this.addItem('account', name, (s) => s.addAccount({ name, currency })) }
+  addCategory(name: string, type: EntryType) { return this.addItem('category', name, (s) => s.addCategory({ name, type })) }
+  /** Clears the row the last add wrote, when that is still safe (see EntryStore.undoAddItem). Runs in the same queue as adds. */
+  undoLastAdd(): Promise<'ok' | 'changed' | 'inUse' | 'failed'> {
     const store = this.store
     const added = this.lastAdded
-    if (!store || !added || !this.canWrite) return 'failed'
-    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return 'failed' }
-    try {
-      const r = await store.undoAddItem(added)
-      this.lastAdded = null
-      if (r.ok) { this.message = ''; void this.sync(); return 'ok' }
-      return r.reason
-    } catch (err) {
-      if (err instanceof AuthExpired) this.authExpired = true
-      else this.message = messages.settingNotSaved
-      return 'failed'
-    }
+    if (!store || !added || !this.canWrite) return Promise.resolve('failed')
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return Promise.resolve('failed') }
+    this.lastAdded = null // forgotten at once: a second tap has nothing to undo
+    const job = this.settingsQueue.then(async () => {
+      try {
+        const r = await store.undoAddItem(added)
+        if (r.ok) { this.message = ''; void this.sync(); return 'ok' as const }
+        return r.reason
+      } catch (err) {
+        if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
+        else this.message = messages.settingNotSaved
+        return 'failed' as const
+      }
+    })
+    this.settingsQueue = job.catch(() => undefined)
+    return job
   }
   /** True when the setting was saved. */
   async setAccountToggle(name: string, field: 'inMonthly' | 'inAnnual', value: boolean): Promise<boolean> {

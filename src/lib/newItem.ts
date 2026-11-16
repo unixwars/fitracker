@@ -21,27 +21,32 @@ const problemWith = (name: string): NameProblem | null => {
 
 // The sheet matches names without regard to case, so "cash" next to "Cash" would take Cash's currency.
 const same = (a: string, b: string): boolean => normaliseName(a).toLowerCase() === normaliseName(b).toLowerCase()
-const present = (v: unknown): v is string => typeof v === 'string' ? v.trim() !== '' : typeof v === 'number'
+// COUNTA counts any non-empty cell, so a number or a boolean in the name column counts too.
+const present = (v: unknown): boolean => v !== undefined && v !== null && String(v).trim() !== ''
 
 /** `columnA` is the raw name column of Accounts, rows the parser may skip included (every non-empty name counts toward the cap). */
 export function validateNewAccount(name: string, columnA: unknown[]): NameProblem | null {
   const n = normaliseName(name)
   const problem = problemWith(n)
   if (problem) return problem
-  const existing = columnA.filter(present).map(String)
+  const existing = columnA.filter(present).map((v) => String(v))
   if (existing.some((e) => same(e, n))) return 'duplicate'
   if (existing.length >= ACCOUNTS.max) return 'full'
   return null
 }
 
-/** `rows` is every row of Categories (inactive ones too: they still clash by name); only active rows of the type count toward its cap. */
-export function validateNewCategory(name: string, type: EntryType, rows: { name: string; type: EntryType; active: boolean }[]): NameProblem | null {
+/**
+ * `rows` is every raw row of Categories (name, type, active). Inactive rows still clash by name; only active rows of the type
+ * count toward its cap. The type is compared without regard to case and `active` must be a real TRUE, as the template's
+ * COUNTIFS and FILTER do, so a hand-typed "Expense" row counts like the sheet counts it.
+ */
+export function validateNewCategory(name: string, type: EntryType, rows: unknown[][]): NameProblem | null {
   const n = normaliseName(name)
   const problem = problemWith(n)
   if (problem) return problem
-  const ofType = rows.filter((r) => r.type === type)
-  if (ofType.some((r) => same(r.name, n))) return 'duplicate'
+  const ofType = rows.filter((r) => present(r?.[0]) && String(r?.[1] ?? '').trim().toLowerCase() === type)
+  if (ofType.some((r) => same(String(r[0]), n))) return 'duplicate'
   const cap = type === 'expense' ? CATEGORIES.maxExpense : CATEGORIES.maxIncome
-  if (ofType.filter((r) => r.active).length >= cap) return 'full'
+  if (ofType.filter((r) => r[2] === true).length >= cap) return 'full'
   return null
 }

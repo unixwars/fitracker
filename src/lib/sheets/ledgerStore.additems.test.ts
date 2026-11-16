@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { UnrecognisedLayout } from '../errors'
+import { ApiError, NewerThanApp, UnrecognisedLayout } from '../errors'
+import { META_KEY } from '../schema'
 import type { Entry } from '../rows'
 import { createFakeSheets } from './fakeSheets'
 import { seedLedger } from './fixtures'
@@ -129,6 +130,59 @@ describe('addCategory', () => {
   })
 })
 
+describe('lost responses, formulas, concurrent same names and refused books', () => {
+  it('a write that landed but whose response was lost is recognised by the read-back, not reported as a failure', async () => {
+    const { fake, store } = setup()
+    const real = fake.valuesBatchUpdate.bind(fake)
+    fake.valuesBatchUpdate = async (...a) => { await real(...a); throw new ApiError(503, 'response lost') }
+    const r = await store.addAccount({ name: 'Landed', currency: 'EUR' })
+    expect(r).toMatchObject({ ok: true, added: { name: 'Landed' } })
+    expect(accountRows(fake).filter((x) => x[0] === 'Landed')).toHaveLength(1)
+  })
+  it('a write that did not land still fails, with the original error', async () => {
+    const { fake, store } = setup()
+    fake.failNext(503) // hits the first call of the add, before anything is written
+    await expect(store.addAccount({ name: 'Nope', currency: 'EUR' })).rejects.toBeInstanceOf(ApiError)
+    expect(accountRows(fake).some((x) => x[0] === 'Nope')).toBe(false)
+  })
+  it('never writes over a formula cell: a row whose C holds a formula is skipped, and so is one whose A shows nothing', async () => {
+    const { fake, store } = setup()
+    const n = accountRows(fake).length
+    fake.book('S1').set(`Accounts!C${2 + n}`, { f: '=TRUE', v: true })
+    fake.book('S1').set(`Accounts!A${3 + n}`, { f: '=""', v: '' })
+    const r = await store.addAccount({ name: 'Careful', currency: 'EUR' })
+    expect(r.ok && r.added.row).toBe(4 + n)
+    expect(fake.book('S1').get(`Accounts!C${2 + n}`)).toMatchObject({ f: '=TRUE' })
+    expect(fake.book('S1').get(`Accounts!A${3 + n}`)).toMatchObject({ f: '=""' })
+  })
+  it('two devices adding the same name to the same row end with one row and both succeed', async () => {
+    const { fake, store } = setup()
+    const n = accountRows(fake).length
+    fake.afterNextWrite(() => fake.book('S1').write(`Accounts!A${2 + n}:E${2 + n}`, [['Twin', 'EUR', true, true, true]]))
+    expect(await store.addAccount({ name: 'Twin', currency: 'EUR' })).toMatchObject({ ok: true })
+    expect(accountRows(fake).filter((x) => x[0] === 'Twin')).toHaveLength(1)
+  })
+  it('refuses a newer or an unrecognised book before any write', async () => {
+    const newer = setup()
+    newer.fake.book('S1').metadata.set(META_KEY, '9')
+    await expect(newer.store.addCategory({ name: 'X', type: 'expense' })).rejects.toBeInstanceOf(NewerThanApp)
+    expect(writes(newer.fake)).toHaveLength(0)
+    const odd = setup()
+    odd.fake.book('S1').metadata.delete(META_KEY)
+    odd.fake.book('S1').write('Ledger!A1:J1', [['x', 'y']])
+    await expect(odd.store.addAccount({ name: 'X', currency: 'EUR' })).rejects.toBeInstanceOf(UnrecognisedLayout)
+    expect(writes(odd.fake)).toHaveLength(0)
+  })
+  it('growing Categories costs one failed write, one grow and one write', async () => {
+    const { fake, store } = setup()
+    const n = fake.book('S1').read('Categories!A2:C', 'UNFORMATTED_VALUE').length
+    fake.tabMaxRows.Categories = 1 + n
+    await store.addCategory({ name: 'Beyond', type: 'expense' })
+    expect(fake.count('valuesBatchUpdate')).toBe(2)
+    expect(fake.count('growTab')).toBe(1)
+  })
+})
+
 describe('undoAddItem', () => {
   it('clears the row it wrote, leaving the row itself', async () => {
     const { fake, store } = setup()
@@ -145,6 +199,28 @@ describe('undoAddItem', () => {
     fake.book('S1').write(`Categories!A${r.added.row}:C${r.added.row}`, [['Typo', 'expense', false]])
     expect(await store.undoAddItem(r.added)).toEqual({ ok: false, reason: 'changed' })
     expect(rowOf(fake, `Categories!A${r.added.row}:C${r.added.row}`)).toEqual(['Typo', 'expense', false])
+  })
+  it('refuses when a transfer destination, a snapshot, an entry of the same category type or a budget uses the name', async () => {
+    const entry = (o: Partial<Entry>): Entry => ({ id: 'x' + Math.random(), kind: 'expense', date: '2026-11-12', money: { minor: 100, currency: 'EUR' }, description: 'x', category: 'Groceries', account: 'Joint', ...o })
+    const toAccount = setup()
+    const a = await toAccount.store.addAccount({ name: 'Dest', currency: 'EUR' })
+    if (!a.ok) throw new Error('add failed')
+    await toAccount.store.addMany([entry({ kind: 'transfer', category: undefined, toAccount: 'Dest' })])
+    expect(await toAccount.store.undoAddItem(a.added)).toEqual({ ok: false, reason: 'inUse' })
+    const snap = setup()
+    const b = await snap.store.addAccount({ name: 'Snap', currency: 'EUR' })
+    if (!b.ok) throw new Error('add failed')
+    await snap.store.addSnapshot({ id: 's1', date: '2026-11-12', account: 'Snap', balance: { minor: 1, currency: 'EUR' }, note: '' })
+    expect(await snap.store.undoAddItem(b.added)).toEqual({ ok: false, reason: 'inUse' })
+    const cat = setup()
+    const c = await cat.store.addCategory({ name: 'Gifts', type: 'income' })
+    if (!c.ok) throw new Error('add failed')
+    await cat.store.addMany([entry({ kind: 'expense', category: 'Gifts' })]) // an expense Gifts does not block undoing the income Gifts
+    expect(await cat.store.undoAddItem(c.added)).toEqual({ ok: true })
+    const d = await cat.store.addCategory({ name: 'Budgeted', type: 'expense' })
+    if (!d.ok) throw new Error('add failed')
+    cat.fake.book('S1').write('Budgets!A9:D9', [[2026, 'expense', 'Budgeted', 50]])
+    expect(await cat.store.undoAddItem(d.added)).toEqual({ ok: false, reason: 'inUse' })
   })
   it('refuses when an entry or snapshot already uses the name, so no history is orphaned', async () => {
     const { fake, store } = setup()

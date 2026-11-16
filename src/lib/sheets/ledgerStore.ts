@@ -240,9 +240,13 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     check: (rows: unknown[][]) => NameProblem | null
   }): Promise<AddItemResult> {
     await checkVersion()
+    // The rows are read as FORMULA, so a cell that holds a formula (even one that shows nothing) is never mistaken for a free
+    // one and overwritten (AGENTS.md: never overwrite a formula cell).
+    const isFormula = (v: unknown) => typeof v === 'string' && v.trim().startsWith('=')
     const filled = (r: unknown[] | undefined) => str(r?.[0]) !== '' || str(r?.[1]) !== ''
+    const free = (r: unknown[] | undefined) => !filled(r) && !(r ?? []).some(isFormula)
     for (let attempt = 0; attempt < MAX_ADD_ATTEMPTS; attempt++) {
-      const [header, rows] = await read([spec.headerRange, spec.rowsRange, ...TAB_GUARD])
+      const [header, rows] = await read([spec.headerRange, spec.rowsRange, ...TAB_GUARD], 'FORMULA')
       const h = header?.[0] ?? []
       if (h.length !== spec.headers.length || !spec.headers.every((x, i) => str(h[i]) === x)) {
         throw new UnrecognisedLayout(`${spec.tab} headers do not match the layout`)
@@ -253,8 +257,9 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       let used = 0
       list.forEach((r, i) => { if (filled(r)) used = i + 1 })
       let first = spec.firstRow + used
+      while (!free(list[first - spec.firstRow]) && (spec.lastRow === undefined || first <= spec.lastRow)) first++ // skip a row with a formula
       if (spec.lastRow !== undefined && first > spec.lastRow) {
-        const gap = Array.from({ length: spec.lastRow - spec.firstRow + 1 }, (_, i) => i).find((i) => !filled(list[i]))
+        const gap = Array.from({ length: spec.lastRow - spec.firstRow + 1 }, (_, i) => i).find((i) => free(list[i]))
         if (gap === undefined) return { ok: false, reason: 'full' }
         first = spec.firstRow + gap
       }
@@ -262,9 +267,17 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       try {
         await api.valuesBatchUpdate(spreadsheetId, [{ range, values: [spec.cells] }])
       } catch (err) {
-        if (spec.lastRow !== undefined || !(err instanceof ApiError && err.status === 400 && /grid limits/i.test(err.message))) throw err
-        await api.growTab(spreadsheetId, spec.tab, first + 100) // Categories is not fixed in size: add rows, once
-        await api.valuesBatchUpdate(spreadsheetId, [{ range, values: [spec.cells] }])
+        if (err instanceof AuthExpired) throw err
+        if (spec.lastRow === undefined && err instanceof ApiError && err.status === 400 && /grid limits/i.test(err.message)) {
+          await api.growTab(spreadsheetId, spec.tab, first + 100) // Categories is not fixed in size: add rows, once
+          await api.valuesBatchUpdate(spreadsheetId, [{ range, values: [spec.cells] }])
+        } else {
+          // A lost response does not mean a lost write: if the row now holds exactly what was written, it landed.
+          const [now] = await read([range]).catch(() => [undefined])
+          const row = now?.[0] ?? []
+          if (row.length === spec.cells.length && spec.cells.every((c, i) => row[i] === c)) { markDirty(); return { ok: true, added: { kind: spec.kind, row: first, cells: spec.cells, name: spec.name } } }
+          throw err
+        }
       }
       const [back] = await read([range])
       if (normaliseName(str(back?.[0]?.[0])) === spec.name) {
@@ -292,7 +305,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       kind: 'category', tab: CATEGORIES.tab, firstRow: CATEGORIES.firstRow, lastCol: CATEGORIES.lastCol,
       headerRange: CATEGORIES.ranges.header, rowsRange: CATEGORIES.ranges.rows, headers: CATEGORIES.headers, name,
       cells: [name, c.type, true],
-      check: (rows) => validateNewCategory(name, c.type, parseReference([], [], rows, []).categories),
+      check: (rows) => validateNewCategory(name, c.type, rows),
     })
   }
 
@@ -302,13 +315,15 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     await checkVersion()
     const tab = added.kind === 'account' ? ACCOUNTS : CATEGORIES
     const range = `${tab.tab}!A${added.row}:${tab.lastCol}${added.row}`
-    const [current, ledger, snapshots] = await read([range, 'Ledger!G2:I', 'Snapshots!C2:C', ...TAB_GUARD])
+    // Ledger C:I is [type, amount, place, description, category, account, to_account].
+    const [current, ledger, snapshots, budgets] = await read([range, LEDGER.ranges.typesToAccounts, SNAPSHOTS.ranges.accounts, REFERENCE.budgets, ...TAB_GUARD])
     const row = current?.[0] ?? []
     if (row.length !== added.cells.length || !added.cells.every((c, i) => row[i] === c)) return { ok: false, reason: 'changed' }
     const sameName = (v: unknown) => normaliseName(str(v)).toLowerCase() === added.name.toLowerCase()
+    const type = str(added.cells[1]).toLowerCase() // a category's type; the ledger and the budgets name it per type
     const used = added.kind === 'account'
-      ? (ledger ?? []).some((r) => sameName(r?.[1]) || sameName(r?.[2])) || (snapshots ?? []).some((r) => sameName(r?.[0]))
-      : (ledger ?? []).some((r) => sameName(r?.[0]))
+      ? (ledger ?? []).some((r) => sameName(r?.[5]) || sameName(r?.[6])) || (snapshots ?? []).some((r) => sameName(r?.[0]))
+      : (ledger ?? []).some((r) => str(r?.[0]).toLowerCase() === type && sameName(r?.[4])) || (budgets ?? []).some((r) => str(r?.[1]).toLowerCase() === type && sameName(r?.[2]))
     if (used) return { ok: false, reason: 'inUse' }
     await api.valuesBatchClear(spreadsheetId, [range])
     markDirty()

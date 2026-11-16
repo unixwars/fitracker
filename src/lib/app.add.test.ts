@@ -17,6 +17,7 @@ async function setup() {
   const env: Env = { storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) }, idb: new IDBFactory(), api: fake, auth, pick: async () => 'S1', copyTemplate: async () => null }
   const app = new AppState(env)
   await app.init()
+  app.tab = 'settings' // Undo is offered only while Settings is open
   return { fake, app }
 }
 
@@ -53,6 +54,40 @@ describe('adding accounts and categories', () => {
     app.message = ''
     expect(await app.addAccount('Good', 'EUR')).toEqual({ ok: true })
     expect(app.message).toBe('')
+  })
+  it('a refresh that fails after a good write does not read as not saved', async () => {
+    const { fake, app } = await setup()
+    const real = fake.batchGet.bind(fake)
+    let reads = 0
+    fake.batchGet = async (...a) => { if (++reads > 2) throw new Error('refresh failed'); return real(...a) } // the guard read and the read-back pass; the refresh fails
+    expect(await app.addAccount('Good', 'EUR')).toEqual({ ok: true })
+    await vi.waitFor(() => expect(reads).toBeGreaterThan(2))
+    expect(app.message).not.toBe(messages.settingNotSaved)
+    expect(app.lastAdded).toMatchObject({ name: 'Good' })
+  })
+  it('says so when another device replaced the row a moment after the add', async () => {
+    const { fake, app } = await setup()
+    const r = await app.addAccount('Doomed', 'EUR')
+    expect(r).toEqual({ ok: true })
+    const row = app.lastAdded!.row
+    fake.book('S1').write(`Accounts!A${row}:E${row}`, [['Rival', 'EUR', true, true, true]])
+    await vi.waitFor(() => expect(app.message).toBe(messages.itemVanished('Doomed')))
+  })
+  it('an add that finishes after Settings was left offers no Undo', async () => {
+    const { app } = await setup()
+    const pending = app.addAccount('Late', 'EUR')
+    app.tab = 'add'
+    expect(await pending).toEqual({ ok: true })
+    expect(app.lastAdded).toBeNull()
+  })
+  it('a double tapped Undo clears the row once and never touches a later add', async () => {
+    const { fake, app } = await setup()
+    await app.addAccount('Oops', 'EUR')
+    const [a, b] = await Promise.all([app.undoLastAdd(), app.undoLastAdd()])
+    expect([a, b]).toEqual(['ok', 'failed'])
+    expect(await app.addAccount('Next', 'EUR')).toEqual({ ok: true })
+    await vi.waitFor(() => expect(app.lists.accounts.some((x) => x.name === 'Next')).toBe(true))
+    expect(fake.book('S1').read('Accounts!A2:A', 'UNFORMATTED_VALUE').flat()).toContain('Next')
   })
   it('two adds at once run one after the other and both land', async () => {
     const { app } = await setup()
