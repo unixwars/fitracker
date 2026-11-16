@@ -168,8 +168,20 @@ details.fold[open] > summary::after { transform: rotate(-135deg); }
 .linkpill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: inherit; text-decoration: none; font-size: 0.92rem; }
 @media (hover: hover) { .linkpill:hover { border-color: var(--accent); } }
 
+.iconpick { position: relative; display: inline-block; }
+.iconbtn { min-width: 44px; padding: 0 6px; }
+.iconmenu { position: absolute; z-index: 5; left: 0; top: 100%; display: flex; flex-wrap: wrap; gap: 4px; width: 15rem; max-width: calc(100vw - 32px); padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.iconmenu input { flex: 1 1 100%; }
+.iconmenu button { min-width: 44px; padding: 0 8px; }
+.ci-custom { display: inline-block; width: 18px; text-align: center; line-height: 1; }
+.acct { gap: 8px; flex-wrap: wrap; align-items: center; }
+.acct label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: var(--accent); }
 .modes { display: flex; gap: 8px; margin: 0 0 12px; }
 .modes button { flex: 1; }
 .modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }
+.pill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.pill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
+.card > details.fold { margin-top: 0; }
 .linkpill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
 .linkpill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */

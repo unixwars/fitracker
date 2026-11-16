@@ -38,6 +38,13 @@ describe('fake writes and hooks', () => {
     await fake.setMetadata(id, 'k', '3')
     expect(await fake.getMetadata(id, 'k')).toBe('3')
   })
+  it('listMetadata returns the entries under a prefix', async () => {
+    const { fake, id } = ledgerWith(1)
+    await fake.setMetadata(id, 'fitracker.account.A', '1')
+    await fake.setMetadata(id, 'zzz', '2')
+    expect(await fake.listMetadata(id, 'fitracker.')).toMatchObject({ 'fitracker.account.A': '1' })
+    expect(Object.keys(await fake.listMetadata(id, 'fitracker.'))).not.toContain('zzz')
+  })
   it('beforeNextWrite runs before the write lands and afterNextWrite after', async () => {
     const { fake, id } = ledgerWith(1)
     const seen: string[] = []
