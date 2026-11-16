@@ -55,6 +55,7 @@ h3 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-
 .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
 .top strong { letter-spacing: 0.02em; }
 .pill { font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; background: var(--surface); }
+.pill.info { font-size: 0.72rem; line-height: 1.3; padding: 1px 8px; color: var(--ink); background: color-mix(in srgb, var(--accent) 20%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 main { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
 .banner { margin: 0 16px 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 0.92rem; }
 .banner.warn { border-color: var(--accent); }
@@ -164,11 +165,11 @@ details.fold summary::-webkit-details-marker { display: none; }
 details.fold summary::after { content: ''; flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 0.15s; }
 details.fold[open] > summary::after { transform: rotate(-135deg); }
 .links { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: inherit; text-decoration: none; font-size: 0.92rem; }
-@media (hover: hover) { .pill:hover { border-color: var(--accent); } }
+.linkpill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: inherit; text-decoration: none; font-size: 0.92rem; }
+@media (hover: hover) { .linkpill:hover { border-color: var(--accent); } }
 
 .modes { display: flex; gap: 8px; margin: 0 0 12px; }
 .modes button { flex: 1; }
 .modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }
-.pill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
-.pill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
+.linkpill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.linkpill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
