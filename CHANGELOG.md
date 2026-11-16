@@ -7,6 +7,12 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ## [Unreleased]
 
 
+### Changed
+- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the GitHub and Releases links are icon pills aligned right.
+
+### Fixed
+- Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
+
 ### Added
 - Browse by day: a "By day" switch on the Month screen lists the month's entries newest day first, including transfers, and opens the same edit sheet.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
