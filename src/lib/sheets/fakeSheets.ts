@@ -161,6 +161,9 @@ export function createFakeSheets(): FakeSheets {
       if (tab in fake.tabMaxRows) fake.tabMaxRows[tab] = Math.max(fake.tabMaxRows[tab], rows)
       else fake.maxRows = Math.max(fake.maxRows, rows)
     },
+    async copyRowStyle(id, tab, fromRow, toRow, columns) {
+      enter('copyRowStyle', id, tab, fromRow, toRow, columns) // the fake keeps values only; the call is recorded for the tests
+    },
     async valuesBatchClear(id, ranges) {
       enter('valuesBatchClear', id, ranges)
       fireBeforeWrite()

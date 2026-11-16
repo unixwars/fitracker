@@ -222,6 +222,16 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     return items.map((e) => results.get(e.id)!)
   }
 
+  // Cosmetic and best effort: the new row gets the checkboxes and dropdowns of the row above (or below, for the first row), so a
+  // Table or a validated column shows it like the rest. A failure here never fails the add (except a lost sign-in).
+  async function styleLikeNeighbour(tab: string, firstRow: number, row: number, columns: number): Promise<void> {
+    try {
+      await api.copyRowStyle(spreadsheetId, tab, row > firstRow ? row - 1 : row + 1, row, columns)
+    } catch (err) {
+      if (err instanceof AuthExpired) throw err
+    }
+  }
+
   // Adds one row to a reference tab (Accounts or Categories). Rules, in order: the headers must be the layout (a person may
   // have inserted a column), the name must pass the checks against what the sheet holds right now, then the row goes to the
   // first free row (the last row holding anything in A or B, plus one; Accounts reuses an empty row inside its fixed 41 rows
@@ -284,6 +294,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
       }
       const [back] = await read([range])
       if (normaliseName(str(back?.[0]?.[0])) === spec.name) {
+        await styleLikeNeighbour(spec.tab, spec.firstRow, first, spec.headers.length)
         markDirty()
         return { ok: true, added: { kind: spec.kind, row: first, cells: spec.cells, name: spec.name } }
       }

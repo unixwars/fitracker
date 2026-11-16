@@ -87,6 +87,19 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
         { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
       ] })
     },
+    // A row written through the values API has the values but not always the look of its neighbours (a Google Sheets Table shows
+    // TRUE where the rows above have checkboxes): copy the neighbour's formats and validation (rows are 1-based here).
+    async copyRowStyle(id, tab, fromRow, toRow, columns) {
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
+      const sheet = meta.sheets.find((x) => x.properties.title === tab)
+      if (!sheet) throw new ApiError(400, `No tab ${tab}`)
+      const { sheetId } = sheet.properties
+      const rows = (row: number) => ({ sheetId, startRowIndex: row - 1, endRowIndex: row, startColumnIndex: 0, endColumnIndex: columns })
+      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [
+        { copyPaste: { source: rows(fromRow), destination: rows(toRow), pasteType: 'PASTE_FORMAT' } },
+        { copyPaste: { source: rows(fromRow), destination: rows(toRow), pasteType: 'PASTE_DATA_VALIDATION' } },
+      ] })
+    },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })
     },

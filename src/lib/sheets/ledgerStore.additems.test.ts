@@ -137,6 +137,30 @@ describe('addCategory', () => {
   })
 })
 
+describe('look of the new row', () => {
+  it('copies the formats and validation of the row above, or of the row below for the first row', async () => {
+    const { fake, store } = setup()
+    const n = accountRows(fake).length
+    const r = await store.addAccount({ name: 'Styled', currency: 'EUR' })
+    expect(r.ok && r.added.row).toBe(2 + n)
+    expect(fake.calls.filter((c) => c.method === 'copyRowStyle').map((c) => c.args.slice(1))).toEqual([['Accounts', 1 + n, 2 + n, 5]])
+    const empty = setup()
+    empty.fake.book('S1').clear('Categories!A2:C')
+    await empty.store.addCategory({ name: 'First', type: 'expense' })
+    expect(empty.fake.calls.filter((c) => c.method === 'copyRowStyle').map((c) => c.args.slice(1))).toEqual([['Categories', 3, 2, 3]])
+  })
+  it('a failure copying the look never fails the add', async () => {
+    const { fake, store } = setup()
+    fake.copyRowStyle = async () => { throw new ApiError(500, 'cosmetic failure') }
+    expect(await store.addAccount({ name: 'StillAdded', currency: 'EUR' })).toMatchObject({ ok: true })
+  })
+  it('is not attempted when the add was refused', async () => {
+    const { fake, store } = setup()
+    await store.addAccount({ name: 'Car*', currency: 'EUR' })
+    expect(fake.count('copyRowStyle')).toBe(0)
+  })
+})
+
 describe('lost responses, formulas, concurrent same names and refused books', () => {
   it('a write that landed but whose response was lost is recognised by the read-back, not reported as a failure', async () => {
     const { fake, store } = setup()
