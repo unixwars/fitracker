@@ -1,8 +1,14 @@
+import type { NameProblem } from './newItem'
 import type { Entry } from './rows'
-import type { RateRow, Reference, Snapshot, Unreadable } from './types'
+import type { Currency, EntryType, RateRow, Reference, Snapshot, Unreadable } from './types'
 
 export type AddResult = { id: string; ok: boolean; reason?: 'AccountChanged' }
 export type RefreshOpts = { force?: boolean; expectIds?: string[] }
+
+/** What an add wrote, so a session-only Undo can clear exactly that row. */
+export type AddedItem = { kind: 'account' | 'category'; row: number; cells: unknown[]; name: string }
+export type AddItemResult = { ok: true; added: AddedItem } | { ok: false; reason: NameProblem | 'tryAgain' }
+export type UndoItemResult = { ok: true } | { ok: false; reason: 'changed' | 'inUse' }
 
 // The data seam: one multi-year ledger. Screens, the outbox and prediction use this; only the Sheets adapter knows about Sheets.
 export interface EntryStore {
@@ -28,6 +34,12 @@ export interface EntryStore {
   clearRowAt(row: number, expectedRaw: unknown[]): Promise<void>
   addSnapshot(s: Snapshot): Promise<AddResult>
   deleteSnapshot(id: string): Promise<{ previous: Snapshot }>
+  /** Appends an account (active, ticked In Monthly and In Annual) to the first free row of `Accounts`. Needs a connection; never grows the tab. */
+  addAccount(a: { name: string; currency: Currency }): Promise<AddItemResult>
+  /** Appends an active category to the first free row of `Categories`. */
+  addCategory(c: { name: string; type: EntryType }): Promise<AddItemResult>
+  /** Clears the row an add wrote, only while it still holds exactly what was written and nothing in the ledger uses the name. */
+  undoAddItem(added: AddedItem): Promise<UndoItemResult>
   /** Spec 3.4: freeze the closed month's live Rates cells and append the current month's row. */
   maintainRates(today: string): Promise<void>
   /** Re-reads the book (at most once per refresh interval unless forced); reports expected ids that are gone. */
