@@ -59,7 +59,8 @@
 
 {#if linked && app.lists.accounts.length}
   <section class="card" data-testid="shared-settings">
-    <h3>{messages.settingsAccounts}</h3>
+  <details class="fold" data-testid="accounts-fold">
+    <summary><span>{messages.settingsAccounts}{#if app.lists.accounts.some(differs)} <small class="muted">· {messages.differsFromSheet}</small>{/if}</span></summary>
     <p class="muted">{messages.sharedSettingsNote}</p>
     {#each app.lists.accounts.filter((a) => a.active) as a (a.name)}
       <div class="stat acct" data-testid="account-row">
@@ -71,12 +72,15 @@
         </span>
       </div>
     {/each}
+  </details>
   </section>
   <section class="card">
-    <h3>{messages.settingsCategories}</h3>
+  <details class="fold" data-testid="categories-fold">
+    <summary><span>{messages.settingsCategories}</span></summary>
     {#each categoryNames as n (n)}
       <div class="stat"><span><IconPicker label={n} current={app.categoryCustom(n) ?? '•'} onpick={(e) => app.setIcon('category', n, e)} /> {n}</span></div>
     {/each}
+  </details>
   </section>
 {/if}
 

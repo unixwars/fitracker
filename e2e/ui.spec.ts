@@ -133,6 +133,7 @@ test('an account toggle in Settings changes the Month count, is stored as metada
   await page.getByTestId('tab-month').click()
   const before = await page.getByTestId('accounts-included').innerText()
   await page.getByTestId('tab-settings').click()
+  await page.getByTestId('accounts-fold').locator('summary').click()
   const row = page.getByTestId('account-row').first()
   const box = row.getByTestId('toggle-monthly')
   const sheetCell = await cell(page, 'Accounts!D2')
@@ -179,4 +180,16 @@ test('first-run choices are equal width with an "or" between them, folds have ch
   await expect(page.getByTestId('project-link')).toContainText(/^\s*fitracker (v\d+\.\d+\.\d+|\(\w+\))/)
   await expect(page.getByTestId('releases-link-short')).toHaveCount(0)
   expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
+})
+
+test('Settings Accounts and Category icons are closed folds that open on tap', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  for (const id of ['accounts-fold', 'categories-fold']) {
+    const fold = page.getByTestId(id)
+    await expect(fold).not.toHaveAttribute('open', '')
+    await fold.locator('summary').click()
+    await expect(fold).toHaveAttribute('open', '')
+  }
+  await expect(page.getByTestId('account-row').first()).toBeVisible()
 })

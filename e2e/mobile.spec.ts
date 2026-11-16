@@ -6,6 +6,7 @@ test.use({ viewport: { width: 360, height: 640 } })
 test('Settings shared controls are touch sized and fit a 360px screen', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
+  await page.getByTestId('accounts-fold').locator('summary').click()
   const row = page.getByTestId('account-row').first()
   for (const id of ['toggle-monthly', 'toggle-annual']) {
     const label = row.getByTestId(id).locator('xpath=..')
