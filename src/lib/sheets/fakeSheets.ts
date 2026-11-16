@@ -171,6 +171,10 @@ export function createFakeSheets(): FakeSheets {
       enter('getMetadata', id, key)
       return book(id).metadata.get(key) ?? null
     },
+    async listMetadata(id, prefix) {
+      enter('listMetadata', id, prefix)
+      return Object.fromEntries([...book(id).metadata].filter(([k]) => k.startsWith(prefix)))
+    },
   }
   return fake
 }

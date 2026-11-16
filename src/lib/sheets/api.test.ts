@@ -63,6 +63,38 @@ describe('createSheetsApi', () => {
   })
 })
 
+describe('metadata with empty values', () => {
+  it('setMetadata updates, never creates, when the entry exists but its empty value was left out of the response', async () => {
+    const s = stub([json({ matchedDeveloperMetadata: [{ developerMetadata: { metadataKey: 'k' } }] }), json({})])
+    await createSheetsApi(() => 'tok', s.fetchImpl).setMetadata('S1', 'k', '3')
+    const req = JSON.parse(s.calls[s.calls.length - 1].init!.body as string).requests[0]
+    expect(req.updateDeveloperMetadata).toBeDefined()
+    expect(req.createDeveloperMetadata).toBeUndefined()
+  })
+  it('listMetadata lets a non-empty value win over a duplicate empty one', async () => {
+    const { fetchImpl } = stub([json({ matchedDeveloperMetadata: [
+      { developerMetadata: { metadataKey: 'fitracker.a', metadataValue: 'x' } },
+      { developerMetadata: { metadataKey: 'fitracker.a' } },
+    ] })])
+    expect(await createSheetsApi(() => 'tok', fetchImpl).listMetadata('S1', 'fitracker.')).toEqual({ 'fitracker.a': 'x' })
+  })
+})
+
+describe('listMetadata', () => {
+  it('searches all document metadata in one request and keeps the keys with the prefix', async () => {
+    const { calls, fetchImpl } = stub([json({ matchedDeveloperMetadata: [
+      { developerMetadata: { metadataKey: 'fitracker.account.Joint', metadataValue: '{"m":false}' } },
+      { developerMetadata: { metadataKey: 'other.key', metadataValue: 'x' } },
+    ] })])
+    expect(await createSheetsApi(() => 'tok', fetchImpl).listMetadata('S1', 'fitracker.')).toEqual({ 'fitracker.account.Joint': '{"m":false}' })
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0].init!.body as string).dataFilters[0].developerMetadataLookup).toEqual({ visibility: 'DOCUMENT', locationType: 'SPREADSHEET' })
+  })
+  it('returns nothing when no metadata matches', async () => {
+    expect(await createSheetsApi(() => 'tok', stub([json({})]).fetchImpl).listMetadata('S1', 'fitracker.')).toEqual({})
+  })
+})
+
 describe('createSheetsApi additions', () => {
   it('sheetInfo returns the spreadsheet title and the numeric id of each tab in one request', async () => {
     const { calls, fetchImpl } = stub([json({ properties: { title: 'Fitracker (test copy)' }, sheets: [{ properties: { sheetId: 0, title: 'Ledger' } }, { properties: { sheetId: 203680765, title: 'Snapshots' } }] })])

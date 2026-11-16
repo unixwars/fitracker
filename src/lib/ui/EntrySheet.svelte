@@ -32,7 +32,7 @@
       <h2>{messages.edit}</h2>
       <button class="secondary fit" onclick={onclose}>{messages.cancel}</button>
     </div>
-    <EntryForm bind:form lists={app.lists} rates={app.rates} history={[]} device={app.device} submitLabel={messages.saveChanges} {onsubmit} lockKind />
+    <EntryForm bind:form icons={app} lists={app.lists} rates={app.rates} history={[]} device={app.device} submitLabel={messages.saveChanges} {onsubmit} lockKind />
     <div style="margin-top: 16px">
       {#if confirming}
         <p>{repair ? messages.confirmDeleteRow : messages.confirmDelete}</p>

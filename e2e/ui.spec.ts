@@ -164,6 +164,25 @@ test('the Year view warns about accounts with no balance and the button opens th
   await expect(page.getByTestId('snapshot-balance')).toBeVisible()
 })
 
+test('an account toggle in Settings changes the Month count, is stored as metadata and leaves the Accounts cells alone', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
+  const before = await page.getByTestId('accounts-included').innerText()
+  await page.getByTestId('tab-settings').click()
+  await page.getByTestId('accounts-fold').locator('summary').click()
+  const row = page.getByTestId('account-row').first()
+  const box = row.getByTestId('toggle-monthly')
+  const sheetCell = await cell(page, 'Accounts!D2')
+  await box.click()
+  await expect(row).toContainText('Differs from the sheet')
+  expect(await cell(page, 'Accounts!D2')).toBe(sheetCell)
+  await expect.poll(() => page.evaluate(() => [...(window as unknown as { __fake: { book(id: string): { metadata: Map<string, string> } } }).__fake.book('fake-sheet').metadata.keys()].filter((k) => k.startsWith('fitracker.account.')).length)).toBe(1)
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
+  expect(await page.getByTestId('accounts-included').innerText()).not.toBe(before)
+})
+
 test('Month can be browsed by day and an entry opens for editing', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
@@ -202,6 +221,38 @@ test('first-run choices are equal width with an "or" between them, folds have ch
   await expect(page.getByTestId('project-link')).toContainText(/^\s*fitracker (v\d+\.\d+\.\d+|\(\w+\))/)
   await expect(page.getByTestId('releases-link-short')).toHaveCount(0)
   expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
+})
+
+test('Settings Accounts and Category icons are closed folds that open on tap', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  for (const id of ['accounts-fold', 'categories-fold']) {
+    const fold = page.getByTestId(id)
+    await expect(fold).not.toHaveAttribute('open', '')
+    await fold.locator('summary').click()
+    await expect(fold).toHaveAttribute('open', '')
+  }
+  await expect(page.getByTestId('account-row').first()).toBeVisible()
+})
+
+test('Settings icon pickers: one open at a time, categories show their default icon', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('categories-fold').locator('summary')).toHaveText('Categories')
+  await page.getByTestId('categories-fold').locator('summary').click()
+  const buttons = page.getByTestId('categories-fold').getByRole('button', { name: /^Icon:/ })
+  expect(await buttons.count()).toBeGreaterThan(1)
+  await expect(buttons.first().locator('svg')).toHaveCount(1) // the built-in icon, not an empty dot
+  await buttons.nth(0).click()
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await buttons.nth(1).dispatchEvent('click') // the open menu covers the next row's button, so click it programmatically
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.iconmenu')).toHaveCount(0)
+  await buttons.nth(0).click()
+  await expect(page.locator('.iconmenu')).toHaveCount(1)
+  await page.getByRole('heading', { name: 'Settings' }).click() // a tap outside closes it
+  await expect(page.locator('.iconmenu')).toHaveCount(0)
 })
 
 test('the status pill is hidden when nothing is pending', async ({ page }) => {

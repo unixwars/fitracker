@@ -185,9 +185,20 @@ details.card > summary { min-height: 44px; display: flex; align-items: center; c
 details.card > summary h3 { margin: 0; }
 .balrow { display: flex; gap: 8px; }
 .balrow button { flex: none; min-width: 44px; }
+.iconpick { position: relative; display: inline-block; }
+.iconbtn { min-width: 44px; padding: 0 6px; }
+.iconmenu { position: absolute; z-index: 5; left: 0; top: 100%; display: flex; flex-wrap: wrap; gap: 4px; width: 15rem; max-width: calc(100vw - 32px); padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.iconmenu input { flex: 1 1 100%; }
+.iconmenu button { min-width: 44px; padding: 0 8px; }
+.ci-custom { display: inline-block; width: 18px; text-align: center; line-height: 1; }
+.acct { gap: 8px; flex-wrap: wrap; align-items: center; }
+.acct label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: var(--accent); }
 .modes { display: flex; gap: 8px; margin: 0 0 12px; }
 .modes button { flex: 1; }
 .modes button[aria-pressed='true'] { border-color: var(--accent); font-weight: 600; }
+.pill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.pill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
+.card > details.fold { margin-top: 0; }
 .linkpill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
 .linkpill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */

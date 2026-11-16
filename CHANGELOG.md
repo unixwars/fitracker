@@ -8,6 +8,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 
 ### Changed
+- Settings: Accounts and Categories are collapsible sections; only one icon picker is open at a time (it closes on Escape or a tap outside), and categories show their built-in icon instead of a dot.
 - First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the footer is one small GitHub pill (`fitracker v0.2.1`, or the commit in parentheses on a dev build) aligned right; the Releases link stays in Settings. The screen is now the same whether or not you are signed in, with both folds always shown.
 
 ### Fixed
@@ -18,6 +19,7 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ### Added
 - A Year view on the Month screen (accounts ticked In Annual): totals, savings rate and per-category figures, with charts for income vs expenses, spending by category and month, expense proportions, net worth by account and inflows/outflows; the Month screen has budget vs actual and expense proportions charts. Charts are drawn in the app (no chart library) with a table alternative under each.
 - Record an account balance (a snapshot) in Activity; it works offline and Undo removes it.
+- Shared settings in Settings: choose per account whether it counts in Month and in Year, and pick an emoji for any account or category. Both are shared with everyone using the sheet, stored as the sheet's own developer metadata (`fitracker.*`), and never written to a cell. Settings marks accounts that differ from the sheet.
 - Browse by day (the default view of Month, before By category): a "By day" switch on the Month screen lists the month's entries newest day first, including transfers, and opens the same edit sheet.
 - Cache headers for Cloudflare Pages (`public/_headers`) and a Cloudflare Pages section in `docs/deploy-your-own.md`.
 

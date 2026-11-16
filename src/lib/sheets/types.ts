@@ -15,4 +15,6 @@ export interface SheetsApi {
   setMetadata(spreadsheetId: string, key: string, value: string): Promise<void>
   valuesBatchClear(spreadsheetId: string, ranges: string[]): Promise<void>
   getMetadata(spreadsheetId: string, key: string): Promise<string | null>
+  /** Every DOCUMENT developer metadata entry whose key starts with `prefix`, as key to value. One request. */
+  listMetadata(spreadsheetId: string, prefix: string): Promise<Record<string, string>>
 }

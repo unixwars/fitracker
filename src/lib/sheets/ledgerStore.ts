@@ -1,7 +1,8 @@
 import { backfillId } from '../ids'
+import { isSettingKey, OVERRIDE_PREFIX } from '../overrides'
 import { refreshInterval } from '../refresh'
 import { parseRates, parseReference } from '../reference'
-import { AccountChanged, ApiError, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
+import { AccountChanged, ApiError, AuthExpired, RowChanged, RowGone, UnrecognisedLayout } from '../errors'
 import { planRatesMaintenance, type RateCell, type RateCellRow } from '../ratesMaintenance'
 import { dateToSerial, ledgerRowValues, serialToDate, parseLedgerRow, parseSnapshotRow, snapshotRowValues, type Entry } from '../rows'
 import { LEDGER, RATES, REFERENCE, SNAPSHOTS, rowRange } from '../schema'
@@ -20,6 +21,7 @@ type Data = {
   reference: Reference
   rates: RateRow[]
   unreadable: Unreadable[]
+  overrides: Record<string, string> | null // shared settings: the fitracker.* developer metadata, raw; null when it could not be read
   rows: Map<string, RowRef> // id -> where it sits (Ledger or Snapshots)
   unreadableIds: Set<string> // ids on rows that exist but do not parse: present, not missing
 }
@@ -37,6 +39,8 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
   let cache: Data | null = null
   let stale = false
   let inflight: Promise<Data> | null = null
+  let writeCount = 0 // shared-setting writes so far, to tell a refresh that started before a write
+  const written = new Map<string, { value: string; n: number }>()
   let verifiedAt: number | null = null
   const listeners = new Set<() => void>()
   const notify = () => listeners.forEach((fn) => fn())
@@ -57,11 +61,32 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     }
   }
 
+  // A refresh that started before a setting was written may have read the old value: put the later writes back on top.
+  function withLaterWrites(read: Record<string, string> | null, startedAt: number): Record<string, string> | null {
+    const later = [...written].filter(([, w]) => w.n > startedAt)
+    if (!later.length) return read
+    const out = { ...(read ?? {}) }
+    for (const [k, w] of later) out[k] = w.value
+    return out
+  }
+
+  // Shared settings are best effort: a failure keeps the ones already known, but an expired sign-in still stops the refresh.
+  async function readOverrides(): Promise<Record<string, string> | null> {
+    try {
+      return await api.listMetadata(spreadsheetId, OVERRIDE_PREFIX)
+    } catch (err) {
+      if (err instanceof AuthExpired) throw err
+      return cache?.overrides ?? null
+    }
+  }
+
   async function fetchBook(): Promise<Data> {
+    const startedAt = writeCount
     await checkVersion()
-    const [ledger, base, accounts, categories, budgets, rates, snapshotRows] = await read(
-      [LEDGER.ranges.rows, REFERENCE.base, REFERENCE.accounts, REFERENCE.categories, REFERENCE.budgets, RATES.ranges.rows, SNAPSHOTS.ranges.rows],
-    )
+    const [[ledger, base, accounts, categories, budgets, rates, snapshotRows], overrides] = await Promise.all([
+      read([LEDGER.ranges.rows, REFERENCE.base, REFERENCE.accounts, REFERENCE.categories, REFERENCE.budgets, RATES.ranges.rows, SNAPSHOTS.ranges.rows]),
+      readOverrides(),
+    ])
     const reference = parseReference(base ?? [], accounts ?? [], categories ?? [], budgets ?? [])
     const unreadable: Unreadable[] = []
     const unreadableIds = new Set<string>()
@@ -104,7 +129,7 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     for (const id of rows.keys()) idCount.set(id, 1)
     for (const u of unreadable) if (u.id) idCount.set(u.id, (idCount.get(u.id) ?? 0) + 1)
     for (const u of unreadable) if (u.id && idCount.get(u.id) !== 1) delete u.id
-    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, rows, unreadableIds }
+    return { fetchedAt: now(), entries, snapshots, reference, rates: parseRates(rates ?? []), unreadable, overrides: withLaterWrites(overrides, startedAt), rows, unreadableIds }
   }
 
   // Gives hand-typed rows an id (spec 3.2): one write to column A only (consecutive rows as one block), then a read-back
@@ -363,6 +388,14 @@ export function createLedgerStore(api: SheetsApi, spreadsheetId: string, options
     async rates() { return (await load()).rates },
     async snapshots() { return (await load()).snapshots },
     async unreadable() { return (await load()).unreadable },
+    async overrides() { return (await load()).overrides },
+    async setOverride(key, value) {
+      if (!isSettingKey(key)) throw new Error('Not a shared setting key')
+      await api.setMetadata(spreadsheetId, key, value)
+      written.set(key, { value, n: ++writeCount })
+      if (cache) cache = { ...cache, overrides: { ...(cache.overrides ?? {}), [key]: value } }
+      notify()
+    },
     async refresh(opts: RefreshOpts = {}) {
       const data = await load(opts.force)
       return { missingIds: (opts.expectIds ?? []).filter((id) => !data.rows.has(id) && !data.unreadableIds.has(id)) }
