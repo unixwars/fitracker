@@ -106,11 +106,15 @@ test('a first-time visitor (signed out, no sheet) sees what the app is and the f
   await expect(page.getByTestId('how-it-works')).not.toHaveAttribute('open', '')
 })
 
-test('someone already signed in with no sheet gets the short first-run screen', async ({ page }) => {
-  await page.goto('/?unlinked')
-  await expect(page.getByTestId('first-run')).toBeVisible()
-  await expect(page.getByTestId('hero')).toHaveCount(0)
-  await expect(page.getByTestId('create-from-template')).toBeVisible()
+test('the first-run screen looks the same signed in or out, with both folds', async ({ page }) => {
+  for (const url of ['/?unlinked&signedout', '/?unlinked']) {
+    await page.goto(url)
+    await expect(page.getByTestId('first-run')).toBeVisible()
+    await expect(page.getByTestId('hero')).toHaveCount(1)
+    await expect(page.getByTestId('create-from-template')).toBeVisible()
+    await expect(page.getByTestId('how-it-works')).toBeVisible()
+    await expect(page.getByTestId('trouble-linking')).toBeVisible()
+  }
 })
 
 test('the first-run screen has cookie help for a blocked Google picker, closed until needed', async ({ page }) => {

@@ -11,8 +11,6 @@ export const messages = {
   signedInAs: (email: string) => `Signed in as ${email}`,
   newerBanner: 'This sheet uses a newer version than this app. Update the app; the sheet is read-only here.',
   openSettings: 'Open settings',
-  firstRunTitle: 'Set up your sheet',
-  firstRunBody: 'Fitracker keeps everything in one Google Sheet that only you can open. Create yours from the template, or link one you already have.',
   introTitle: 'Know where your money goes',
   introTiles: ['Expenses', 'Budgets', 'Net worth'],
   introOwnership: 'Everything is stored in a normal Google Sheet that you own and control. Open it, edit it, take it with you.',
