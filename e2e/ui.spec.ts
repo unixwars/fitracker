@@ -191,7 +191,7 @@ test('first-run choices are equal width with an "or" between them, folds have ch
   const vw = page.viewportSize()!.width
   expect(link.x + link.width).toBeGreaterThan(vw - 40) // right-aligned
   expect(link.height).toBeLessThan(36) // compact, not button sized
-  await expect(page.getByTestId('project-link')).toContainText(/^\s*fitracker \S+/)
+  await expect(page.getByTestId('project-link')).toContainText(/^\s*fitracker (v\d+\.\d+\.\d+|\(\w+\))/)
   await expect(page.getByTestId('releases-link-short')).toHaveCount(0)
   expect(await page.getByTestId('project-link').locator('svg').count()).toBe(1)
 })
