@@ -1,9 +1,9 @@
 // Application state. Components render this; the rules live in the modules it composes.
 import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
-import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
+import { ApiError, AuthExpired, NewerThanApp, ReferenceLayoutMismatch, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
-import { applyPending, makeOp, makeRepairOp, pendingCount, undo, type Op } from './outbox'
+import { applyPendingSnapshots, applyPending, makeOp, makeRepairOp, makeSnapshotOp, pendingCount, redo, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
@@ -14,7 +14,11 @@ import { ensureVersion } from './sheets/version'
 import type { EntryStore } from './store'
 import { TEMPLATE_COPY_URL } from './templateCopy'
 import { messages } from './messages'
-import type { RateRow, Reference, Snapshot, Unreadable } from './types'
+import { accountEmoji } from './accountIcon'
+import { accountIconKey, accountKey, categoryIconKey, isEmoji, applyOverrides, parseOverrides, toggleValue } from './overrides'
+import type { AddedItem } from './store'
+import type { NameProblem } from './newItem'
+import type { Currency, EntryType, RateRow, Reference, Snapshot, Unreadable } from './types'
 
 export type Tab = 'add' | 'month' | 'activity' | 'settings'
 export type Status = 'loading' | 'ok' | 'unlinked' | 'newer' | 'unrecognised' | 'error'
@@ -29,7 +33,7 @@ export type Env = {
   ttlMs?: number // overrides the book refresh interval (the offline end-to-end mode uses 0)
   fake?: boolean
 }
-type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[] }
+type Book = { entries: Entry[]; lists: Reference; rates: RateRow[]; snapshots: Snapshot[]; unreadable: Unreadable[]; overrides?: Record<string, string> }
 
 const EMPTY_LISTS: Reference = { base: 'EUR', accounts: [], categories: [], budgets: [] }
 const BLOCKED: Status[] = ['unlinked', 'newer', 'unrecognised']
@@ -52,9 +56,11 @@ export class AppState {
 
   tab = $state<Tab>('add')
   month = $state(currentMonth())
+  snapshotFormOpen = $state(false) // set by the Year view's "record a balance" button; Activity opens its form
   sheetId = $state<string | null>(null)
   entries = $state<Entry[]>([])
-  lists = $state<Reference>(EMPTY_LISTS)
+  sheetLists = $state<Reference>(EMPTY_LISTS) // the reference tabs as the sheet holds them
+  overrideEntries = $state<Record<string, string>>({}) // shared settings, raw fitracker.* metadata
   rates = $state<RateRow[]>([])
   snapshots = $state<Snapshot[]>([])
   unreadable = $state<Unreadable[]>([])
@@ -77,7 +83,10 @@ export class AppState {
   templateCopyUrl = TEMPLATE_COPY_URL
   private again = false // a change arrived while a sync was running
 
+  overrides = $derived(parseOverrides(this.overrideEntries))
+  lists = $derived(applyOverrides(this.sheetLists, this.overrides)) // what every screen uses: the sheet's lists with the shared settings on top
   displayed = $derived(applyPending(this.entries, this.ops))
+  displayedSnapshots = $derived(applyPendingSnapshots(this.snapshots, this.ops))
   attention = $derived(this.ops.filter((o) => o.status === 'flagged'))
   needsAttention = $derived(this.attention.length + this.unreadable.length)
   pendingCount = $derived(pendingCount(this.ops))
@@ -146,6 +155,7 @@ export class AppState {
    * Returns true when it signed in and synced.
    */
   async trySilent(fromGesture = false, force = false): Promise<boolean> {
+    if (!this.sheetId) return false // nothing to sync yet: a first-run tap (opening How it works) must not flash Google's sign-in window
     if (this.userSignedOut || this.silentBusy || (this.signedIn && !force)) return false
     if (fromGesture && this.gestureTried) return false // refused once this session: stop trying on every tap
     this.silentBusy = true
@@ -167,14 +177,16 @@ export class AppState {
     const book = this.sheetId ? await this.kv.get<Book>(CACHE_KEY) : undefined
     if (book) {
       this.entries = book.entries
-      this.lists = book.lists
+      this.sheetLists = book.lists
+      this.overrideEntries = book.overrides ?? {}
       this.rates = book.rates
       this.snapshots = book.snapshots ?? []
       this.unreadable = book.unreadable ?? []
       this.status = 'ok'
     } else {
       this.entries = []
-      this.lists = EMPTY_LISTS
+      this.sheetLists = EMPTY_LISTS
+      this.overrideEntries = {}
       this.rates = []
       this.snapshots = []
       this.unreadable = []
@@ -219,14 +231,15 @@ export class AppState {
   }
 
   private async readBook(store: EntryStore) {
-    const [entries, lists, rates, snapshots, unreadable] = [await store.list(), await store.lists(), await store.rates(), await store.snapshots(), await store.unreadable()]
+    const [entries, lists, rates, snapshots, unreadable, overrides] = [await store.list(), await store.lists(), await store.rates(), await store.snapshots(), await store.unreadable(), await store.overrides()]
     if (store !== this.store) return // the sheet was unlinked or replaced while this ran
     this.entries = entries
-    this.lists = lists
+    this.sheetLists = lists
+    if (overrides) this.overrideEntries = overrides // null: the read failed, keep the settings already known
     this.rates = rates
     this.snapshots = snapshots
     this.unreadable = unreadable
-    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable }))
+    await this.kv.set(CACHE_KEY, $state.snapshot({ entries, lists, rates, snapshots, unreadable, overrides: this.overrideEntries }))
   }
 
   // Month-roll of the Rates tab (spec 3.4). Best effort: a failure here must not hide the data that was read.
@@ -272,10 +285,125 @@ export class AppState {
     applyTheme(this.device.theme)
   }
 
+  // Shared settings (spec 2026-11-15): written straight to the sheet's metadata, not queued, so they need a connection.
+  // The change shows at once and only its own key is rolled back, with a message, when the write fails. Writes run one
+  // after another so two changes to the same new key cannot both create it.
+  private settingsQueue: Promise<unknown> = Promise.resolve()
+  private writeSetting(makeKey: () => string, value: string): Promise<boolean> {
+    const run = this.settingsQueue.then(() => this.writeSettingNow(makeKey, value))
+    this.settingsQueue = run.catch(() => undefined)
+    return run
+  }
+  private async writeSettingNow(makeKey: () => string, value: string): Promise<boolean> {
+    const store = this.store
+    if (!store || !this.canWrite) return false
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return false }
+    let key: string
+    try { key = makeKey() } catch { this.message = messages.settingNotSaved; return false } // a name too long to store
+    const previous = this.overrideEntries[key]
+    this.overrideEntries = { ...this.overrideEntries, [key]: value }
+    try {
+      await store.setOverride(key, value)
+      this.message = ''
+      await this.kv.set(CACHE_KEY, $state.snapshot({ entries: this.entries, lists: this.sheetLists, rates: this.rates, snapshots: this.snapshots, unreadable: this.unreadable, overrides: this.overrideEntries }))
+      return true
+    } catch (err) {
+      if (this.overrideEntries[key] === value) {
+        const rest = { ...this.overrideEntries }
+        if (previous === undefined) delete rest[key]
+        else rest[key] = previous
+        this.overrideEntries = rest
+      }
+      if (err instanceof AuthExpired) this.authExpired = true
+      else this.message = messages.settingNotSaved
+      return false
+    }
+  }
+  // Adding an account or category (spec 2026-11-16): written straight to the sheet like a shared setting (it needs a
+  // connection and runs one at a time). Success means the read-back confirmed the row; the refresh that follows is in the
+  // background, so a failed refresh never reads as "not saved".
+  lastAdded = $state<AddedItem | null>(null) // what a session-only Undo would clear; cleared on leaving Settings
+  private addItem(kind: 'account' | 'category', name: string, run: (store: EntryStore) => Promise<{ ok: true; added: AddedItem } | { ok: false; reason: NameProblem | 'tryAgain' }>): Promise<{ ok: true } | { ok: false; reason: NameProblem | 'tryAgain' | 'offline' | 'failed' }> {
+    const store = this.store
+    if (!store || !this.canWrite) return Promise.resolve({ ok: false, reason: 'failed' })
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return Promise.resolve({ ok: false, reason: 'offline' }) }
+    const job = this.settingsQueue.then(async () => {
+      try {
+        const r = await run(store)
+        if (!r.ok) return r
+        this.message = ''
+        if (this.tab === 'settings') this.lastAdded = r.added // an add that finishes after Settings was left offers no Undo
+        void this.sync().then(() => this.checkListed(kind, r.added.name))
+        return { ok: true } as const
+      } catch (err) {
+        if (err instanceof ReferenceLayoutMismatch) this.message = messages.referenceLayout(err.tab, err.found, err.expected) // local to this add: the book stays usable
+        else if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
+        else this.message = messages.settingNotSaved
+        return { ok: false, reason: 'failed' } as const
+      }
+    })
+    this.settingsQueue = job.catch(() => undefined)
+    return job
+  }
+  // Another device can write a different name to the same row a moment later and silently replace a confirmed add: the
+  // refresh that follows every add checks that the name is really in the sheet's list.
+  private checkListed(kind: 'account' | 'category', name: string) {
+    const lower = name.toLowerCase()
+    const listed = kind === 'account' ? this.sheetLists.accounts.some((a) => a.name.toLowerCase() === lower) : this.sheetLists.categories.some((c) => c.name.toLowerCase() === lower)
+    if (!listed && this.status === 'ok') this.message = messages.itemVanished(name)
+  }
+  addAccount(name: string, currency: Currency) { return this.addItem('account', name, (s) => s.addAccount({ name, currency })) }
+  addCategory(name: string, type: EntryType) { return this.addItem('category', name, (s) => s.addCategory({ name, type })) }
+  /** Clears the row the last add wrote, when that is still safe (see EntryStore.undoAddItem). Runs in the same queue as adds. */
+  undoLastAdd(): Promise<'ok' | 'changed' | 'inUse' | 'failed'> {
+    const store = this.store
+    const added = this.lastAdded
+    if (!store || !added || !this.canWrite) return Promise.resolve('failed')
+    if (!this.online || !this.signedIn) { this.message = messages.settingNeedsConnection; return Promise.resolve('failed') }
+    this.lastAdded = null // forgotten at once: a second tap has nothing to undo
+    const job = this.settingsQueue.then(async () => {
+      try {
+        const r = await store.undoAddItem(added)
+        if (r.ok) { this.message = ''; void this.sync(); return 'ok' as const }
+        return r.reason
+      } catch (err) {
+        if (err instanceof AuthExpired || err instanceof NewerThanApp || err instanceof UnrecognisedLayout) this.handleSyncError(err)
+        else this.message = messages.settingNotSaved
+        return 'failed' as const
+      }
+    })
+    this.settingsQueue = job.catch(() => undefined)
+    return job
+  }
+  /** True when the setting was saved. */
+  async setAccountToggle(name: string, field: 'inMonthly' | 'inAnnual', value: boolean): Promise<boolean> {
+    const sheet = this.sheetLists.accounts.find((a) => a.name === name)
+    if (!sheet) return false
+    return this.writeSetting(() => accountKey(name), toggleValue(this.overrides.accounts.get(name), field, value, sheet[field]))
+  }
+  /** Back to the sheet's own In Monthly / In Annual ticks. */
+  async resetAccountToggles(name: string): Promise<boolean> {
+    return this.writeSetting(() => accountKey(name), '')
+  }
+  /** '' resets to the icon the app guesses from the name. */
+  async setIcon(kind: 'account' | 'category', name: string, emoji: string): Promise<boolean> {
+    if (emoji !== '' && !isEmoji(emoji)) return false
+    return this.writeSetting(() => (kind === 'account' ? accountIconKey(name) : categoryIconKey(name)), emoji)
+  }
+  accountEmoji(name: string): string { return this.overrides.accountIcons.get(name) ?? accountEmoji(name) }
+  /** The emoji chosen for a category, if any; otherwise the built-in glyph is drawn. */
+  categoryCustom(name: string): string | undefined { return this.overrides.categoryIcons.get(name) }
+  accountCustom(name: string): string | undefined { return this.overrides.accountIcons.get(name) }
+
   async save(entry: Entry, remember: Partial<DeviceSettings>) {
     if (!this.canWrite) throw new Error('read-only')
     this.setDevice(remember)
     await this.enqueue(makeOp('add', entry))
+  }
+  // Records an account balance on a date: queued like an entry, so it works offline and Undo removes it.
+  async addSnapshot(snapshot: Snapshot) {
+    if (!this.canWrite) throw new Error('read-only')
+    await this.enqueue(makeSnapshotOp('add', snapshot))
   }
   async edit(entry: Entry, previous: Entry) {
     if (this.canWrite) await this.enqueue(makeOp('edit', entry, previous))
@@ -318,7 +446,13 @@ export class AppState {
   async undoOp(op: Op) {
     if (!this.canWrite) return
     await this.db.update(op.opId, { undone: true })
-    await this.enqueue(undo(op))
+    await this.enqueue({ ...undo(op), undoOf: op.opId })
+  }
+  // Redo re-applies an undone op. Undo and Redo only toggle the original row; the ops they queue stay out of Recent changes.
+  async redoOp(op: Op) {
+    if (!this.canWrite) return
+    await this.db.update(op.opId, { undone: false })
+    await this.enqueue({ ...redo(op), undoOf: op.opId })
   }
   async discard(op: Op) {
     await this.db.remove(op.opId)

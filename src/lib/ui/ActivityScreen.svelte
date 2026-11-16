@@ -10,10 +10,11 @@
   import type { Unreadable } from '../types'
   import CategoryIcon from './CategoryIcon.svelte'
   import EntrySheet from './EntrySheet.svelte'
+  import SnapshotForm from './SnapshotForm.svelte'
   import { dateLabel, fmt } from './format'
 
   let { app }: { app: AppState } = $props()
-  const recent = $derived([...app.ops].filter((o) => o.status === 'done').reverse().slice(0, 30))
+  const recent = $derived([...app.ops].filter((o) => o.status === 'done' && !o.undoOf).reverse().slice(0, 30))
   const waiting = $derived(app.ops.filter((o) => o.status === 'pending'))
   let fixing = $state<Unreadable | null>(null)
   let editing = $state<Entry | null>(null)
@@ -82,13 +83,15 @@
   </section>
 {/if}
 
+<SnapshotForm {app} />
+
 <section class="card">
   <h3>{messages.recentChanges}</h3>
   {#each recent as op (op.opId)}
     <div class="stat recent">
-      <span>{#if op.subject !== 'snapshot' && op.entry?.category}<CategoryIcon name={op.entry.category} />{/if}{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
+      <span>{#if op.subject !== 'snapshot' && op.entry?.category}<CategoryIcon name={op.entry.category} custom={app.categoryCustom(op.entry.category)} />{/if}{opName(op)} · {dateLabel((op.subject === 'snapshot' ? op.snapshot?.date : op.entry?.date) ?? '1970-01-01')} {op.subject === 'snapshot' ? op.snapshot?.account : op.entry?.description || op.entry?.place || ''}</span>
       <b class="num" data-testid="recent-amount">{opAmount(op)}</b>
-      {#if op.undone}<span class="muted">{messages.undone}</span>
+      {#if op.undone}<button class="secondary" disabled={!app.canWrite} onclick={() => app.redoOp(op)} data-testid="redo">{messages.redo}</button>
       {:else if !op.repair && (op.type !== 'add' || op.entry || op.snapshot)}<button class="secondary" disabled={!app.canWrite} onclick={() => app.undoOp(op)} data-testid="undo">{messages.undo}</button>{/if}
     </div>
   {:else}<p class="muted">{messages.noChanges}</p>{/each}

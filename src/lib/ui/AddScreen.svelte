@@ -39,5 +39,5 @@
   }
 </script>
 
-<EntryForm bind:form lists={app.lists} rates={app.rates} history={app.displayed} device={app.device} submitLabel={messages.addSave} {onsubmit} />
+<EntryForm bind:form icons={app} lists={app.lists} rates={app.rates} history={app.displayed} device={app.device} submitLabel={messages.addSave} {onsubmit} />
 {#if toast}<div class="toast" role="status">{toast}</div>{/if}

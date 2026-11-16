@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyPending, makeOp, makeRepairOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
+import { redo, applyPendingSnapshots, applyPending, makeOp, makeRepairOp, pendingCount, makeSnapshotOp, undo, type Op } from './outbox'
 import type { Entry } from './rows'
 
 const e = (id: string, o: Partial<Entry> = {}): Entry => ({
@@ -80,5 +80,24 @@ describe('repair ops (fixing a row the app could not read)', () => {
   })
   it('a pending repair edit shows the fixed entry in the optimistic view', () => {
     expect(applyPending([], withSeq([makeRepairOp('edit', e('a'))])).map((x) => x.id)).toEqual(['a'])
+  })
+})
+
+describe('applyPendingSnapshots', () => {
+  const s = (id: string) => ({ id, date: '2026-01-01', account: 'Joint', balance: { minor: 1, currency: 'EUR' as const }, note: '' })
+  it('shows a pending add last, hides a pending delete, and ignores done and entry ops', () => {
+    const ops = [makeSnapshotOp('add', s('n')), makeSnapshotOp('delete', s('a')), { ...makeSnapshotOp('add', s('done')), status: 'done' as const }, makeOp('add', { id: 'e', kind: 'expense', date: '2026-01-01', money: { minor: 1, currency: 'EUR' }, description: '' })]
+    expect(applyPendingSnapshots([s('a'), s('b')], ops).map((x) => x.id)).toEqual(['b', 'n'])
+  })
+  it('does not add a snapshot that is already there', () => {
+    expect(applyPendingSnapshots([s('a')], [makeSnapshotOp('add', s('a'))])).toHaveLength(1)
+  })
+})
+
+describe('redo', () => {
+  it('re-applies each kind of op as a fresh pending op', () => {
+    expect(redo({ ...makeOp('add', e('a')), status: 'done' as const })).toMatchObject({ type: 'add', status: 'pending', entryId: 'a' })
+    expect(redo({ ...makeOp('edit', e('a', { description: 'new' }), e('a')), status: 'done' as const })).toMatchObject({ type: 'edit', entry: { description: 'new' } })
+    expect(redo({ ...makeOp('delete', e('a'), e('a')), status: 'done' as const })).toMatchObject({ type: 'delete', entryId: 'a', previous: { id: 'a' } })
   })
 })

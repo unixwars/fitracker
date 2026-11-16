@@ -1,16 +1,26 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import Alert from './Alert.svelte'
+  import CategoryIcon from './CategoryIcon.svelte'
+  import AddItemForm from './AddItemForm.svelte'
+  import IconPicker from './IconPicker.svelte'
   import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
-  import type { Theme } from '../config'
   import { messages } from '../messages'
   import { APP_VERSION_LABEL } from '../buildInfo'
   import { BOOK_VERSION } from '../schema'
-  import { RELEASES_URL } from '../projectLinks'
+  import { newIssueUrl, RELEASES_URL } from '../projectLinks'
 
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
   const linked = $derived(Boolean(app.sheetId))
+  onDestroy(() => { app.lastAdded = null }) // the session-only Undo ends when Settings is left
+  const sheetAccount = (name: string) => app.sheetLists.accounts.find((a) => a.name === name)
+  const differs = (a: { name: string; inMonthly: boolean; inAnnual: boolean }) => {
+    const s = sheetAccount(a.name)
+    return Boolean(s) && (s!.inMonthly !== a.inMonthly || s!.inAnnual !== a.inAnnual)
+  }
+  const categoryNames = $derived([...new Set(app.lists.categories.filter((c) => c.active).map((c) => c.name))])
   // The name and tab ids: from the device, then once signed in. Reading signedIn here makes the effect re-run on sign-in.
   $effect(() => { if (app.sheetId && (app.signedIn || !app.sheetName)) void app.loadSheetInfo() })
 </script>
@@ -50,18 +60,41 @@
 {/if}
 {#if app.message}<Alert>{app.message}</Alert>{/if}
 
-<section class="card">
-  <label class="field">
-    <span>{messages.theme}</span>
-    <select value={app.device.theme} onchange={(e) => app.setDevice({ theme: e.currentTarget.value as Theme })} data-testid="theme">
-      <option value="system">{messages.themeSystem}</option>
-      <option value="light">{messages.themeLight}</option>
-      <option value="dark">{messages.themeDark}</option>
-    </select>
-  </label>
-  <div class="stat"><span>{messages.syncStatus}</span><span>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</span></div>
-  <div class="stat"><span>{messages.appVersion}</span><span data-testid="app-version">{APP_VERSION_LABEL}</span></div>
-  <InstallHelp />
-  <div class="stat"><span>{messages.releases}</span><a href={RELEASES_URL} target="_blank" rel="noopener" data-testid="releases-link">{messages.releasesLink}</a></div>
-  <div class="stat"><span>{messages.version}</span><span>{BOOK_VERSION}</span></div>
+{#if linked}
+  <section class="card" data-testid="shared-settings">
+  <details class="fold" data-testid="accounts-fold">
+    <summary><span>{messages.settingsAccounts}{#if app.lists.accounts.some(differs)} <small class="muted">· {messages.differsFromSheet}</small>{/if}</span></summary>
+    <p class="muted">{messages.sharedSettingsNote}</p>
+    {#each app.lists.accounts.filter((a) => a.active) as a (a.name)}
+      <div class="stat acct" data-testid="account-row">
+        <span><IconPicker id={'account:' + a.name} label={a.name} current={app.accountEmoji(a.name)} onpick={(e) => app.setIcon('account', a.name, e)} /> {a.name}{#if differs(a)} <small class="muted">· {messages.differsFromSheet}</small> <button class="secondary" disabled={!app.canWrite} onclick={() => app.resetAccountToggles(a.name)} data-testid="reset-toggles">{messages.resetToSheet}</button>{/if}</span>
+        <span class="row" style="flex: 0 0 auto" role="group" aria-label={messages.countIn}>
+          <span class="muted">{messages.countIn}</span>
+          <label><input type="checkbox" checked={a.inMonthly} disabled={!app.canWrite} onchange={async (e) => { const box = e.currentTarget; const was = a.inMonthly; if (!(await app.setAccountToggle(a.name, 'inMonthly', box.checked))) box.checked = was }} data-testid="toggle-monthly" /> {messages.inMonth}</label>
+          <label><input type="checkbox" checked={a.inAnnual} disabled={!app.canWrite} onchange={async (e) => { const box = e.currentTarget; const was = a.inAnnual; if (!(await app.setAccountToggle(a.name, 'inAnnual', box.checked))) box.checked = was }} data-testid="toggle-annual" /> {messages.inYear}</label>
+        </span>
+      </div>
+    {/each}
+    <AddItemForm {app} kind="account" />
+  </details>
+  </section>
+  <section class="card">
+  <details class="fold" data-testid="categories-fold">
+    <summary><span>{messages.settingsCategories}</span></summary>
+    {#each categoryNames as n (n)}
+      <div class="stat"><span><IconPicker id={'category:' + n} label={n} current={app.categoryCustom(n) ?? ''} onpick={(e) => app.setIcon('category', n, e)}>{#snippet glyph()}<CategoryIcon name={n} custom={app.categoryCustom(n)} />{/snippet}</IconPicker> {n}</span></div>
+    {/each}
+    <AddItemForm {app} kind="category" />
+  </details>
+  </section>
+{/if}
+
+<section class="card about" data-testid="about">
+<dl>
+  <div><dt>{messages.syncStatus}</dt><dd>{app.pendingCount ? messages.syncPending(app.pendingCount) : messages.syncIdle}</dd></div>
+  <div><dt>{messages.appVersion}</dt><dd><a href={RELEASES_URL} target="_blank" rel="noopener" data-testid="app-version">{APP_VERSION_LABEL}</a></dd></div>
+  <div><dt>{messages.feedback}</dt><dd><a href={newIssueUrl(APP_VERSION_LABEL)} target="_blank" rel="noopener" data-testid="report-issue">{messages.reportIssue}</a></dd></div>
+  <div><dt>{messages.version}</dt><dd>{BOOK_VERSION}</dd></div>
+</dl>
+<InstallHelp />
 </section>

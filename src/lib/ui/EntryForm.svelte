@@ -22,6 +22,7 @@
     submitLabel,
     onsubmit,
     lockKind = false,
+    icons,
   }: {
     form: FormState
     lists: Reference
@@ -31,6 +32,7 @@
     submitLabel: string
     onsubmit: (form: FormState, coords: LatLng | null) => void
     lockKind?: boolean
+    icons?: { categoryCustom(name: string): string | undefined; accountCustom(name: string): string | undefined }
   } = $props()
 
   let errors = $state<Errors>({})
@@ -187,8 +189,8 @@
       <select value={form.category} onchange={(e) => (form = { ...form, category: e.currentTarget.value })} aria-label={messages.category} class="iconic" data-testid="categories">
         <button type="button"><selectedcontent></selectedcontent></button>
         <option value="">{messages.choose}</option>
-        {#if form.category && !categories.includes(form.category)}<option value={form.category}><OptionLabel path={ICON_PATHS[categoryIcon(form.category)]} emoji={CATEGORY_EMOJI[categoryIcon(form.category)]} text={form.category} /></option>{/if}
-        {#each categories as c (c)}<option value={c}><OptionLabel path={ICON_PATHS[categoryIcon(c)]} emoji={CATEGORY_EMOJI[categoryIcon(c)]} text={c} /></option>{/each}
+        {#if form.category && !categories.includes(form.category)}<option value={form.category}><OptionLabel path={ICON_PATHS[categoryIcon(form.category)]} emoji={CATEGORY_EMOJI[categoryIcon(form.category)]} custom={icons?.categoryCustom(form.category)} text={form.category} /></option>{/if}
+        {#each categories as c (c)}<option value={c}><OptionLabel path={ICON_PATHS[categoryIcon(c)]} emoji={CATEGORY_EMOJI[categoryIcon(c)]} custom={icons?.categoryCustom(c)} text={c} /></option>{/each}
       </select>
     </label>
     {#if errors.category}<p class="err">{messages.errors.category}</p>{/if}
@@ -199,8 +201,8 @@
     <select value={form.account} onchange={(e) => (form = chooseAccount(form, e.currentTarget.value, lists))} aria-label={form.kind === 'transfer' ? messages.fromAccount : messages.account} class="iconic" data-testid="accounts">
         <button type="button"><selectedcontent></selectedcontent></button>
       <option value="">{messages.choose}</option>
-      {#if form.account && !accounts.includes(form.account)}<option value={form.account}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(form.account)]} emoji={accountEmoji(form.account)} text={form.account} /></option>{/if}
-      {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} text={a} /></option>{/each}
+      {#if form.account && !accounts.includes(form.account)}<option value={form.account}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(form.account)]} emoji={accountEmoji(form.account)} custom={icons?.accountCustom(form.account)} text={form.account} /></option>{/if}
+      {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} custom={icons?.accountCustom(a)} text={a} /></option>{/each}
     </select>
   </label>
   {#if errors.account}<p class="err">{messages.errors.account}</p>{/if}
@@ -211,7 +213,7 @@
       <select value={form.toAccount} onchange={(e) => (form = { ...form, toAccount: e.currentTarget.value })} aria-label={messages.toAccount} class="iconic" data-testid="to-account">
         <button type="button"><selectedcontent></selectedcontent></button>
         <option value="">{messages.choose}</option>
-        {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} text={a} /></option>{/each}
+        {#each accounts as a (a)}<option value={a}><OptionLabel path={ACCOUNT_ICON_PATHS[accountIcon(a)]} emoji={accountEmoji(a)} custom={icons?.accountCustom(a)} text={a} /></option>{/each}
       </select>
     </label>
     {#if errors.toAccount}<p class="err">{messages.errors.toAccount}</p>{/if}

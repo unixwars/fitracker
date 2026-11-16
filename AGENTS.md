@@ -22,8 +22,12 @@ for data. Do not add one.
 - **Schema is versioned.** The book carries version 3 as developer metadata (`fitracker.schemaVersion`). The
   app has no migrations. A newer version is read-only; an unrecognised layout aborts before any write; a lost
   tag is re-stamped only when the `Ledger` and `Snapshots` headers match.
-- **The app writes only `Ledger` columns A-I, `Snapshots` and the `Rates` maintenance rows;** never `J`, a view
-  or another reference tab.
+- **The app may write every non-view tab:** `Ledger` columns A-I, `Snapshots`, `Rates`, and the reference tabs
+  (`Settings`, `Accounts`, `Categories`, `Budgets`), plus its own `fitracker.*` developer-metadata entries (schema
+  version, shared settings). **Never a view** (the formula tabs: `Expenses`, `Income`, `Transfers`, `Monthly Summary`,
+  `Annual Summary`, `Balances`) and never `Ledger` column `J`. Writes to a tab are limited to the columns and rows its
+  layout in `src/lib/schema.ts` defines, never overwrite a formula cell (except the `Rates` month-roll), and a
+  change that touches history (a rename) is warned about first and is undoable.
 - **Offline-first.** Writes (append, edit, delete) go to an IndexedDB outbox and are
   replayed in order. A replay on a missing row is dropped and flagged, not retried.
   Last write wins per row; keep the overwritten values so the user can undo.

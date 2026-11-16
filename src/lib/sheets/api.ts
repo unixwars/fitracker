@@ -30,7 +30,20 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
   async function metadataValue(id: string, key: string): Promise<string | null> {
     const r = await request<{ matchedDeveloperMetadata?: { developerMetadata: { metadataValue: string } }[] }>(
       'POST', `${BASE}/${id}/developerMetadata:search`, { dataFilters: [lookup(key)] })
-    return r.matchedDeveloperMetadata?.[0]?.developerMetadata.metadataValue ?? null
+    const hit = r.matchedDeveloperMetadata?.[0]
+    return hit ? (hit.developerMetadata.metadataValue ?? '') : null // an empty value may be left out of the JSON: the entry still exists
+  }
+
+  async function listMetadata(id: string, prefix: string): Promise<Record<string, string>> {
+    const r = await request<{ matchedDeveloperMetadata?: { developerMetadata: { metadataKey: string; metadataValue?: string } }[] }>(
+      'POST', `${BASE}/${id}/developerMetadata:search`,
+      { dataFilters: [{ developerMetadataLookup: { visibility: 'DOCUMENT', locationType: 'SPREADSHEET' } }] })
+    const out: Record<string, string> = {}
+    for (const m of r.matchedDeveloperMetadata ?? []) {
+      const { metadataKey: k, metadataValue: v } = m.developerMetadata
+      if (k.startsWith(prefix) && (v || !(k in out))) out[k] = v ?? '' // if a key has duplicates, a non-empty value wins
+    }
+    return out
   }
 
   // DOCUMENT-level developer metadata: update the entry when the key exists, otherwise create it.
@@ -74,10 +87,24 @@ export function createSheetsApi(getToken: () => string | null, fetchImpl: typeof
         { copyPaste: { source, destination, pasteType: 'PASTE_DATA_VALIDATION' } },
       ] })
     },
+    // A row written through the values API has the values but not always the look of its neighbours (a Google Sheets Table shows
+    // TRUE where the rows above have checkboxes): copy the neighbour's formats and validation (rows are 1-based here).
+    async copyRowStyle(id, tab, fromRow, toRow, columns) {
+      const meta = await request<{ sheets: { properties: { sheetId: number; title: string } }[] }>('GET', `${BASE}/${id}?fields=sheets.properties(sheetId,title)`)
+      const sheet = meta.sheets.find((x) => x.properties.title === tab)
+      if (!sheet) throw new ApiError(400, `No tab ${tab}`)
+      const { sheetId } = sheet.properties
+      const rows = (row: number) => ({ sheetId, startRowIndex: row - 1, endRowIndex: row, startColumnIndex: 0, endColumnIndex: columns })
+      await request('POST', `${BASE}/${id}:batchUpdate`, { requests: [
+        { copyPaste: { source: rows(fromRow), destination: rows(toRow), pasteType: 'PASTE_FORMAT' } },
+        { copyPaste: { source: rows(fromRow), destination: rows(toRow), pasteType: 'PASTE_DATA_VALIDATION' } },
+      ] })
+    },
     async valuesBatchClear(id, ranges) {
       await request('POST', `${BASE}/${id}/values:batchClear`, { ranges })
     },
     setMetadata,
     getMetadata: metadataValue,
+    listMetadata,
   }
 }

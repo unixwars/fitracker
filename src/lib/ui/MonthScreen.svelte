@@ -2,15 +2,29 @@
   import Alert from './Alert.svelte'
   import type { AppState } from '../app.svelte'
   import { messages } from '../messages'
+  import { canGoNext, canGoPrev, earliestMonth, latestMonth } from '../navLimit'
+  import { todayLocal } from '../rows'
   import { monthView, UNCATEGORISED, type CategoryRow } from '../month'
   import type { Entry } from '../rows'
   import CategoryIcon from './CategoryIcon.svelte'
+  import DayList from './DayList.svelte'
   import EntrySheet from './EntrySheet.svelte'
+  import YearScreen from './YearScreen.svelte'
+  import BarChart from './charts/BarChart.svelte'
+  import Donut from './charts/Donut.svelte'
+  import { monthBudgetChart, monthShareChart } from '../chartData'
   import { dateLabel, fmt, monthLabel, shiftMonth } from './format'
 
   let { app }: { app: AppState } = $props()
 
   const view = $derived(monthView({ entries: app.displayed, lists: app.lists, rates: app.rates, month: app.month }))
+  let scope = $state<'month' | 'year'>('month')
+  const budget = $derived(monthBudgetChart(view))
+  const share = $derived(monthShareChart(view))
+  const money = (minor: number): string => fmt({ minor, currency: app.lists.base })
+  let mode = $state<'category' | 'day'>('day')
+  const latest = $derived(latestMonth(app.displayed, todayLocal()))
+  const earliest = $derived(earliestMonth(app.displayed, todayLocal()))
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -27,13 +41,29 @@
   const visible = (c: CategoryRow) => c.planned.minor > 0 || c.actual.minor > 0
 </script>
 
-<div class="monthnav">
-  <button aria-label={messages.prevMonth} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
-  <h2>{monthLabel(app.month)}</h2>
-  <button aria-label={messages.nextMonth} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
+<div class="modes" role="group" aria-label={messages.viewScope}>
+  <button class="secondary" aria-pressed={scope === 'month'} onclick={() => (scope = 'month')} data-testid="scope-month">{messages.scopeMonth}</button>
+  <button class="secondary" aria-pressed={scope === 'year'} onclick={() => (scope = 'year')} data-testid="scope-year">{messages.scopeYear}</button>
 </div>
-<p class="muted" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</p>
 
+{#if scope === 'year'}
+  <YearScreen {app} />
+{:else}
+<div class="monthnav">
+  <button aria-label={messages.prevMonth} disabled={!canGoPrev(app.month, 1, earliest)} onclick={() => (app.month = shiftMonth(app.month, -1))}>‹</button>
+  <h2>{monthLabel(app.month)}</h2>
+  <button aria-label={messages.nextMonth} disabled={!canGoNext(app.month, 1, latest)} onclick={() => (app.month = shiftMonth(app.month, 1))}>›</button>
+</div>
+
+<div class="modes" role="group" aria-label={messages.viewBy}>
+  <button class="secondary" aria-pressed={mode === 'day'} onclick={() => (mode = 'day')} data-testid="by-day">{messages.byDay}</button>
+  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
+</div>
+
+{#if mode === 'day'}
+  <DayList entries={app.displayed} month={app.month} onedit={(e) => (editing = e)} />
+{:else}
+<p class="center"><span class="pill info" data-testid="accounts-included">{messages.accountsIncluded(view.accounts.included, view.accounts.total)}</span></p>
 <section class="card">
   <h3>{messages.expenses}</h3>
   <div class="stat"><span>{messages.planned}</span><b>{fmt(view.expenses.planned)}</b></div>
@@ -42,7 +72,7 @@
   <div class="stat muted"><span>{messages.business}</span><span>{fmt(view.expenses.business)}</span></div>
   {#each view.expenses.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('e:' + c.name)} aria-expanded={open === 'e:' + c.name}>
-      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span class="amt">{fmt(c.actual)} / {fmt(c.planned)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} custom={app.categoryCustom(c.name)} />{c.name}</span><span class="amt">{fmt(c.actual)} / {fmt(c.planned)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
       <span class="bar" class:over={over(c)}><i style="width: {pct(c)}%"></i></span>
     </button>
     {#if open === 'e:' + c.name}
@@ -62,7 +92,7 @@
   <div class="stat"><span>{messages.savingsRate}</span><b>{view.savingsRate === null ? messages.noSavingsRate : Math.round(view.savingsRate * 100) + '%'}</b></div>
   {#each view.income.categories.filter(visible) as c (c.name)}
     <button class="cat" onclick={() => toggle('i:' + c.name)} aria-expanded={open === 'i:' + c.name}>
-      <span class="line"><span class="name"><CategoryIcon name={c.name} />{c.name}</span><span class="amt">{fmt(c.actual)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+      <span class="line"><span class="name"><CategoryIcon name={c.name} custom={app.categoryCustom(c.name)} />{c.name}</span><span class="amt">{fmt(c.actual)}<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
     </button>
     {#if open === 'i:' + c.name}
       {#each entriesOf('income', c.name) as e (e.id)}
@@ -72,6 +102,14 @@
   {/each}
 </section>
 
+<section class="card">
+  <p class="muted">{messages.chartHint}</p>
+  <BarChart title={messages.chartBudget} labels={budget.labels} series={budget.series} format={money} />
+  <Donut title={messages.chartShare} labels={share.labels} values={share.values} format={money} />
+</section>
+
 {#if view.approx}<p class="muted">{messages.approx}</p>{/if}
 {#each view.missingRates as c (c)}<Alert>{messages.ratesMissing(c)}</Alert>{/each}
+{/if}
+{/if}
 {#if editing}<EntrySheet {app} entry={editing} onclose={() => (editing = null)} />{/if}

@@ -31,19 +31,23 @@ test('entries added offline are replayed once when the connection returns', asyn
   await addExpense(page, '5', 'Offline one')
   await addExpense(page, '6', 'Offline two')
   await expect(page.getByTestId('status-pill')).toContainText('2 waiting to sync')
+  const pill = (await page.getByTestId('status-pill').boundingBox())!
+  const themeBtn = (await page.getByTestId('theme-menu').boundingBox())!
+  expect(pill.x + pill.width).toBeLessThanOrEqual(themeBtn.x) // the pill sits to the left of the theme icon
   expect(await cell(page, 'Ledger!A5')).toBeNull()
 
   await context.setOffline(false)
   await expect.poll(() => cell(page, 'Ledger!E5')).toBe('Offline one')
   await expect.poll(() => cell(page, 'Ledger!E6')).toBe('Offline two')
   expect(await cell(page, 'Ledger!A7')).toBeNull() // exactly once each
-  await expect(page.getByTestId('status-pill')).not.toContainText('waiting')
+  await expect(page.getByTestId('status-pill')).toHaveCount(0) // nothing pending: no pill
 })
 
 test('an edit of a row that was removed in the sheet shows up under Needs attention', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   await page.getByRole('button', { name: /Groceries/ }).click()
   await page.getByRole('button', { name: /Mercadona/ }).first().click()
 
@@ -59,6 +63,7 @@ test('deleting an entry asks first and can be undone from Activity', async ({ pa
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   await page.getByRole('button', { name: /Bills/ }).click()
   await page.getByRole('button', { name: /Metro/ }).first().click()
   await page.getByTestId('delete').click()
@@ -69,4 +74,11 @@ test('deleting an entry asks first and can be undone from Activity', async ({ pa
   await page.getByTestId('tab-activity').click()
   await page.getByTestId('undo').first().click()
   await expect.poll(() => cell(page, 'Ledger!E4')).toBe('Metro')
+  // Undo and Redo toggle the same row: no new entries pile up in Recent changes.
+  const rows = await page.locator('.stat.recent').count()
+  await expect(page.getByTestId('redo')).toBeVisible()
+  await page.getByTestId('redo').click()
+  await expect.poll(() => cell(page, 'Ledger!A4')).toBeNull()
+  await expect(page.getByTestId('undo').first()).toBeVisible()
+  expect(await page.locator('.stat.recent').count()).toBe(rows)
 })
