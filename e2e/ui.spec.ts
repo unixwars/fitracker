@@ -13,14 +13,14 @@ test('the appearance setting switches between system, light and dark and is reme
   await page.getByTestId('tab-settings').click()
   const html = page.locator('html')
   await expect(html).not.toHaveAttribute('data-theme', /.+/) // follows the system by default
-  await page.getByTestId('theme').selectOption('dark')
+  await page.getByTestId('theme-dark').click()
   await expect(html).toHaveAttribute('data-theme', 'dark')
-  await page.getByTestId('theme').selectOption('light')
+  await page.getByTestId('theme-light').click()
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'light')
   await page.getByTestId('tab-settings').click()
-  await page.getByTestId('theme').selectOption('system')
+  await page.getByTestId('theme-system').click()
   await expect(html).not.toHaveAttribute('data-theme', /.+/)
 })
 
@@ -283,4 +283,20 @@ test('the Month tab is called Overview, and Month and Year stop at the first and
   for (let y = new Date().getFullYear() - 1; y > 2025; y--) await page.getByRole('button', { name: 'Previous year' }).click()
   await expect(page.getByTestId('year-title')).toHaveText('2025')
   await expect(page.getByRole('button', { name: 'Previous year' })).toBeDisabled() // nothing before the oldest entry
+})
+
+test('Settings separates the Appearance control from the read-only facts, and the segmented control reflects the choice', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 })
+  await page.goto('/')
+  await page.getByTestId('tab-settings').click()
+  await expect(page.getByTestId('preferences').getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByTestId('theme-dark').click()
+  await expect(page.getByTestId('theme-dark')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'false')
+  const about = page.getByTestId('about')
+  await expect(about).toContainText('Report issues')
+  await expect(about).toContainText('Schema version')
+  await expect(page.getByTestId('preferences').getByTestId('app-version')).toHaveCount(0) // facts are not inside the controls card
+  for (const id of ['theme-system', 'theme-light', 'theme-dark', 'app-version', 'report-issue']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 })

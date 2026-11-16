@@ -192,5 +192,5 @@ export const messages = {
   version: 'Schema version',
   appVersion: 'App version',
   feedback: 'Feedback',
-  reportIssue: 'Report a bug or request a feature',
+  reportIssue: 'Report issues',
 }

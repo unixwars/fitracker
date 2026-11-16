@@ -204,3 +204,11 @@ input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: 
 .linkpill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
 .monthnav button:disabled { opacity: 0.35; cursor: default; }
 .center { text-align: center; margin: 0 0 12px; }
+
+/* Settings: the read-only facts sit below the controls as a quiet list, not a card of controls. */
+.about { margin: 4px 4px 20px; padding: 0; font-size: 0.88rem; color: var(--muted); }
+.about > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.about > div:last-child { border-bottom: 0; }
+.about dt { margin: 0; }
+.about dd { margin: 0; text-align: right; color: var(--ink); }
+.about a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
