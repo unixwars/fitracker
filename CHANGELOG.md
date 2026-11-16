@@ -7,6 +7,12 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 ## [Unreleased]
 
 
+### Changed
+- First-run screen: "Create from template" and "I already have a sheet" are equal-width with an "or" between them (hover highlights the one you would press), "How it works" and "Trouble linking?" are bold with a chevron, and the GitHub and Releases links are icon pills aligned right.
+
+### Fixed
+- Tapping anything on the first screen (for example "How it works") before a sheet was linked tried a silent Google sign-in, which flashed a window and vanished. It now only happens once a sheet is linked.
+
 ### Added
 - A Year view on the Month screen (accounts ticked In Annual): totals, savings rate and per-category figures, with charts for income vs expenses, spending by category and month, expense proportions, net worth by account and inflows/outflows; the Month screen has budget vs actual and expense proportions charts. Charts are drawn in the app (no chart library) with a table alternative under each.
 - Record an account balance (a snapshot) in Activity; it works offline and Undo removes it.

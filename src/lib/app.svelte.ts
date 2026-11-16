@@ -148,6 +148,7 @@ export class AppState {
    * Returns true when it signed in and synced.
    */
   async trySilent(fromGesture = false, force = false): Promise<boolean> {
+    if (!this.sheetId) return false // nothing to sync yet: a first-run tap (opening How it works) must not flash Google's sign-in window
     if (this.userSignedOut || this.silentBusy || (this.signedIn && !force)) return false
     if (fromGesture && this.gestureTried) return false // refused once this session: stop trying on every tap
     this.silentBusy = true

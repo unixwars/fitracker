@@ -43,6 +43,15 @@ describe('AppState', () => {
     expect(app.status).toBe('ok')
   })
 
+  it('a tap on a first-run screen (no sheet linked) never tries a silent sign-in', async () => {
+    const silentSignIn = vi.fn(async () => true)
+    const { app } = setup({ linked: false, auth: { ...auth, silentSignIn, token: () => null } })
+    await app.init()
+    expect(await app.trySilent(true)).toBe(false)
+    expect(silentSignIn).not.toHaveBeenCalled()
+    expect(app.gestureTried).toBe(false)
+  })
+
   it('an unlinked device is read-only', async () => {
     const { app } = setup({ linked: false })
     await app.init()
