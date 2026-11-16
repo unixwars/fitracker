@@ -31,6 +31,7 @@ test('unticking an account in Accounts removes its entries from the Month totals
   }
   await refresh(page)
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   await expect(page.getByTestId('accounts-included')).toHaveText('3 of 3 accounts included')
   const before = await page.getByTestId('expenses-actual').textContent()
 
@@ -44,6 +45,7 @@ test('a hand-typed row that is not understood shows under Needs attention', asyn
   await page.goto('/')
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached() // the lists have loaded
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   const before = await page.getByTestId('expenses-actual').textContent()
   for (const [col, v] of [['A', 'bad1'], ['B', 'not a date'], ['C', 'expense'], ['D', 5], ['G', 'Bills'], ['H', 'Joint']] as const) {
     await setCell(page, `Ledger!${col}5`, v)
@@ -53,6 +55,7 @@ test('a hand-typed row that is not understood shows under Needs attention', asyn
   await page.getByTestId('tab-activity').click()
   await expect(page.getByTestId('unreadable')).toContainText('row 5')
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   await expect(page.getByTestId('expenses-actual')).toHaveText(before!)
 })
 

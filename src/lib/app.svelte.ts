@@ -3,7 +3,7 @@ import type { Auth } from './auth'
 import { createConfig, type DeviceSettings, type Theme } from './config'
 import { ApiError, AuthExpired, NewerThanApp, UnrecognisedLayout } from './errors'
 import { createKv, type Kv } from './kv'
-import { applyPending, makeOp, makeRepairOp, pendingCount, undo, type Op } from './outbox'
+import { applyPending, makeOp, makeRepairOp, pendingCount, redo, undo, type Op } from './outbox'
 import { createOutboxDb, type OutboxDb } from './outboxDb'
 import { createReplayer } from './replayer'
 import { todayLocal, type Entry } from './rows'
@@ -319,7 +319,13 @@ export class AppState {
   async undoOp(op: Op) {
     if (!this.canWrite) return
     await this.db.update(op.opId, { undone: true })
-    await this.enqueue(undo(op))
+    await this.enqueue({ ...undo(op), undoOf: op.opId })
+  }
+  // Redo re-applies an undone op. Undo and Redo only toggle the original row; the ops they queue stay out of Recent changes.
+  async redoOp(op: Op) {
+    if (!this.canWrite) return
+    await this.db.update(op.opId, { undone: false })
+    await this.enqueue({ ...redo(op), undoOf: op.opId })
   }
   async discard(op: Op) {
     await this.db.remove(op.opId)
