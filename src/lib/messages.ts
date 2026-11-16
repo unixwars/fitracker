@@ -106,6 +106,7 @@ export const messages = {
   noChanges: 'No changes yet',
   undo: 'Undo',
   undone: 'Undone',
+  redo: 'Redo',
   discard: 'Discard',
   readd: 'Add as new row',
   pending: 'Waiting to sync',

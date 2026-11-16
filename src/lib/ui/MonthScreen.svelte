@@ -12,7 +12,7 @@
   let { app }: { app: AppState } = $props()
 
   const view = $derived(monthView({ entries: app.displayed, lists: app.lists, rates: app.rates, month: app.month }))
-  let mode = $state<'category' | 'day'>('category')
+  let mode = $state<'category' | 'day'>('day')
   let open = $state<string | null>(null)
   let editing = $state<Entry | null>(null)
 
@@ -36,8 +36,8 @@
 </div>
 
 <div class="modes" role="group" aria-label={messages.viewBy}>
-  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
   <button class="secondary" aria-pressed={mode === 'day'} onclick={() => (mode = 'day')} data-testid="by-day">{messages.byDay}</button>
+  <button class="secondary" aria-pressed={mode === 'category'} onclick={() => (mode = 'category')} data-testid="by-category">{messages.byCategory}</button>
 </div>
 
 {#if mode === 'day'}

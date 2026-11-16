@@ -131,6 +131,7 @@ test('the cookie help opens by itself after a link attempt that ends without a s
 test('an account toggle in Settings changes the Month count, is stored as metadata and leaves the Accounts cells alone', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   const before = await page.getByTestId('accounts-included').innerText()
   await page.getByTestId('tab-settings').click()
   await page.getByTestId('accounts-fold').locator('summary').click()
@@ -142,6 +143,7 @@ test('an account toggle in Settings changes the Month count, is stored as metada
   expect(await cell(page, 'Accounts!D2')).toBe(sheetCell)
   await expect.poll(() => page.evaluate(() => [...(window as unknown as { __fake: { book(id: string): { metadata: Map<string, string> } } }).__fake.book('fake-sheet').metadata.keys()].filter((k) => k.startsWith('fitracker.account.')).length)).toBe(1)
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
   expect(await page.getByTestId('accounts-included').innerText()).not.toBe(before)
 })
 
@@ -153,6 +155,10 @@ test('Month can be browsed by day and an entry opens for editing', async ({ page
   await page.getByTestId('accounts').selectOption('Joint')
   await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click() // Month opens By day
+  await expect(page.getByTestId('by-day')).toHaveAttribute('aria-pressed', 'true') // By day is the default and the first button
+  expect(await page.locator('.modes button').first().getAttribute('data-testid')).toBe('by-day')
+  await page.getByTestId('by-category').click()
   await expect(page.getByTestId('accounts-included')).toBeVisible()
   await page.getByTestId('by-day').click()
   await expect(page.getByTestId('accounts-included')).toHaveCount(0)
