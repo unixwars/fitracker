@@ -5,7 +5,7 @@ Rare situations the app accepts; each can be fixed by a person in the sheet.
 - Two people saving in the same second normally get different rows; the read-back after each write confirms the row, and anything rarer shows under Needs attention.
 - Editing the same entry on two devices: the later sync wins; the overwritten values are kept for Undo on the device that overwrote them.
 - A row the app cannot parse (text date, amount that is not a positive number, unknown type or account) is listed under Needs attention as "row not understood" and ignored until fixed. Every `Ledger` row of that kind can be fixed or deleted in the app: a row with an id is found by its id; a row without a usable id (none, or one that occurs twice) is found by its row number, re-read right before the write and refused if it no longer holds exactly what was shown (a sort or an edit in between), and a fixed row gets a new id. Each row also has an **Open in Sheets** link that selects it. Snapshots rows are link-only for now.
-- New `Accounts` rows start unticked and inactive until the boxes are ticked.
+- New `Accounts` rows typed by hand start unticked and inactive until the boxes are ticked (an account added in Settings is written active and ticked).
 - The month-roll freezes the closed month at the live rate read when the app first opens in the new month, not the month's average.
 - Two devices that roll the same month at the same moment may both write the same `Rates` row; the values are identical in practice.
 - A changed account currency flags queued entries for that account as `AccountChanged`.
