@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import Alert from './Alert.svelte'
   import CategoryIcon from './CategoryIcon.svelte'
+  import AddItemForm from './AddItemForm.svelte'
   import IconPicker from './IconPicker.svelte'
   import InstallHelp from './InstallHelp.svelte'
   import type { AppState } from '../app.svelte'
@@ -13,6 +15,7 @@
   let { app }: { app: AppState } = $props()
   let confirmingUnlink = $state(false)
   const linked = $derived(Boolean(app.sheetId))
+  onDestroy(() => { app.lastAdded = null }) // the session-only Undo ends when Settings is left
   const sheetAccount = (name: string) => app.sheetLists.accounts.find((a) => a.name === name)
   const differs = (a: { name: string; inMonthly: boolean; inAnnual: boolean }) => {
     const s = sheetAccount(a.name)
@@ -58,7 +61,7 @@
 {/if}
 {#if app.message}<Alert>{app.message}</Alert>{/if}
 
-{#if linked && app.lists.accounts.length}
+{#if linked}
   <section class="card" data-testid="shared-settings">
   <details class="fold" data-testid="accounts-fold">
     <summary><span>{messages.settingsAccounts}{#if app.lists.accounts.some(differs)} <small class="muted">· {messages.differsFromSheet}</small>{/if}</span></summary>
@@ -73,6 +76,7 @@
         </span>
       </div>
     {/each}
+    <AddItemForm {app} kind="account" />
   </details>
   </section>
   <section class="card">
@@ -81,6 +85,7 @@
     {#each categoryNames as n (n)}
       <div class="stat"><span><IconPicker id={'category:' + n} label={n} current={app.categoryCustom(n) ?? ''} onpick={(e) => app.setIcon('category', n, e)}>{#snippet glyph()}<CategoryIcon name={n} custom={app.categoryCustom(n)} />{/snippet}</IconPicker> {n}</span></div>
     {/each}
+    <AddItemForm {app} kind="category" />
   </details>
   </section>
 {/if}
