@@ -6,6 +6,9 @@ All notable changes are documented here. The format is based on [Keep a Changelo
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] - 2026-11-16
 
 ### Changed
 - The Month tab is now called Overview, since it covers months and years. The previous and next arrows (month and year) stop at the oldest and newest months that can have records: the present, unless the ledger has entries before or after it. In Settings the version number links to the release notes, and a new "Report issues" entry opens a GitHub issue with the app version prefilled. Appearance is now an icon menu (System, Light, Dark) fixed at the top right of every screen, with the sync pill to its left; the read-only facts in Settings (sync, app version, feedback, schema version) are their own tile. "N of M accounts included" is a small centered info pill.
@@ -88,6 +91,7 @@ First release.
 ### Notes
 - The budget template is `assets/FIRE-TEMPLATE.xlsx`; see `docs/deploy-your-own.md` to run your own copy.
 
+[0.3.0]: https://github.com/unixwars/fitracker/releases/tag/v0.3.0
 [0.2.1]: https://github.com/unixwars/fitracker/releases/tag/v0.2.1
 [0.2.0]: https://github.com/unixwars/fitracker/releases/tag/v0.2.0
 [0.1.0]: https://github.com/unixwars/fitracker/releases/tag/v0.1.0
