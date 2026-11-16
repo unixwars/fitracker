@@ -260,3 +260,18 @@ test('the status pill is hidden when nothing is pending', async ({ page }) => {
   await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
   await expect(page.getByTestId('status-pill')).toHaveCount(0)
 })
+
+test('the Month tab is called Overview, and Month and Year stop at the present when nothing is later', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('tab-month')).toContainText('Overview')
+  await page.getByTestId('tab-month').click()
+  await page.getByTestId('by-category').click()
+  await expect(page.getByTestId('accounts-included')).toHaveClass(/pill/) // a small info pill
+  await expect(page.getByRole('button', { name: 'Next month' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Previous month' }).click()
+  await expect(page.getByRole('button', { name: 'Next month' })).toBeEnabled()
+  await page.getByTestId('scope-year').click()
+  await expect(page.getByRole('button', { name: 'Next year' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByRole('button', { name: 'Next year' })).toBeEnabled()
+})

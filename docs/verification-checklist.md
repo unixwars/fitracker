@@ -59,6 +59,7 @@ Superseded: the template is a Google Sheet (see `docs/template.md`) with its own
 33. Month, **By day**: on a phone, open an entry from the day list, edit it, then Undo from Activity; add a transfer and find it in the list. *Pass:* edit, delete and undo behave as from **By category**.
 34. Open Month, switch to **Year** for the year of your real book. *Pass:* income, expenses and savings rate equal the sheet's `Annual Summary` for the same year (accounts ticked `In Annual`); the Net worth chart's table matches the sheet's `Balances` month-end matrix (within a cent).
 35. Activity, **Record a balance**: save one with the phone offline. *Pass:* it appears under Pending, the Year net worth shows it at once, and after reconnecting a row `id, date, account, balance, note` is in `Snapshots`. **Undo** removes the row.
+36. Overview tab: the dock label reads **Overview**. In both Month and Year, the next arrow is greyed out at the present (current month, current year); it works again after going back once. Add an entry dated next month: the next arrow then reaches that month. *Pass:* all three. The accounts line is a small centered info pill in both views.
 
 ## Could be automated if you give me credentials
 

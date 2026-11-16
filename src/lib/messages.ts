@@ -1,7 +1,7 @@
 // All user-facing text lives here.
 export const messages = {
   appName: 'fitracker',
-  tabs: { add: 'Add', month: 'Month', activity: 'Activity', settings: 'Settings' },
+  tabs: { add: 'Add', month: 'Overview', activity: 'Activity', settings: 'Settings' },
   kinds: { expense: 'Expense', income: 'Income', transfer: 'Transfer' },
   offline: 'Offline: changes are saved and will sync',
   reconnectBanner: 'Signed out. Tap to reconnect and sync your changes.',

@@ -202,3 +202,5 @@ input[type=checkbox] { width: 24px; min-height: 24px; flex: none; accent-color: 
 .card > details.fold { margin-top: 0; }
 .linkpill.compact { position: relative; min-height: 28px; padding: 0 10px; gap: 5px; font-size: 0.78rem; color: var(--muted); }
 .linkpill.compact::after { content: ''; position: absolute; inset: -8px -4px; } /* keeps a comfortable tap area */
+.monthnav button:disabled { opacity: 0.35; cursor: default; }
+.center { text-align: center; margin: 0 0 12px; }

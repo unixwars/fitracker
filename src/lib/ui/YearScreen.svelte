@@ -10,9 +10,11 @@
   import AreaChart from './charts/AreaChart.svelte'
   import BarChart from './charts/BarChart.svelte'
   import Donut from './charts/Donut.svelte'
+  import { canGoNext, latestMonth } from '../navLimit'
   import { fmt, shiftMonth } from './format'
 
   let { app }: { app: AppState } = $props()
+  const latest = $derived(latestMonth(app.displayed, todayLocal()))
   const year = $derived(Number(app.month.slice(0, 4)))
   const view = $derived(annualView({ entries: app.displayed, lists: app.lists, rates: app.rates, year }))
   const balances = $derived(balancesView({ entries: app.displayed, snapshots: app.displayedSnapshots, lists: app.lists, rates: app.rates, year, today: todayLocal() }))
@@ -30,9 +32,9 @@
 <div class="monthnav">
   <button aria-label={messages.prevYear} onclick={() => (app.month = shiftMonth(app.month, -12))}>‹</button>
   <h2 data-testid="year-title">{year}</h2>
-  <button aria-label={messages.nextYear} onclick={() => (app.month = shiftMonth(app.month, 12))}>›</button>
+  <button aria-label={messages.nextYear} disabled={!canGoNext(app.month, 12, latest)} onclick={() => (app.month = shiftMonth(app.month, 12))}>›</button>
 </div>
-<p class="muted" data-testid="accounts-included">{messages.accountsIncludedYear(view.accounts.included, view.accounts.total)}</p>
+<p class="center"><span class="pill info" data-testid="accounts-included">{messages.accountsIncludedYear(view.accounts.included, view.accounts.total)}</span></p>
 
 <section class="card" data-testid="year-totals">
   <div class="stat"><span>{messages.income}</span><b>{m(view.totals.income)}</b></div>
