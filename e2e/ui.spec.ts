@@ -85,12 +85,13 @@ test('Settings shows the app version and the commit it was built from', async ({
   await expect(page.getByTestId('app-version')).toHaveText(/^\d+\.\d+\.\d+ \([0-9a-f]{7}\)$/)
 })
 
-test('Settings links to the project releases page', async ({ page }) => {
+test('the Settings version links to the releases page and there is a way to report a bug or request a feature', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('tab-settings').click()
-  const link = page.getByTestId('releases-link')
-  await expect(link).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
-  await expect(link).toHaveAttribute('rel', /noopener/)
+  await expect(page.getByTestId('app-version')).toHaveAttribute('href', 'https://github.com/unixwars/fitracker/releases')
+  const report = page.getByTestId('report-issue')
+  await expect(report).toHaveAttribute('href', /^https:\/\/github\.com\/unixwars\/fitracker\/issues\/new\?body=App%20version/)
+  await expect(report).toHaveAttribute('target', '_blank')
 })
 
 test('a first-time visitor (signed out, no sheet) sees what the app is and the first button without scrolling', async ({ page }) => {
@@ -151,8 +152,6 @@ test('Month has a Year view with totals and charts, and Month shows its charts',
   await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear()))
   await expect(page.getByTestId('year-totals')).toBeVisible()
   expect(await page.getByTestId('chart').count()).toBe(5)
-  await page.getByRole('button', { name: 'Previous year' }).click()
-  await expect(page.getByTestId('year-title')).toHaveText(String(new Date().getFullYear() - 1))
 })
 
 test('the Year view warns about accounts with no balance and the button opens the balance form', async ({ page }) => {
@@ -261,9 +260,15 @@ test('the status pill is hidden when nothing is pending', async ({ page }) => {
   await expect(page.getByTestId('status-pill')).toHaveCount(0)
 })
 
-test('the Month tab is called Overview, and Month and Year stop at the present when nothing is later', async ({ page }) => {
+test('the Month tab is called Overview, and Month and Year stop at the first and last months that can have records', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('tab-month')).toContainText('Overview')
+  await expect(page.getByTestId('categories').locator('option', { hasText: 'Bills' })).toBeAttached()
+  await page.getByTestId('amount').fill('5')
+  await page.getByTestId('categories').selectOption('Bills')
+  await page.getByTestId('accounts').selectOption('Joint')
+  await page.locator('input[type=date]').fill('2025-03-10') // an older entry opens the past; nothing opens the future
+  await page.getByTestId('save').click()
   await page.getByTestId('tab-month').click()
   await page.getByTestId('by-category').click()
   await expect(page.getByTestId('accounts-included')).toHaveClass(/pill/) // a small info pill
@@ -272,6 +277,10 @@ test('the Month tab is called Overview, and Month and Year stop at the present w
   await expect(page.getByRole('button', { name: 'Next month' })).toBeEnabled()
   await page.getByTestId('scope-year').click()
   await expect(page.getByRole('button', { name: 'Next year' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Previous year' })).toBeEnabled()
   await page.getByRole('button', { name: 'Previous year' }).click()
   await expect(page.getByRole('button', { name: 'Next year' })).toBeEnabled()
+  for (let y = new Date().getFullYear() - 1; y > 2025; y--) await page.getByRole('button', { name: 'Previous year' }).click()
+  await expect(page.getByTestId('year-title')).toHaveText('2025')
+  await expect(page.getByRole('button', { name: 'Previous year' })).toBeDisabled() // nothing before the oldest entry
 })
